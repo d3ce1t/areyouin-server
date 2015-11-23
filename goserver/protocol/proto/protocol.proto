@@ -1,0 +1,224 @@
+syntax = "proto3";
+
+package protocol;
+
+option java_package = "es.peeple.areyouin.protocol";
+
+import "core.proto";
+
+// LIST AUTHORED EVENTS
+// LIST PRIVATE EVENTS
+// LIST PUBLIC EVENTS
+// HISTORY AUTHORED EVENTS
+// HISTORY PRIVATE EVENTS
+// HISTORY PUBLIC EVENTS
+message ListCursor {
+  uint32 cursor = 1;
+}
+
+message ListPublicEvents {
+  Location user_coordinates = 1;
+  uint32 range_in_meters = 2;
+  ListCursor cursor = 3;
+}
+
+// CREATE EVENT
+message CreateEvent {
+  string message = 1;
+  EventDate date = 2;
+  repeated uint64 participants = 3;
+}
+
+// CANCEL EVENT
+message CancelEvent {
+  uint64 event_id = 1;
+  string reason = 2;
+}
+
+// INVITE USERS
+message InviteUsers {
+  uint64 event_id = 1;
+  repeated uint64 participants = 2;
+}
+
+// CANCEL USER INVITATION
+message CancelUserInvitation {
+  uint64 event_id = 1;
+  repeated uint64 participants = 2;
+}
+
+// CONFIRM ATTENDANCE
+message ConfirmAttendance {
+  uint64 event_id = 1;
+  AttendanceResponse action_code = 2;
+}
+
+// MODIFY EVENT DATE
+// MODIFY EVENT MESSAGE
+// MODIFY EVENT
+message ModifyEvent {
+  uint64 event_id = 1;
+  string message = 2;
+  EventDate date = 3;
+}
+
+// VOTE CHANGE
+message VoteChange {
+  uint64 event_id = 1;
+  uint32 change_id = 2;
+  bool accept_change = 3;
+}
+
+// READ EVENT
+message ReadEvent {
+  uint64 event_id = 1;
+}
+
+// USER POSITION
+message UserPosition {
+  Location global_coordinates = 1;
+  float estimation_error = 2;
+}
+
+// USER POSITION RANGE
+message UserPositionRange {
+  float range_in_meters = 1;
+}
+
+// PING
+message Ping {
+  int64 current_time = 1;
+}
+
+// CREATE USER ACCOUNT
+message CreateUserAccount {
+  string name = 1;
+  string email = 2;
+  string password = 3;
+  string phone = 4;
+  string fbid = 5;   // Facebook User ID (unique for my app)
+  string fbtoken = 6; // Facebook User Access Token (unique)
+}
+
+// NEW AUTH TOKEN
+enum AuthType {
+  A_NATIVE = 0;
+  A_FACEBOOK = 1;
+}
+
+message NewAuthToken {
+  string pass1 = 1; // E-mail or Facebook User ID
+  string pass2 = 2; // Password or Facebook User Access Token
+  AuthType type = 3;
+}
+
+// USER AUTH
+message UserAuthentication {
+  string user_id = 1;
+  string auth_token = 2;
+}
+
+// EVENT CREATED
+message EventCreated {
+  uint64 event_id = 1;
+}
+
+// EVENT CANCELLED
+message EventCancelled {
+  uint64 event_id = 1;
+  string reason = 2;
+}
+
+// EVENT EXPIRED
+message EventExpired {
+  uint64 event_id = 1;
+}
+
+// EVENT MODIFIED
+message EventModified {
+  uint64 event_id = 1;
+  EventDate date = 2;
+  string message = 3;
+}
+
+// INVITATION RECEIVED
+message InvitationReceived {
+  Event event = 1;
+}
+
+// INVITATION CANCELLED
+message InvitationCancelled {
+  uint64 event_id = 1;
+}
+
+// ATTENDANCE STATUS
+message AttendanceStatus {
+  uint64 event_id = 1;
+  repeated EventParticipant attendance_status = 2;
+}
+
+// EVENT CHANGE PROPOSED
+message EventChangeProposed {
+  uint64 event_id = 1;
+  uint32 change_id = 2;
+  EventDate date = 3;
+  string message = 4;
+}
+
+// VOTING STATUS
+message VotingStatus {
+  uint64 event_id = 1;
+  uint32 change_id = 2;
+  int64 start_date = 3;
+  int64 end_date = 4;
+  int64 elapsed_time = 5;
+  uint32 votes_received = 6;
+  uint32 votes_total = 7;
+  bool finished = 8; // 0) Ongoing voting, 1) finished voting
+}
+
+// CHANGE ACCEPTED
+message ChangeAccepted {
+  uint64 event_id = 1;
+  uint32 change_id = 2;
+}
+
+// CHANGE DISCARDED
+message ChangeDiscarded {
+  uint64 event_id = 1;
+  uint32 change_id = 2;
+}
+
+// ACCESS GRANTED
+message AccessGranted {
+  string user_id = 1;
+  string auth_token = 2;
+}
+
+// EVENT INFO
+message EventInfo {
+  Event event = 1;
+  repeated EventParticipant attendance_status = 2;
+}
+
+// EVENTS LIST
+message EventsList {
+  repeated Event event = 1;
+  // Optionally add cursor field
+}
+
+// ERROR
+message Error {
+  int32 type = 1;
+  int32 error = 2;
+}
+
+// OK
+message Ok {
+  int32 type = 1;
+}
+
+// PONG
+message Pong {
+  int64 current_time = 1;
+}

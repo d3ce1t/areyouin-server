@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package protocol;
+
+option java_package = "es.peeple.areyouin.protocol";
+
+enum EventType {
+  PRIVATE_EVENT = 0;
+  PUBLIC_EVENT = 1;
+}
+
+enum AttendanceResponse {
+  NO_RESPONSE = 0;
+  ASSIST = 1;
+  CANNOT_ASSIST = 2;
+  NO_ASSIST = 3;
+}
+
+enum MessageStatus {
+  NO_DELIVERED = 0;
+  SERVER_DELIVERED = 1;
+  CLIENT_DELIVERED = 2;
+}
+
+message Event {
+  uint64 event_id = 1;
+  uint64 author_id = 2;
+  string author_name = 3;
+  int64 creation_date = 4;
+  EventDate date = 5;
+  string message = 6;
+  EventType type = 7;
+  Location geolocation = 8;
+  uint32 number_participants = 9;
+}
+
+message Location {
+  float latitude = 1;
+  float longitude = 2;
+}
+
+message EventDate {
+  int64 start_date = 1;
+  int64 end_date = 2;
+}
+
+message EventParticipant {
+  uint64 user_id = 1;
+  string name = 2;
+  AttendanceResponse response = 3;
+  MessageStatus delivered = 4;
+}
