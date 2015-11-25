@@ -34,44 +34,6 @@ func (x AuthType) String() string {
 	return proto.EnumName(AuthType_name, int32(x))
 }
 
-// LIST AUTHORED EVENTS
-// LIST PRIVATE EVENTS
-// LIST PUBLIC EVENTS
-// HISTORY AUTHORED EVENTS
-// HISTORY PRIVATE EVENTS
-// HISTORY PUBLIC EVENTS
-type ListCursor struct {
-	Cursor uint32 `protobuf:"varint,1,opt,name=cursor" json:"cursor,omitempty"`
-}
-
-func (m *ListCursor) Reset()         { *m = ListCursor{} }
-func (m *ListCursor) String() string { return proto.CompactTextString(m) }
-func (*ListCursor) ProtoMessage()    {}
-
-type ListPublicEvents struct {
-	UserCoordinates *Location   `protobuf:"bytes,1,opt,name=user_coordinates" json:"user_coordinates,omitempty"`
-	RangeInMeters   uint32      `protobuf:"varint,2,opt,name=range_in_meters" json:"range_in_meters,omitempty"`
-	Cursor          *ListCursor `protobuf:"bytes,3,opt,name=cursor" json:"cursor,omitempty"`
-}
-
-func (m *ListPublicEvents) Reset()         { *m = ListPublicEvents{} }
-func (m *ListPublicEvents) String() string { return proto.CompactTextString(m) }
-func (*ListPublicEvents) ProtoMessage()    {}
-
-func (m *ListPublicEvents) GetUserCoordinates() *Location {
-	if m != nil {
-		return m.UserCoordinates
-	}
-	return nil
-}
-
-func (m *ListPublicEvents) GetCursor() *ListCursor {
-	if m != nil {
-		return m.Cursor
-	}
-	return nil
-}
-
 // CREATE EVENT
 type CreateEvent struct {
 	Message      string     `protobuf:"bytes,1,opt,name=message" json:"message,omitempty"`
@@ -110,15 +72,15 @@ func (m *InviteUsers) Reset()         { *m = InviteUsers{} }
 func (m *InviteUsers) String() string { return proto.CompactTextString(m) }
 func (*InviteUsers) ProtoMessage()    {}
 
-// CANCEL USER INVITATION
-type CancelUserInvitation struct {
+// CANCEL USERS INVITATION
+type CancelUsersInvitation struct {
 	EventId      uint64   `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
 	Participants []uint64 `protobuf:"varint,2,rep,name=participants" json:"participants,omitempty"`
 }
 
-func (m *CancelUserInvitation) Reset()         { *m = CancelUserInvitation{} }
-func (m *CancelUserInvitation) String() string { return proto.CompactTextString(m) }
-func (*CancelUserInvitation) ProtoMessage()    {}
+func (m *CancelUsersInvitation) Reset()         { *m = CancelUsersInvitation{} }
+func (m *CancelUsersInvitation) String() string { return proto.CompactTextString(m) }
+func (*CancelUsersInvitation) ProtoMessage()    {}
 
 // CONFIRM ATTENDANCE
 type ConfirmAttendance struct {
@@ -161,15 +123,6 @@ func (m *VoteChange) Reset()         { *m = VoteChange{} }
 func (m *VoteChange) String() string { return proto.CompactTextString(m) }
 func (*VoteChange) ProtoMessage()    {}
 
-// READ EVENT
-type ReadEvent struct {
-	EventId uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-}
-
-func (m *ReadEvent) Reset()         { *m = ReadEvent{} }
-func (m *ReadEvent) String() string { return proto.CompactTextString(m) }
-func (*ReadEvent) ProtoMessage()    {}
-
 // USER POSITION
 type UserPosition struct {
 	GlobalCoordinates *Location `protobuf:"bytes,1,opt,name=global_coordinates" json:"global_coordinates,omitempty"`
@@ -195,15 +148,6 @@ type UserPositionRange struct {
 func (m *UserPositionRange) Reset()         { *m = UserPositionRange{} }
 func (m *UserPositionRange) String() string { return proto.CompactTextString(m) }
 func (*UserPositionRange) ProtoMessage()    {}
-
-// PING
-type Ping struct {
-	CurrentTime int64 `protobuf:"varint,1,opt,name=current_time" json:"current_time,omitempty"`
-}
-
-func (m *Ping) Reset()         { *m = Ping{} }
-func (m *Ping) String() string { return proto.CompactTextString(m) }
-func (*Ping) ProtoMessage()    {}
 
 // CREATE USER ACCOUNT
 type CreateUserAccount struct {
@@ -267,6 +211,8 @@ func (m *EventExpired) Reset()         { *m = EventExpired{} }
 func (m *EventExpired) String() string { return proto.CompactTextString(m) }
 func (*EventExpired) ProtoMessage()    {}
 
+// EVENT DATE MODIFIED
+// EVENT MESSAGE MODIFIED
 // EVENT MODIFIED
 type EventModified struct {
 	EventId uint64     `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
@@ -327,6 +273,8 @@ func (m *AttendanceStatus) GetAttendanceStatus() []*EventParticipant {
 	return nil
 }
 
+// EVENT CHANGE DATE PROPOSED
+// EVENT CHANGE MESSAGE PROPOSED
 // EVENT CHANGE PROPOSED
 type EventChangeProposed struct {
 	EventId  uint64     `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
@@ -347,6 +295,7 @@ func (m *EventChangeProposed) GetDate() *EventDate {
 }
 
 // VOTING STATUS
+// VOTING FINISHED
 type VotingStatus struct {
 	EventId       uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
 	ChangeId      uint32 `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
@@ -392,6 +341,90 @@ func (m *AccessGranted) Reset()         { *m = AccessGranted{} }
 func (m *AccessGranted) String() string { return proto.CompactTextString(m) }
 func (*AccessGranted) ProtoMessage()    {}
 
+// OK
+type Ok struct {
+	Type int32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
+}
+
+func (m *Ok) Reset()         { *m = Ok{} }
+func (m *Ok) String() string { return proto.CompactTextString(m) }
+func (*Ok) ProtoMessage()    {}
+
+// ERROR
+type Error struct {
+	Type  int32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
+	Error int32 `protobuf:"varint,2,opt,name=error" json:"error,omitempty"`
+}
+
+func (m *Error) Reset()         { *m = Error{} }
+func (m *Error) String() string { return proto.CompactTextString(m) }
+func (*Error) ProtoMessage()    {}
+
+// PING
+type Ping struct {
+	CurrentTime int64 `protobuf:"varint,1,opt,name=current_time" json:"current_time,omitempty"`
+}
+
+func (m *Ping) Reset()         { *m = Ping{} }
+func (m *Ping) String() string { return proto.CompactTextString(m) }
+func (*Ping) ProtoMessage()    {}
+
+// READ EVENT
+type ReadEvent struct {
+	EventId uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+}
+
+func (m *ReadEvent) Reset()         { *m = ReadEvent{} }
+func (m *ReadEvent) String() string { return proto.CompactTextString(m) }
+func (*ReadEvent) ProtoMessage()    {}
+
+// LIST AUTHORED EVENTS
+// LIST PRIVATE EVENTS
+// LIST PUBLIC EVENTS
+// HISTORY AUTHORED EVENTS
+// HISTORY PRIVATE EVENTS
+// HISTORY PUBLIC EVENTS
+type ListCursor struct {
+	Cursor uint32 `protobuf:"varint,1,opt,name=cursor" json:"cursor,omitempty"`
+}
+
+func (m *ListCursor) Reset()         { *m = ListCursor{} }
+func (m *ListCursor) String() string { return proto.CompactTextString(m) }
+func (*ListCursor) ProtoMessage()    {}
+
+type ListPublicEvents struct {
+	UserCoordinates *Location   `protobuf:"bytes,1,opt,name=user_coordinates" json:"user_coordinates,omitempty"`
+	RangeInMeters   uint32      `protobuf:"varint,2,opt,name=range_in_meters" json:"range_in_meters,omitempty"`
+	Cursor          *ListCursor `protobuf:"bytes,3,opt,name=cursor" json:"cursor,omitempty"`
+}
+
+func (m *ListPublicEvents) Reset()         { *m = ListPublicEvents{} }
+func (m *ListPublicEvents) String() string { return proto.CompactTextString(m) }
+func (*ListPublicEvents) ProtoMessage()    {}
+
+func (m *ListPublicEvents) GetUserCoordinates() *Location {
+	if m != nil {
+		return m.UserCoordinates
+	}
+	return nil
+}
+
+func (m *ListPublicEvents) GetCursor() *ListCursor {
+	if m != nil {
+		return m.Cursor
+	}
+	return nil
+}
+
+// PONG
+type Pong struct {
+	CurrentTime int64 `protobuf:"varint,1,opt,name=current_time" json:"current_time,omitempty"`
+}
+
+func (m *Pong) Reset()         { *m = Pong{} }
+func (m *Pong) String() string { return proto.CompactTextString(m) }
+func (*Pong) ProtoMessage()    {}
+
 // EVENT INFO
 type EventInfo struct {
 	Event            *Event              `protobuf:"bytes,1,opt,name=event" json:"event,omitempty"`
@@ -432,48 +465,32 @@ func (m *EventsList) GetEvent() []*Event {
 	return nil
 }
 
-// ERROR
-type Error struct {
-	Type  int32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
-	Error int32 `protobuf:"varint,2,opt,name=error" json:"error,omitempty"`
+// FRIENDS LIST
+type FriendsList struct {
+	Friends []*Friend `protobuf:"bytes,1,rep,name=friends" json:"friends,omitempty"`
 }
 
-func (m *Error) Reset()         { *m = Error{} }
-func (m *Error) String() string { return proto.CompactTextString(m) }
-func (*Error) ProtoMessage()    {}
+func (m *FriendsList) Reset()         { *m = FriendsList{} }
+func (m *FriendsList) String() string { return proto.CompactTextString(m) }
+func (*FriendsList) ProtoMessage()    {}
 
-// OK
-type Ok struct {
-	Type int32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
+func (m *FriendsList) GetFriends() []*Friend {
+	if m != nil {
+		return m.Friends
+	}
+	return nil
 }
-
-func (m *Ok) Reset()         { *m = Ok{} }
-func (m *Ok) String() string { return proto.CompactTextString(m) }
-func (*Ok) ProtoMessage()    {}
-
-// PONG
-type Pong struct {
-	CurrentTime int64 `protobuf:"varint,1,opt,name=current_time" json:"current_time,omitempty"`
-}
-
-func (m *Pong) Reset()         { *m = Pong{} }
-func (m *Pong) String() string { return proto.CompactTextString(m) }
-func (*Pong) ProtoMessage()    {}
 
 func init() {
-	proto.RegisterType((*ListCursor)(nil), "protocol.ListCursor")
-	proto.RegisterType((*ListPublicEvents)(nil), "protocol.ListPublicEvents")
 	proto.RegisterType((*CreateEvent)(nil), "protocol.CreateEvent")
 	proto.RegisterType((*CancelEvent)(nil), "protocol.CancelEvent")
 	proto.RegisterType((*InviteUsers)(nil), "protocol.InviteUsers")
-	proto.RegisterType((*CancelUserInvitation)(nil), "protocol.CancelUserInvitation")
+	proto.RegisterType((*CancelUsersInvitation)(nil), "protocol.CancelUsersInvitation")
 	proto.RegisterType((*ConfirmAttendance)(nil), "protocol.ConfirmAttendance")
 	proto.RegisterType((*ModifyEvent)(nil), "protocol.ModifyEvent")
 	proto.RegisterType((*VoteChange)(nil), "protocol.VoteChange")
-	proto.RegisterType((*ReadEvent)(nil), "protocol.ReadEvent")
 	proto.RegisterType((*UserPosition)(nil), "protocol.UserPosition")
 	proto.RegisterType((*UserPositionRange)(nil), "protocol.UserPositionRange")
-	proto.RegisterType((*Ping)(nil), "protocol.Ping")
 	proto.RegisterType((*CreateUserAccount)(nil), "protocol.CreateUserAccount")
 	proto.RegisterType((*NewAuthToken)(nil), "protocol.NewAuthToken")
 	proto.RegisterType((*UserAuthentication)(nil), "protocol.UserAuthentication")
@@ -489,10 +506,15 @@ func init() {
 	proto.RegisterType((*ChangeAccepted)(nil), "protocol.ChangeAccepted")
 	proto.RegisterType((*ChangeDiscarded)(nil), "protocol.ChangeDiscarded")
 	proto.RegisterType((*AccessGranted)(nil), "protocol.AccessGranted")
+	proto.RegisterType((*Ok)(nil), "protocol.Ok")
+	proto.RegisterType((*Error)(nil), "protocol.Error")
+	proto.RegisterType((*Ping)(nil), "protocol.Ping")
+	proto.RegisterType((*ReadEvent)(nil), "protocol.ReadEvent")
+	proto.RegisterType((*ListCursor)(nil), "protocol.ListCursor")
+	proto.RegisterType((*ListPublicEvents)(nil), "protocol.ListPublicEvents")
+	proto.RegisterType((*Pong)(nil), "protocol.Pong")
 	proto.RegisterType((*EventInfo)(nil), "protocol.EventInfo")
 	proto.RegisterType((*EventsList)(nil), "protocol.EventsList")
-	proto.RegisterType((*Error)(nil), "protocol.Error")
-	proto.RegisterType((*Ok)(nil), "protocol.Ok")
-	proto.RegisterType((*Pong)(nil), "protocol.Pong")
+	proto.RegisterType((*FriendsList)(nil), "protocol.FriendsList")
 	proto.RegisterEnum("protocol.AuthType", AuthType_name, AuthType_value)
 }

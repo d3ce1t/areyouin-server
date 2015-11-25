@@ -12,14 +12,20 @@ type UsersDatabase struct {
 }
 
 // Checks if an email exists
-func (udb *UsersDatabase) Exist(email string) bool {
+func (udb *UsersDatabase) ExistEmail(email string) bool {
 	_, ok := udb.allusers[email]
 	return ok
 }
 
-// Checks if an fbod exists
+// Checks if an fbid exists
 func (udb *UsersDatabase) ExistFB(fbid string) bool {
 	_, ok := udb.facebook[fbid]
+	return ok
+}
+
+// Checks if an User ID exists
+func (udb *UsersDatabase) ExistID(id string) bool {
+	_, ok := udb.idIndex[id]
 	return ok
 }
 
@@ -60,7 +66,7 @@ func (udb *UsersDatabase) GetByFBUID(fbid string) (uac *UserAccount, ok bool) {
 // Insert a new user into the database
 func (udb *UsersDatabase) Insert(account *UserAccount) bool {
 
-	if udb.Exist(account.email) {
+	if udb.ExistEmail(account.email) {
 		return false
 	}
 
@@ -76,6 +82,7 @@ func (udb *UsersDatabase) Insert(account *UserAccount) bool {
 
 	udb.allusers[account.email] = account
 	udb.idIndex[account.id.String()] = account
+	account.udb = udb
 
 	return true
 }
@@ -83,7 +90,7 @@ func (udb *UsersDatabase) Insert(account *UserAccount) bool {
 // Removes an user from the database
 func (udb *UsersDatabase) Remove(email string) {
 
-	if udb.Exist(email) {
+	if udb.ExistEmail(email) {
 		account := udb.allusers[email]
 		delete(udb.allusers, email)
 		delete(udb.idIndex, account.id.String())

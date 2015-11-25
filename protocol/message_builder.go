@@ -31,7 +31,7 @@ func (mb *MessageBuilder) InviteUsers(event_id uint64, participants []uint64) *A
 
 func (mb *MessageBuilder) CancelUsersInvitation(event_id uint64, participants []uint64) *AyiPacket {
 	mb.message.Header.Type = M_CANCEL_USERS_INVITATION
-	mb.message.SetMessage(&CancelUserInvitation{EventId: event_id, Participants: participants})
+	mb.message.SetMessage(&CancelUsersInvitation{EventId: event_id, Participants: participants})
 	return mb.message
 }
 
@@ -270,6 +270,11 @@ func (mb *MessageBuilder) HistoryPublicEvents(cursor uint32) *AyiPacket {
 	return mb.message
 }
 
+func (mb *MessageBuilder) UserFriends() *AyiPacket {
+	mb.message.Header.Type = M_USER_FRIENDS
+	return mb.message
+}
+
 // Responses
 func (mb *MessageBuilder) Pong() *AyiPacket {
 	mb.message.Header.Type = M_PONG
@@ -286,5 +291,11 @@ func (mb *MessageBuilder) EventInfo(event *Event, status []*EventParticipant) *A
 func (mb *MessageBuilder) EventsList(events_list []*Event) *AyiPacket {
 	mb.message.Header.Type = M_EVENTS_LIST
 	mb.message.SetMessage(&EventsList{Event: events_list})
+	return mb.message
+}
+
+func (mb *MessageBuilder) FriendsList(friends_list []*Friend) *AyiPacket {
+	mb.message.Header.Type = M_FRIENDS_LIST
+	mb.message.SetMessage(&FriendsList{Friends: friends_list})
 	return mb.message
 }

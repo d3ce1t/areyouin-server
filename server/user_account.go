@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/twinj/uuid"
+	"log"
 )
 
 type UserAccount struct {
@@ -16,6 +17,8 @@ type UserAccount struct {
 	fbid            string // Facebook ID
 	fbtoken         string // Facebook User Access token
 	last_connection int64
+	friends         map[string]*UserAccount
+	udb             *UsersDatabase // Database the user belongs to
 }
 
 func (ua *UserAccount) IsFacebook() bool {
@@ -23,6 +26,25 @@ func (ua *UserAccount) IsFacebook() bool {
 	if ua.fbid != "" && ua.fbtoken != "" {
 		result = true
 	}
+	return result
+}
+
+func (ua *UserAccount) AddFriend(friend_id uuid.UUID) bool {
+
+	if udb == nil {
+		log.Println("Trying to add a friend into a user account that has not been added to a user's database")
+		return false
+	}
+
+	result := false
+
+	if uac, ok := udb.GetByID(friend_id); ok {
+		ua.friends[friend_id.String()] = uac
+		result = true
+	} else {
+		log.Println("Trying to add an invalid user as friend")
+	}
+
 	return result
 }
 
@@ -37,6 +59,9 @@ func newUserAccount(name string, email string, password string, phone string, fb
 		fbid:       fbid,
 		fbtoken:    fbtoken,
 		auth_token: uuid.NewV4()}
+
+	user.friends = make(map[string]*UserAccount)
+	user.udb = nil
 
 	return user
 }

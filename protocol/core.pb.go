@@ -14,19 +14,16 @@ It has these top-level messages:
 	Location
 	EventDate
 	EventParticipant
-	ListCursor
-	ListPublicEvents
+	Friend
 	CreateEvent
 	CancelEvent
 	InviteUsers
-	CancelUserInvitation
+	CancelUsersInvitation
 	ConfirmAttendance
 	ModifyEvent
 	VoteChange
-	ReadEvent
 	UserPosition
 	UserPositionRange
-	Ping
 	CreateUserAccount
 	NewAuthToken
 	UserAuthentication
@@ -42,11 +39,16 @@ It has these top-level messages:
 	ChangeAccepted
 	ChangeDiscarded
 	AccessGranted
+	Ok
+	Error
+	Ping
+	ReadEvent
+	ListCursor
+	ListPublicEvents
+	Pong
 	EventInfo
 	EventsList
-	Error
-	Ok
-	Pong
+	FriendsList
 */
 package protocol
 
@@ -187,11 +189,21 @@ func (m *EventParticipant) Reset()         { *m = EventParticipant{} }
 func (m *EventParticipant) String() string { return proto.CompactTextString(m) }
 func (*EventParticipant) ProtoMessage()    {}
 
+type Friend struct {
+	UserId string `protobuf:"bytes,1,opt,name=user_id" json:"user_id,omitempty"`
+	Name   string `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+}
+
+func (m *Friend) Reset()         { *m = Friend{} }
+func (m *Friend) String() string { return proto.CompactTextString(m) }
+func (*Friend) ProtoMessage()    {}
+
 func init() {
 	proto.RegisterType((*Event)(nil), "protocol.Event")
 	proto.RegisterType((*Location)(nil), "protocol.Location")
 	proto.RegisterType((*EventDate)(nil), "protocol.EventDate")
 	proto.RegisterType((*EventParticipant)(nil), "protocol.EventParticipant")
+	proto.RegisterType((*Friend)(nil), "protocol.Friend")
 	proto.RegisterEnum("protocol.EventType", EventType_name, EventType_value)
 	proto.RegisterEnum("protocol.AttendanceResponse", AttendanceResponse_name, AttendanceResponse_value)
 	proto.RegisterEnum("protocol.MessageStatus", MessageStatus_name, MessageStatus_value)

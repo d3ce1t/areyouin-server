@@ -15,43 +15,62 @@ const MAX_WRITE_TIMEOUT = 10 * time.Second
 
 var udb = newUserDatabase()
 
-func onCreateEvent(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func initDummyUsers() {
+	user1 := newUserAccount("User 1", "user1@example.com", "12345", "", "", "")
+	user2 := newUserAccount("User 2", "user2@example.com", "12345", "", "", "")
+	user3 := newUserAccount("User 3", "user3@example.com", "12345", "", "", "")
+
+	udb.Insert(user1)
+	udb.Insert(user2)
+	udb.Insert(user3)
+
+	user1.AddFriend(user2.id)
+	user1.AddFriend(user3.id)
+
+	user2.AddFriend(user1.id)
+	user2.AddFriend(user3.id)
+
+	user3.AddFriend(user1.id)
+	user3.AddFriend(user2.id)
+}
+
+func onCreateEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 	log.Println("CREATE EVENT", message)
 }
 
-func onCancelEvent(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onCancelEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onInviteUsers(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onInviteUsers(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onModifyEvent(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onModifyEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onVoteChange(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onVoteChange(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onUserPosition(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onUserPosition(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onUserPositionRange(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onUserPositionRange(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onCreateAccount(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onCreateAccount(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 	msg := message.(*proto.CreateUserAccount)
 	log.Println("USER CREATE ACCOUNT", msg)
@@ -59,7 +78,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, client
 	var reply []byte
 
 	// User exists
-	if udb.Exist(msg.Email) {
+	if udb.ExistEmail(msg.Email) {
 		reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_USER_EXISTS).Marshal()
 		writeReply(reply, client)
 		return
@@ -94,23 +113,24 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, client
 	writeReply(reply, client)
 }
 
-func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 	msg := message.(*proto.NewAuthToken)
 	log.Println("USER NEW AUTH TOKEN", msg)
 
 	var reply []byte
 
 	// Get new token by e-mail and password
-	/*if msg.Type == proto.AuthType_A_NATIVE {
+	if msg.Type == proto.AuthType_A_NATIVE {
 		if userAccount, ok := udb.GetByEmail(msg.Pass1); ok && msg.Pass2 == userAccount.password {
 			userAccount.auth_token = uuid.NewV4()
 			reply = proto.NewMessage().UserAccessGranted(userAccount.id, userAccount.auth_token).Marshal()
+			log.Println("ACCESS GRANTED")
 		} else {
-			reply = proto.NewMessage().Error(proto.E_INVALID_USER).Marshal()
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER).Marshal()
+			log.Println("INVALID USER")
 		}
 		// Get new token by Facebook User ID and Facebook Access Token
-	} else*/
-	if msg.Type == proto.AuthType_A_FACEBOOK {
+	} else if msg.Type == proto.AuthType_A_FACEBOOK {
 
 		_, valid_token := checkFacebookAccess(msg.Pass1, msg.Pass2)
 
@@ -136,7 +156,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, cli
 	writeReply(reply, client)
 }
 
-func onUserAuthentication(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onUserAuthentication(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 	msg := message.(*proto.UserAuthentication)
 	log.Println("USER AUTH", msg)
@@ -148,6 +168,8 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, c
 
 	if udb.CheckAccess(user_id, auth_token) {
 		reply = proto.NewMessage().Ok(proto.OK_AUTH).Marshal()
+		client.SetAuthenticated(true)
+		client.SetUserId(user_id.String())
 		log.Println("AUTH OK")
 	} else {
 		reply = proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER).Marshal()
@@ -155,41 +177,50 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, c
 	}
 
 	writeReply(reply, client)
+
+	// TODO: Send list of friends
+	// TODO: Send list of current events
 }
 
-func onPing(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onPing(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 	msg := message.(*proto.Ping)
 	log.Println("PING", msg.CurrentTime, client)
 	reply := proto.NewMessage().Pong().Marshal()
 	writeReply(reply, client)
 }
 
-func onReadEvent(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onReadEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onListAuthoredEvents(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onListAuthoredEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onListPublicEvents(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onListPublicEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onHistoryAuthoredEvents(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onHistoryAuthoredEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onHistoryPrivateEvents(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onHistoryPrivateEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
 }
 
-func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, client net.Conn) {
+func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
+}
+
+func onUserFriends(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+	log.Println("USER FRIENDS")
+	//reply := proto.NewMessage().Pong().Marshal()
+	//writeReply(reply, client)
 }
 
 func checkFacebookAccess(id string, access_token string) (fbaccount *FacebookAccount, ok bool) {
@@ -236,9 +267,9 @@ func writeReply(reply []byte, client net.Conn) {
 	}
 }
 
-func handleConnection(id int, server *proto.AyiListener, client net.Conn) {
+func handleConnection(server *proto.AyiListener, client *proto.AyiClient) {
 
-	log.Println("New connection", id, client)
+	log.Println("New connection from", client)
 
 	for {
 		// Read messages and then write (if needed)
@@ -250,7 +281,6 @@ func handleConnection(id int, server *proto.AyiListener, client net.Conn) {
 			return
 		}
 
-		//log.Println("Type:", msg.Header.Type, "Size:", msg.Header.Size)
 		err := server.ServeMessage(msg, client) // may block until writes are performed
 		if err != nil {
 			// Errors may happen
@@ -277,8 +307,9 @@ func main() {
 	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
 	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
 	server.RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
+	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 
-	id := 0
+	initDummyUsers()
 
 	for {
 		client, err := server.Accept()
@@ -288,7 +319,6 @@ func main() {
 			continue
 		}
 
-		go handleConnection(id, server, client)
-		id++
+		go handleConnection(server, client)
 	}
 }

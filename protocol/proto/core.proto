@@ -50,3 +50,8 @@ message EventParticipant {
   AttendanceResponse response = 3;
   MessageStatus delivered = 4;
 }
+
+message Friend {
+  string user_id = 1;
+  string name = 2;
+}

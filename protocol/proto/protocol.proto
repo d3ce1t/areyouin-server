@@ -6,21 +6,9 @@ option java_package = "es.peeple.areyouin.protocol";
 
 import "core.proto";
 
-// LIST AUTHORED EVENTS
-// LIST PRIVATE EVENTS
-// LIST PUBLIC EVENTS
-// HISTORY AUTHORED EVENTS
-// HISTORY PRIVATE EVENTS
-// HISTORY PUBLIC EVENTS
-message ListCursor {
-  uint32 cursor = 1;
-}
-
-message ListPublicEvents {
-  Location user_coordinates = 1;
-  uint32 range_in_meters = 2;
-  ListCursor cursor = 3;
-}
+//
+// Modifiers
+//
 
 // CREATE EVENT
 message CreateEvent {
@@ -41,8 +29,8 @@ message InviteUsers {
   repeated uint64 participants = 2;
 }
 
-// CANCEL USER INVITATION
-message CancelUserInvitation {
+// CANCEL USERS INVITATION
+message CancelUsersInvitation {
   uint64 event_id = 1;
   repeated uint64 participants = 2;
 }
@@ -69,11 +57,6 @@ message VoteChange {
   bool accept_change = 3;
 }
 
-// READ EVENT
-message ReadEvent {
-  uint64 event_id = 1;
-}
-
 // USER POSITION
 message UserPosition {
   Location global_coordinates = 1;
@@ -83,11 +66,6 @@ message UserPosition {
 // USER POSITION RANGE
 message UserPositionRange {
   float range_in_meters = 1;
-}
-
-// PING
-message Ping {
-  int64 current_time = 1;
 }
 
 // CREATE USER ACCOUNT
@@ -118,6 +96,10 @@ message UserAuthentication {
   string auth_token = 2;
 }
 
+//
+// Notifications
+//
+
 // EVENT CREATED
 message EventCreated {
   uint64 event_id = 1;
@@ -134,6 +116,8 @@ message EventExpired {
   uint64 event_id = 1;
 }
 
+// EVENT DATE MODIFIED
+// EVENT MESSAGE MODIFIED
 // EVENT MODIFIED
 message EventModified {
   uint64 event_id = 1;
@@ -157,6 +141,8 @@ message AttendanceStatus {
   repeated EventParticipant attendance_status = 2;
 }
 
+// EVENT CHANGE DATE PROPOSED
+// EVENT CHANGE MESSAGE PROPOSED
 // EVENT CHANGE PROPOSED
 message EventChangeProposed {
   uint64 event_id = 1;
@@ -166,6 +152,7 @@ message EventChangeProposed {
 }
 
 // VOTING STATUS
+// VOTING FINISHED
 message VotingStatus {
   uint64 event_id = 1;
   uint32 change_id = 2;
@@ -195,6 +182,61 @@ message AccessGranted {
   string auth_token = 2;
 }
 
+// OK
+message Ok {
+  int32 type = 1;
+}
+
+// ERROR
+message Error {
+  int32 type = 1;
+  int32 error = 2;
+}
+
+//
+// Requests
+//
+
+// PING
+message Ping {
+  int64 current_time = 1;
+}
+
+// READ EVENT
+message ReadEvent {
+  uint64 event_id = 1;
+}
+
+// LIST AUTHORED EVENTS
+// LIST PRIVATE EVENTS
+// LIST PUBLIC EVENTS
+// HISTORY AUTHORED EVENTS
+// HISTORY PRIVATE EVENTS
+// HISTORY PUBLIC EVENTS
+message ListCursor {
+  uint32 cursor = 1;
+}
+
+message ListPublicEvents {
+  Location user_coordinates = 1;
+  uint32 range_in_meters = 2;
+  ListCursor cursor = 3;
+}
+
+// USER FRIENDS
+/*message UserFriends {
+
+}*/
+
+//
+// Responses
+//
+
+// PONG
+message Pong {
+  int64 current_time = 1;
+}
+
 // EVENT INFO
 message EventInfo {
   Event event = 1;
@@ -207,18 +249,7 @@ message EventsList {
   // Optionally add cursor field
 }
 
-// ERROR
-message Error {
-  int32 type = 1;
-  int32 error = 2;
-}
-
-// OK
-message Ok {
-  int32 type = 1;
-}
-
-// PONG
-message Pong {
-  int64 current_time = 1;
+// FRIENDS LIST
+message FriendsList {
+  repeated Friend friends = 1;
 }
