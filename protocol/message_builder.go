@@ -12,8 +12,7 @@ type MessageBuilder struct {
 // Modifiers
 func (mb *MessageBuilder) CreateEvent(message string, start_date int64, end_date int64, participants []uint64) *AyiPacket {
 	mb.message.Header.Type = M_CREATE_EVENT
-	mb.message.SetMessage(&CreateEvent{
-		Message: message, Date: &EventDate{start_date, end_date}, Participants: participants})
+	mb.message.SetMessage(&CreateEvent{Message: message, Date: &EventDate{start_date, end_date}, Participants: participants})
 	return mb.message
 }
 

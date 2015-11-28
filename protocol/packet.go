@@ -53,6 +53,7 @@ func (packet *AyiPacket) SetMessage(message Message) {
 
 // Change this function to use directly a write stream (avoid copy)
 func (packet *AyiPacket) Marshal() []byte {
+
 	buf := new(bytes.Buffer)
 
 	// Write Header

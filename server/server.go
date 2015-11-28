@@ -16,9 +16,12 @@ const MAX_WRITE_TIMEOUT = 10 * time.Second
 var udb = newUserDatabase()
 
 func initDummyUsers() {
-	user1 := newUserAccount("User 1", "user1@example.com", "12345", "", "", "")
-	user2 := newUserAccount("User 2", "user2@example.com", "12345", "", "", "")
-	user3 := newUserAccount("User 3", "user3@example.com", "12345", "", "", "")
+	user1 := newUserAccount("User 1", "user1@foo.com", "12345", "", "", "")
+	user2 := newUserAccount("User 2B", "user2@foo.com", "12345", "", "", "")
+	user3 := newUserAccount("User 3A", "user3@foo.com", "12345", "", "", "")
+
+	user1.id, _ = uuid.Parse("11a8c0ea-86f7-4f7b-89f3-7ab67f6abc65")
+	user1.auth_token, _ = uuid.Parse("119376ac-c58e-4704-850a-66a6f9663eaa")
 
 	udb.Insert(user1)
 	udb.Insert(user2)
@@ -152,7 +155,6 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, cli
 		reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_MALFORMED_MESSAGE).Marshal()
 	}
 
-	time.Sleep(2000 * time.Millisecond) // FIXME: Remove this
 	writeReply(reply, client)
 }
 
@@ -167,19 +169,19 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, c
 	var reply []byte
 
 	if udb.CheckAccess(user_id, auth_token) {
-		reply = proto.NewMessage().Ok(proto.OK_AUTH).Marshal()
+		msg := proto.NewMessage().Ok(proto.OK_AUTH)
+		reply = msg.Marshal()
+		writeReply(reply, client)
 		client.SetAuthenticated(true)
 		client.SetUserId(user_id.String())
 		log.Println("AUTH OK")
+		sendUserFriends(client)
+		// TODO: Send list of current events
 	} else {
 		reply = proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER).Marshal()
+		writeReply(reply, client)
 		log.Println("INVALID USER")
 	}
-
-	writeReply(reply, client)
-
-	// TODO: Send list of friends
-	// TODO: Send list of current events
 }
 
 func onPing(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
@@ -218,9 +220,52 @@ func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, 
 }
 
 func onUserFriends(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+
 	log.Println("USER FRIENDS")
-	//reply := proto.NewMessage().Pong().Marshal()
-	//writeReply(reply, client)
+
+	if !client.IsAuthenticated() {
+		log.Println("Received USER FRIENDS message from unauthenticated client", client)
+		return
+	}
+
+	var reply []byte
+
+	if _, err := uuid.Parse(client.UserId()); err != nil {
+		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_MALFORMED_MESSAGE).Marshal()
+		writeReply(reply, client)
+	} else if ok := sendUserFriends(client); !ok {
+		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_INVALID_USER).Marshal()
+		writeReply(reply, client)
+	}
+}
+
+func sendUserFriends(client *proto.AyiClient) bool {
+
+	result := false
+
+	id, err := uuid.Parse(client.UserId())
+
+	if err != nil {
+		log.Println("SendUserFriends failed because of an invalid UserID")
+		return false
+	}
+
+	if uac, ok := udb.GetByID(id); ok {
+		friends := uac.GetAllFriends()
+		friends_proto := make([]*proto.Friend, len(friends))
+		for i := range friends {
+			friends_proto[i] = &proto.Friend{
+				UserId: friends[i].id.String(),
+				Name:   friends[i].name,
+			}
+		}
+		reply := proto.NewMessage().FriendsList(friends_proto).Marshal()
+		log.Println("SEND USER FRIENDS to", client)
+		writeReply(reply, client)
+		result = true
+	}
+
+	return result
 }
 
 func checkFacebookAccess(id string, access_token string) (fbaccount *FacebookAccount, ok bool) {

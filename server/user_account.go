@@ -17,7 +17,7 @@ type UserAccount struct {
 	fbid            string // Facebook ID
 	fbtoken         string // Facebook User Access token
 	last_connection int64
-	friends         map[string]*UserAccount
+	friends         map[string]*Friend
 	udb             *UsersDatabase // Database the user belongs to
 }
 
@@ -39,13 +39,31 @@ func (ua *UserAccount) AddFriend(friend_id uuid.UUID) bool {
 	result := false
 
 	if uac, ok := udb.GetByID(friend_id); ok {
-		ua.friends[friend_id.String()] = uac
+		ua.friends[friend_id.String()] = &Friend{id: uac.id, name: uac.name}
 		result = true
 	} else {
 		log.Println("Trying to add an invalid user as friend")
 	}
 
 	return result
+}
+
+func (ua *UserAccount) GetFriend(friend_id uuid.UUID) (f *Friend, ok bool) {
+	f, ok = ua.friends[friend_id.String()]
+	return
+}
+
+func (ua *UserAccount) GetAllFriends() []*Friend {
+
+	list_friends := make([]*Friend, len(ua.friends))
+
+	i := 0
+	for _, v := range ua.friends {
+		list_friends[i] = v
+		i++
+	}
+
+	return list_friends
 }
 
 func newUserAccount(name string, email string, password string, phone string, fbid string, fbtoken string) *UserAccount {
@@ -60,7 +78,7 @@ func newUserAccount(name string, email string, password string, phone string, fb
 		fbtoken:    fbtoken,
 		auth_token: uuid.NewV4()}
 
-	user.friends = make(map[string]*UserAccount)
+	user.friends = make(map[string]*Friend)
 	user.udb = nil
 
 	return user

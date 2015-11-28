@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"syscall"
 )
 
 func Listen(net_proto, laddr string) (*AyiListener, error) {
@@ -31,8 +32,10 @@ func ReadPacket(reader io.Reader) *AyiPacket {
 
 	// Read header
 	err := binary.Read(reader, binary.BigEndian, &packet.Header)
+	oe, ok := err.(*net.OpError)
 
-	if err == io.EOF {
+	// Manage Error
+	if err == io.EOF || ok && oe.Err == syscall.ECONNRESET {
 		log.Println("Connection closed by client")
 		return nil
 	} else if err != nil {
@@ -43,10 +46,15 @@ func ReadPacket(reader io.Reader) *AyiPacket {
 	// Read Payload
 	packet.Data = make([]uint8, packet.Header.Size-6)
 	_, err = reader.Read(packet.Data)
+	oe, ok = err.(*net.OpError)
 
-	if err != nil {
+	// Manage Error
+	if err == io.EOF || ok && oe.Err == syscall.ECONNRESET {
+		log.Println("Connection closed by client")
+		return nil
+	} else if err != nil {
 		packet = nil
-		log.Fatal("Parsing message error:", err)
+		log.Fatal("Parsing message error: ", err)
 	}
 
 	return packet
