@@ -13,32 +13,52 @@ import (
 
 const MAX_WRITE_TIMEOUT = 10 * time.Second
 
-var udb = newUserDatabase()
-
-func initDummyUsers() {
-	user1 := newUserAccount("User 1", "user1@foo.com", "12345", "", "", "")
-	user2 := newUserAccount("User 2B", "user2@foo.com", "12345", "", "", "")
-	user3 := newUserAccount("User 3A", "user3@foo.com", "12345", "", "", "")
-
-	user1.id, _ = uuid.Parse("11a8c0ea-86f7-4f7b-89f3-7ab67f6abc65")
-	user1.auth_token, _ = uuid.Parse("119376ac-c58e-4704-850a-66a6f9663eaa")
-
-	udb.Insert(user1)
-	udb.Insert(user2)
-	udb.Insert(user3)
-
-	user1.AddFriend(user2.id)
-	user1.AddFriend(user3.id)
-
-	user2.AddFriend(user1.id)
-	user2.AddFriend(user3.id)
-
-	user3.AddFriend(user1.id)
-	user3.AddFriend(user2.id)
-}
+var users_inbox = make(map[uint64]*Inbox)
+var sessions = make(map[uint64]*proto.AyiClient)
+var udb = NewUserDatabase()
+var edb = NewEventDatabase()
+var uid_ch = make(chan uint64)
+var ds = NewDeliverySystem()
 
 func onCreateEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
-	log.Println("CREATE EVENT", message)
+
+	msg := message.(*proto.CreateEvent)
+	log.Println("CREATE EVENT", msg)
+
+	if !client.IsAuthenticated() {
+		log.Println("Received CREATE EVENT message from unauthenticated client", client)
+		return
+	}
+
+	uac, _ := udb.GetByID(client.UserId())
+
+	// TODO: Validate input data
+	// TODO: Check overlapping with other own published events
+	event := &proto.Event{
+		EventId:            getNewUserID(), // Maybe a bottleneck here
+		AuthorId:           client.UserId(),
+		AuthorName:         uac.name,
+		CreationDate:       time.Now().UTC().Unix(),
+		StartDate:          msg.StartDate,
+		EndDate:            msg.EndDate,
+		Message:            msg.Message,
+		IsPublic:           false,
+		NumberParticipants: 1, // The own author
+	}
+
+	if udb.ExistAllIDs(msg.Participants) {
+		if ok := edb.Insert(event); ok {
+			ds.Submit(event, msg.Participants)
+			writeReply(proto.NewMessage().Ok(proto.OK_ACK).Marshal(), client)
+			log.Println("EVENT STORED BUT NOT PUBLISHED", event.EventId)
+		} else {
+			writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_CREATION_ERROR).Marshal(), client)
+			log.Println("EVENT CREATION ERROR")
+		}
+	} else {
+		writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_CREATION_ERROR).Marshal(), client)
+		log.Println("INVALID PARTICIPANTS")
+	}
 }
 
 func onCancelEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
@@ -90,7 +110,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, client
 	// TODO: Validate user date
 
 	// Create new user account
-	user := newUserAccount(msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
+	user := NewUserAccount(msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
 
 	// If it's a Facebook account (fbid and fbtoken not empty) then check token
 	if user.IsFacebook() {
@@ -163,7 +183,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, c
 	msg := message.(*proto.UserAuthentication)
 	log.Println("USER AUTH", msg)
 
-	user_id, _ := uuid.Parse(msg.UserId)
+	user_id := msg.UserId
 	auth_token, _ := uuid.Parse(msg.AuthToken)
 
 	var reply []byte
@@ -173,7 +193,8 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, c
 		reply = msg.Marshal()
 		writeReply(reply, client)
 		client.SetAuthenticated(true)
-		client.SetUserId(user_id.String())
+		client.SetUserId(user_id)
+		sessions[user_id] = client
 		log.Println("AUTH OK")
 		sendUserFriends(client)
 		// TODO: Send list of current events
@@ -221,7 +242,7 @@ func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, 
 
 func onUserFriends(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
 
-	log.Println("USER FRIENDS")
+	log.Println("USER FRIENDS") // Message does not has payload
 
 	if !client.IsAuthenticated() {
 		log.Println("Received USER FRIENDS message from unauthenticated client", client)
@@ -230,9 +251,10 @@ func onUserFriends(packet_type proto.PacketType, message proto.Message, client *
 
 	var reply []byte
 
-	if _, err := uuid.Parse(client.UserId()); err != nil {
+	if !udb.ExistID(client.UserId()) {
 		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_MALFORMED_MESSAGE).Marshal()
 		writeReply(reply, client)
+		log.Println("FIXME: Received USER FRIENDS message from authenticated user but non-existent")
 	} else if ok := sendUserFriends(client); !ok {
 		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_INVALID_USER).Marshal()
 		writeReply(reply, client)
@@ -243,19 +265,12 @@ func sendUserFriends(client *proto.AyiClient) bool {
 
 	result := false
 
-	id, err := uuid.Parse(client.UserId())
-
-	if err != nil {
-		log.Println("SendUserFriends failed because of an invalid UserID")
-		return false
-	}
-
-	if uac, ok := udb.GetByID(id); ok {
+	if uac, ok := udb.GetByID(client.UserId()); ok {
 		friends := uac.GetAllFriends()
 		friends_proto := make([]*proto.Friend, len(friends))
 		for i := range friends {
 			friends_proto[i] = &proto.Friend{
-				UserId: friends[i].id.String(),
+				UserId: friends[i].id,
 				Name:   friends[i].name,
 			}
 		}
@@ -263,6 +278,9 @@ func sendUserFriends(client *proto.AyiClient) bool {
 		log.Println("SEND USER FRIENDS to", client)
 		writeReply(reply, client)
 		result = true
+	} else {
+		log.Println("SendUserFriends failed because of an invalid UserID")
+		result = false
 	}
 
 	return result
@@ -323,12 +341,17 @@ func handleConnection(server *proto.AyiListener, client *proto.AyiClient) {
 
 		if msg == nil {
 			log.Println("Session closed")
+			if uac, ok := udb.GetByID(client.UserId()); ok {
+				uac.last_connection = time.Now().UTC().Unix()
+			}
+			delete(sessions, client.UserId())
 			return
 		}
 
 		err := server.ServeMessage(msg, client) // may block until writes are performed
 		if err != nil {
 			// Errors may happen
+			log.Println("Unexecpted error happened while serving message", err)
 		}
 
 		time.Sleep(100 * time.Millisecond)
@@ -337,33 +360,87 @@ func handleConnection(server *proto.AyiListener, client *proto.AyiClient) {
 	//client.Close()
 }
 
+// TODO: Notify user through the active connection and from its own thread
+func notifyUser(user_id uint64, message []byte) {
+
+	/*client, ok := sessions[user_id]
+
+	if !ok {
+		return
+	}*/
+
+}
+
+func getNewUserID() uint64 {
+	return <-uid_ch
+}
+
+func GeneratorTask(gid uint16, uid_ch chan uint64) {
+
+	uidgen := CreateGenerator(gid)
+
+	for {
+		newId := uidgen()
+		log.Println("New ID created!", newId)
+		uid_ch <- newId
+	}
+}
+
+func initDummyUsers() {
+	user1 := NewUserAccount("User 1", "user1@foo.com", "12345", "", "", "")
+	user2 := NewUserAccount("User 2B", "user2@foo.com", "12345", "", "", "")
+	user3 := NewUserAccount("User 3A", "user3@foo.com", "12345", "", "", "")
+
+	user1.id = 10745351749240831
+	user1.auth_token, _ = uuid.Parse("119376ac-c58e-4704-850a-66a6f9663eaa")
+	user2.id = getNewUserID()
+	user3.id = getNewUserID()
+
+	udb.Insert(user1)
+	udb.Insert(user2)
+	udb.Insert(user3)
+
+	user1.AddFriend(user2.id)
+	user1.AddFriend(user3.id)
+
+	user2.AddFriend(user1.id)
+	user2.AddFriend(user3.id)
+
+	user3.AddFriend(user1.id)
+	user3.AddFriend(user2.id)
+}
+
 func main() {
 
 	fmt.Println("GOMAXPROCS is", runtime.GOMAXPROCS(0))
 
-	server, err := proto.Listen("tcp", ":1822")
+	// Start up server listener
+	listener, err := proto.Listen("tcp", ":1822")
 
 	if err != nil {
 		panic("Couldn't start listening: " + err.Error())
 	}
 
-	server.RegisterCallback(proto.M_PING, onPing)
-	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
-	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
-	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
-	server.RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
-	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
+	listener.RegisterCallback(proto.M_PING, onPing)
+	listener.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
+	listener.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
+	listener.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
+	listener.RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
+	listener.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 
+	// Setup server components
+	go GeneratorTask(1, uid_ch)
 	initDummyUsers()
+	ds.Run()
 
 	for {
-		client, err := server.Accept()
+		client, err := listener.Accept()
 
 		if err != nil {
 			fmt.Println("Couldn't accept:", err.Error())
 			continue
 		}
 
-		go handleConnection(server, client)
+		go handleConnection(listener, client)
 	}
 }
