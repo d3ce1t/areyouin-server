@@ -14,29 +14,32 @@ import (
 const MAX_WRITE_TIMEOUT = 10 * time.Second
 
 var users_inbox = make(map[uint64]*Inbox)
-var sessions = make(map[uint64]*proto.AyiClient)
+var sessions = make(map[uint64]*AyiSession)
 var udb = NewUserDatabase()
 var edb = NewEventDatabase()
 var uid_ch = make(chan uint64)
 var ds = NewDeliverySystem()
+var callbacks = make(map[proto.PacketType]Callback)
 
-func onCreateEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+type Callback func(proto.PacketType, proto.Message, *AyiSession)
+
+func onCreateEvent(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 	msg := message.(*proto.CreateEvent)
 	log.Println("CREATE EVENT", msg)
 
-	if !client.IsAuthenticated() {
+	if !client.IsAuth {
 		log.Println("Received CREATE EVENT message from unauthenticated client", client)
 		return
 	}
 
-	uac, _ := udb.GetByID(client.UserId())
+	uac, _ := udb.GetByID(client.UserId)
 
 	// TODO: Validate input data
 	// TODO: Check overlapping with other own published events
 	event := &proto.Event{
 		EventId:            getNewUserID(), // Maybe a bottleneck here
-		AuthorId:           client.UserId(),
+		AuthorId:           client.UserId,
 		AuthorName:         uac.name,
 		CreationDate:       time.Now().UTC().Unix(),
 		StartDate:          msg.StartDate,
@@ -61,39 +64,39 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, client *
 	}
 }
 
-func onCancelEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onCancelEvent(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onInviteUsers(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onInviteUsers(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onModifyEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onModifyEvent(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onVoteChange(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onVoteChange(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onUserPosition(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onUserPosition(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onUserPositionRange(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onUserPositionRange(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onCreateAccount(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onCreateAccount(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 	msg := message.(*proto.CreateUserAccount)
 	log.Println("USER CREATE ACCOUNT", msg)
@@ -136,7 +139,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, client
 	writeReply(reply, client)
 }
 
-func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 	msg := message.(*proto.NewAuthToken)
 	log.Println("USER NEW AUTH TOKEN", msg)
 
@@ -178,7 +181,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, cli
 	writeReply(reply, client)
 }
 
-func onUserAuthentication(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onUserAuthentication(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 	msg := message.(*proto.UserAuthentication)
 	log.Println("USER AUTH", msg)
@@ -192,8 +195,8 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, c
 		msg := proto.NewMessage().Ok(proto.OK_AUTH)
 		reply = msg.Marshal()
 		writeReply(reply, client)
-		client.SetAuthenticated(true)
-		client.SetUserId(user_id)
+		client.IsAuth = true
+		client.UserId = user_id
 		sessions[user_id] = client
 		log.Println("AUTH OK")
 		sendUserFriends(client)
@@ -205,53 +208,53 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, c
 	}
 }
 
-func onPing(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onPing(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 	msg := message.(*proto.Ping)
 	log.Println("PING", msg.CurrentTime, client)
 	reply := proto.NewMessage().Pong().Marshal()
 	writeReply(reply, client)
 }
 
-func onReadEvent(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onReadEvent(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onListAuthoredEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onListAuthoredEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onListPublicEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onListPublicEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onHistoryAuthoredEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onHistoryAuthoredEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onHistoryPrivateEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onHistoryPrivateEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 }
 
-func onUserFriends(packet_type proto.PacketType, message proto.Message, client *proto.AyiClient) {
+func onUserFriends(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
 	log.Println("USER FRIENDS") // Message does not has payload
 
-	if !client.IsAuthenticated() {
+	if !client.IsAuth {
 		log.Println("Received USER FRIENDS message from unauthenticated client", client)
 		return
 	}
 
 	var reply []byte
 
-	if !udb.ExistID(client.UserId()) {
+	if !udb.ExistID(client.UserId) {
 		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_MALFORMED_MESSAGE).Marshal()
 		writeReply(reply, client)
 		log.Println("FIXME: Received USER FRIENDS message from authenticated user but non-existent")
@@ -261,11 +264,11 @@ func onUserFriends(packet_type proto.PacketType, message proto.Message, client *
 	}
 }
 
-func sendUserFriends(client *proto.AyiClient) bool {
+func sendUserFriends(client *AyiSession) bool {
 
 	result := false
 
-	if uac, ok := udb.GetByID(client.UserId()); ok {
+	if uac, ok := udb.GetByID(client.UserId); ok {
 		friends := uac.GetAllFriends()
 		friends_proto := make([]*proto.Friend, len(friends))
 		for i := range friends {
@@ -322,7 +325,8 @@ func checkFacebookAccess(id string, access_token string) (fbaccount *FacebookAcc
 	}
 }
 
-func writeReply(reply []byte, client net.Conn) {
+func writeReply(reply []byte, session *AyiSession) {
+	client := session.Conn
 	client.SetWriteDeadline(time.Now().Add(MAX_WRITE_TIMEOUT))
 	_, err := client.Write(reply)
 	if err != nil {
@@ -330,28 +334,30 @@ func writeReply(reply []byte, client net.Conn) {
 	}
 }
 
-func handleConnection(server *proto.AyiListener, client *proto.AyiClient) {
+// TODO: Close connection if no login for a while (maybe 30 seconds)
+// TODO: Close connection if no PING, PONG dialog (each 15 minutes?)
+func handleSession(session *AyiSession) {
 
-	log.Println("New connection from", client)
+	log.Println("New connection from", session)
 
 	for {
 		// Read messages and then write (if needed)
 		// Sync behaviour
-		msg := proto.ReadPacket(client)
+		msg := proto.ReadPacket(session.Conn)
 
 		if msg == nil {
 			log.Println("Session closed")
-			if uac, ok := udb.GetByID(client.UserId()); ok {
+			if uac, ok := udb.GetByID(session.UserId); ok {
 				uac.last_connection = time.Now().UTC().Unix()
 			}
-			delete(sessions, client.UserId())
+			delete(sessions, session.UserId)
 			return
 		}
 
-		err := server.ServeMessage(msg, client) // may block until writes are performed
+		err := ServeMessage(msg, session) // may block until writes are performed
 		if err != nil {
 			// Errors may happen
-			log.Println("Unexecpted error happened while serving message", err)
+			log.Println("Unexpected error happened while serving message", err)
 		}
 
 		time.Sleep(100 * time.Millisecond)
@@ -410,23 +416,46 @@ func initDummyUsers() {
 	user3.AddFriend(user2.id)
 }
 
+func RegisterCallback(command proto.PacketType, f Callback) {
+	if callbacks == nil {
+		callbacks = make(map[proto.PacketType]Callback)
+	}
+	callbacks[command] = f
+}
+
+func ServeMessage(packet *proto.AyiPacket, session *AyiSession) error {
+
+	message := packet.DecodeMessage()
+
+	if message == nil {
+		log.Fatal("Unknown message", packet)
+		return nil
+	}
+
+	if f, ok := callbacks[packet.Type()]; ok {
+		f(packet.Type(), message, session)
+	}
+
+	return nil
+}
+
 func main() {
 
 	fmt.Println("GOMAXPROCS is", runtime.GOMAXPROCS(0))
 
 	// Start up server listener
-	listener, err := proto.Listen("tcp", ":1822")
+	listener, err := net.Listen("tcp", ":1822")
 
 	if err != nil {
 		panic("Couldn't start listening: " + err.Error())
 	}
 
-	listener.RegisterCallback(proto.M_PING, onPing)
-	listener.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
-	listener.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
-	listener.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
-	listener.RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
-	listener.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
+	RegisterCallback(proto.M_PING, onPing)
+	RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
+	RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
+	RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
+	RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
+	RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 
 	// Setup server components
 	go GeneratorTask(1, uid_ch)
@@ -441,6 +470,6 @@ func main() {
 			continue
 		}
 
-		go handleConnection(listener, client)
+		go handleSession(NewSession(client))
 	}
 }

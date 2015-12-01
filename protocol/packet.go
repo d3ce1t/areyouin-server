@@ -24,13 +24,23 @@ func (packet *AyiPacket) Type() PacketType {
 	return packet.Header.Type
 }
 
-func (packet *AyiPacket) DecodeMessage(dst_msg Message) {
+func (packet *AyiPacket) DecodeMessage() Message {
 
-	err := proto.Unmarshal(packet.Data, dst_msg)
+	message := createEmptyMessage(packet.Type())
+
+	if message == nil {
+		log.Fatal("Unknown message", packet)
+		return nil
+	}
+
+	err := proto.Unmarshal(packet.Data, message)
 
 	if err != nil {
 		log.Fatal("Unmarshaling error: ", err)
+		return nil
 	}
+
+	return message
 }
 
 func (packet *AyiPacket) SetMessage(message Message) {

@@ -8,13 +8,6 @@ import (
 	"syscall"
 )
 
-func Listen(net_proto, laddr string) (*AyiListener, error) {
-	listener := &AyiListener{}
-	var err error
-	listener.socket, err = net.Listen(net_proto, laddr)
-	return listener, err
-}
-
 func NewMessage() *MessageBuilder {
 	mb := &MessageBuilder{}
 	mb.message = &AyiPacket{}
@@ -59,9 +52,6 @@ func ReadPacket(reader io.Reader) *AyiPacket {
 
 	return packet
 }
-
-// Needed by Listener
-type Callback func(PacketType, Message, *AyiClient)
 
 type Message interface {
 	Reset()
