@@ -16,7 +16,7 @@ func (l *AyiListener) Accept() (c *AyiClient, err error) {
 	socket, e := l.socket.Accept()
 	client.socket = socket
 	client.authenticated = false
-	client.user_id = ""
+	client.user_id = 0
 	return client, e
 }
 

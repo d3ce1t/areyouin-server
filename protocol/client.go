@@ -5,9 +5,14 @@ import (
 	"time"
 )
 
+/*
+ TODO: This implementation does not make sense. It's only a wrapper to add
+ IsAuthenticated and UserId methods to the socket. Maybe it is better to create
+ an AyiSession
+*/
 type AyiClient struct {
 	socket        net.Conn
-	user_id       string
+	user_id       uint64
 	authenticated bool
 }
 
@@ -19,7 +24,7 @@ func (c *AyiClient) IsAuthenticated() bool {
 	return c.authenticated
 }
 
-func (c *AyiClient) UserId() string {
+func (c *AyiClient) UserId() uint64 {
 	return c.user_id
 }
 
@@ -27,7 +32,7 @@ func (c *AyiClient) SetAuthenticated(flag bool) {
 	c.authenticated = flag
 }
 
-func (c *AyiClient) SetUserId(user_id string) {
+func (c *AyiClient) SetUserId(user_id uint64) {
 	c.user_id = user_id
 }
 

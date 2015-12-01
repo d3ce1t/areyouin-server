@@ -12,7 +12,7 @@ type MessageBuilder struct {
 // Modifiers
 func (mb *MessageBuilder) CreateEvent(message string, start_date int64, end_date int64, participants []uint64) *AyiPacket {
 	mb.message.Header.Type = M_CREATE_EVENT
-	mb.message.SetMessage(&CreateEvent{Message: message, Date: &EventDate{start_date, end_date}, Participants: participants})
+	mb.message.SetMessage(&CreateEvent{Message: message, StartDate: start_date, EndDate: end_date, Participants: participants})
 	return mb.message
 }
 
@@ -42,7 +42,7 @@ func (mb *MessageBuilder) ConfirmAttendance(event_id uint64, action_code Attenda
 
 func (mb *MessageBuilder) ModifyEventDate(event_id uint64, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.Type = M_MODIFY_EVENT_DATE
-	mb.message.SetMessage(&ModifyEvent{EventId: event_id, Date: &EventDate{start_date, end_date}})
+	mb.message.SetMessage(&ModifyEvent{EventId: event_id, StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
@@ -54,7 +54,7 @@ func (mb *MessageBuilder) ModifyEventMessage(event_id uint64, message string) *A
 
 func (mb *MessageBuilder) ModifyEvent(event_id uint64, message string, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.Type = M_MODIFY_EVENT
-	mb.message.SetMessage(&ModifyEvent{EventId: event_id, Message: message, Date: &EventDate{start_date, end_date}})
+	mb.message.SetMessage(&ModifyEvent{EventId: event_id, Message: message, StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
@@ -94,16 +94,16 @@ func (mb *MessageBuilder) NewAuthTokenByFacebook(fbid string, fbtoken string) *A
 	return mb.message
 }
 
-func (mb *MessageBuilder) UserAuthencation(user_id uuid.UUID, auth_token uuid.UUID) *AyiPacket {
+func (mb *MessageBuilder) UserAuthencation(user_id uint64, auth_token uuid.UUID) *AyiPacket {
 	mb.message.Header.Type = M_USER_AUTH
-	mb.message.SetMessage(&UserAuthentication{UserId: user_id.String(), AuthToken: auth_token.String()})
+	mb.message.SetMessage(&UserAuthentication{UserId: user_id, AuthToken: auth_token.String()})
 	return mb.message
 }
 
 // Notifications
-func (mb *MessageBuilder) EventCreated(event_id uint64) *AyiPacket {
+func (mb *MessageBuilder) EventCreated(event *Event) *AyiPacket {
 	mb.message.Header.Type = M_EVENT_CREATED
-	mb.message.SetMessage(&EventCreated{EventId: event_id})
+	mb.message.SetMessage(event)
 	return mb.message
 }
 
@@ -121,7 +121,7 @@ func (mb *MessageBuilder) EventExpired(event_id uint64) *AyiPacket {
 
 func (mb *MessageBuilder) EventDateModified(event_id uint64, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.Type = M_EVENT_DATE_MODIFIED
-	mb.message.SetMessage(&EventModified{EventId: event_id, Date: &EventDate{start_date, end_date}})
+	mb.message.SetMessage(&EventModified{EventId: event_id, StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
@@ -133,11 +133,11 @@ func (mb *MessageBuilder) EventMessageModified(event_id uint64, message string) 
 
 func (mb *MessageBuilder) EventModified(event_id uint64, message string, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.Type = M_EVENT_MODIFIED
-	mb.message.SetMessage(&EventModified{EventId: event_id, Message: message, Date: &EventDate{start_date, end_date}})
+	mb.message.SetMessage(&EventModified{EventId: event_id, Message: message, StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
-func (mb *MessageBuilder) InvitationReceived(event_id uint64, event *Event) *AyiPacket {
+func (mb *MessageBuilder) InvitationReceived(event *Event) *AyiPacket {
 	mb.message.Header.Type = M_INVITATION_RECEIVED
 	mb.message.SetMessage(event)
 	return mb.message
@@ -157,7 +157,7 @@ func (mb *MessageBuilder) AttendanceStatus(event_id uint64, status []*EventParti
 
 func (mb *MessageBuilder) EventChangeDateProposed(event_id uint64, change_id uint32, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.Type = M_EVENT_CHANGE_DATE_PROPOSED
-	mb.message.SetMessage(&EventChangeProposed{EventId: event_id, ChangeId: change_id, Date: &EventDate{start_date, end_date}})
+	mb.message.SetMessage(&EventChangeProposed{EventId: event_id, ChangeId: change_id, StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
@@ -170,7 +170,7 @@ func (mb *MessageBuilder) EventChangeMessageProposed(event_id uint64, change_id 
 func (mb *MessageBuilder) EventChangeProposed(event_id uint64, change_id uint32, message string, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.Type = M_EVENT_CHANGE_PROPOSED
 	mb.message.SetMessage(&EventChangeProposed{EventId: event_id, ChangeId: change_id, Message: message,
-		Date: &EventDate{start_date, end_date}})
+		StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
@@ -201,9 +201,9 @@ func (mb *MessageBuilder) ChangeDiscarded(event_id uint64, change_id uint32) *Ay
 	return mb.message
 }
 
-func (mb *MessageBuilder) UserAccessGranted(user_id uuid.UUID, auth_token uuid.UUID) *AyiPacket {
+func (mb *MessageBuilder) UserAccessGranted(user_id uint64, auth_token uuid.UUID) *AyiPacket {
 	mb.message.Header.Type = M_ACCESS_GRANTED
-	mb.message.SetMessage(&AccessGranted{UserId: user_id.String(), AuthToken: auth_token.String()})
+	mb.message.SetMessage(&AccessGranted{UserId: user_id, AuthToken: auth_token.String()})
 	return mb.message
 }
 

@@ -13,8 +13,9 @@ import "core.proto";
 // CREATE EVENT
 message CreateEvent {
   string message = 1;
-  EventDate date = 2;
-  repeated uint64 participants = 3;
+  int64 start_date = 2;
+  int64 end_date = 3;
+  repeated uint64 participants = 4;
 }
 
 // CANCEL EVENT
@@ -47,7 +48,8 @@ message ConfirmAttendance {
 message ModifyEvent {
   uint64 event_id = 1;
   string message = 2;
-  EventDate date = 3;
+  int64 start_date = 3;
+  int64 end_date = 4;
 }
 
 // VOTE CHANGE
@@ -92,7 +94,7 @@ message NewAuthToken {
 
 // USER AUTH
 message UserAuthentication {
-  string user_id = 1;
+  uint64 user_id = 1;
   string auth_token = 2;
 }
 
@@ -101,9 +103,9 @@ message UserAuthentication {
 //
 
 // EVENT CREATED
-message EventCreated {
-  uint64 event_id = 1;
-}
+/*message EventCreated {
+  Event event = 1;
+}*/
 
 // EVENT CANCELLED
 message EventCancelled {
@@ -121,14 +123,15 @@ message EventExpired {
 // EVENT MODIFIED
 message EventModified {
   uint64 event_id = 1;
-  EventDate date = 2;
-  string message = 3;
+  int64 start_date = 2;
+  int64 end_date = 3;
+  string message = 4;
 }
 
 // INVITATION RECEIVED
-message InvitationReceived {
+/*message InvitationReceived {
   Event event = 1;
-}
+}*/
 
 // INVITATION CANCELLED
 message InvitationCancelled {
@@ -147,8 +150,9 @@ message AttendanceStatus {
 message EventChangeProposed {
   uint64 event_id = 1;
   uint32 change_id = 2;
-  EventDate date = 3;
-  string message = 4;
+  int64 start_date = 3;
+  int64 end_date = 4;
+  string message = 5;
 }
 
 // VOTING STATUS
@@ -178,7 +182,7 @@ message ChangeDiscarded {
 
 // ACCESS GRANTED
 message AccessGranted {
-  string user_id = 1;
+  uint64 user_id = 1;
   string auth_token = 2;
 }
 

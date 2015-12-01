@@ -12,7 +12,6 @@ It is generated from these files:
 It has these top-level messages:
 	Event
 	Location
-	EventDate
 	EventParticipant
 	Friend
 	CreateEvent
@@ -27,11 +26,9 @@ It has these top-level messages:
 	CreateUserAccount
 	NewAuthToken
 	UserAuthentication
-	EventCreated
 	EventCancelled
 	EventExpired
 	EventModified
-	InvitationReceived
 	InvitationCancelled
 	AttendanceStatus
 	EventChangeProposed
@@ -60,26 +57,6 @@ import math "math"
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
-
-type EventType int32
-
-const (
-	EventType_PRIVATE_EVENT EventType = 0
-	EventType_PUBLIC_EVENT  EventType = 1
-)
-
-var EventType_name = map[int32]string{
-	0: "PRIVATE_EVENT",
-	1: "PUBLIC_EVENT",
-}
-var EventType_value = map[string]int32{
-	"PRIVATE_EVENT": 0,
-	"PUBLIC_EVENT":  1,
-}
-
-func (x EventType) String() string {
-	return proto.EnumName(EventType_name, int32(x))
-}
 
 type AttendanceResponse int32
 
@@ -131,27 +108,21 @@ func (x MessageStatus) String() string {
 }
 
 type Event struct {
-	EventId            uint64     `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	AuthorId           uint64     `protobuf:"varint,2,opt,name=author_id" json:"author_id,omitempty"`
-	AuthorName         string     `protobuf:"bytes,3,opt,name=author_name" json:"author_name,omitempty"`
-	CreationDate       int64      `protobuf:"varint,4,opt,name=creation_date" json:"creation_date,omitempty"`
-	Date               *EventDate `protobuf:"bytes,5,opt,name=date" json:"date,omitempty"`
-	Message            string     `protobuf:"bytes,6,opt,name=message" json:"message,omitempty"`
-	Type               EventType  `protobuf:"varint,7,opt,name=type,enum=protocol.EventType" json:"type,omitempty"`
-	Geolocation        *Location  `protobuf:"bytes,8,opt,name=geolocation" json:"geolocation,omitempty"`
-	NumberParticipants uint32     `protobuf:"varint,9,opt,name=number_participants" json:"number_participants,omitempty"`
+	EventId            uint64    `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	AuthorId           uint64    `protobuf:"varint,2,opt,name=author_id" json:"author_id,omitempty"`
+	AuthorName         string    `protobuf:"bytes,3,opt,name=author_name" json:"author_name,omitempty"`
+	CreationDate       int64     `protobuf:"varint,4,opt,name=creation_date" json:"creation_date,omitempty"`
+	StartDate          int64     `protobuf:"varint,5,opt,name=start_date" json:"start_date,omitempty"`
+	EndDate            int64     `protobuf:"varint,6,opt,name=end_date" json:"end_date,omitempty"`
+	Message            string    `protobuf:"bytes,7,opt,name=message" json:"message,omitempty"`
+	IsPublic           bool      `protobuf:"varint,8,opt,name=is_public" json:"is_public,omitempty"`
+	Geolocation        *Location `protobuf:"bytes,9,opt,name=geolocation" json:"geolocation,omitempty"`
+	NumberParticipants uint32    `protobuf:"varint,10,opt,name=number_participants" json:"number_participants,omitempty"`
 }
 
 func (m *Event) Reset()         { *m = Event{} }
 func (m *Event) String() string { return proto.CompactTextString(m) }
 func (*Event) ProtoMessage()    {}
-
-func (m *Event) GetDate() *EventDate {
-	if m != nil {
-		return m.Date
-	}
-	return nil
-}
 
 func (m *Event) GetGeolocation() *Location {
 	if m != nil {
@@ -169,15 +140,6 @@ func (m *Location) Reset()         { *m = Location{} }
 func (m *Location) String() string { return proto.CompactTextString(m) }
 func (*Location) ProtoMessage()    {}
 
-type EventDate struct {
-	StartDate int64 `protobuf:"varint,1,opt,name=start_date" json:"start_date,omitempty"`
-	EndDate   int64 `protobuf:"varint,2,opt,name=end_date" json:"end_date,omitempty"`
-}
-
-func (m *EventDate) Reset()         { *m = EventDate{} }
-func (m *EventDate) String() string { return proto.CompactTextString(m) }
-func (*EventDate) ProtoMessage()    {}
-
 type EventParticipant struct {
 	UserId    uint64             `protobuf:"varint,1,opt,name=user_id" json:"user_id,omitempty"`
 	Name      string             `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
@@ -190,7 +152,7 @@ func (m *EventParticipant) String() string { return proto.CompactTextString(m) }
 func (*EventParticipant) ProtoMessage()    {}
 
 type Friend struct {
-	UserId string `protobuf:"bytes,1,opt,name=user_id" json:"user_id,omitempty"`
+	UserId uint64 `protobuf:"varint,1,opt,name=user_id" json:"user_id,omitempty"`
 	Name   string `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
 }
 
@@ -201,10 +163,8 @@ func (*Friend) ProtoMessage()    {}
 func init() {
 	proto.RegisterType((*Event)(nil), "protocol.Event")
 	proto.RegisterType((*Location)(nil), "protocol.Location")
-	proto.RegisterType((*EventDate)(nil), "protocol.EventDate")
 	proto.RegisterType((*EventParticipant)(nil), "protocol.EventParticipant")
 	proto.RegisterType((*Friend)(nil), "protocol.Friend")
-	proto.RegisterEnum("protocol.EventType", EventType_name, EventType_value)
 	proto.RegisterEnum("protocol.AttendanceResponse", AttendanceResponse_name, AttendanceResponse_value)
 	proto.RegisterEnum("protocol.MessageStatus", MessageStatus_name, MessageStatus_value)
 }

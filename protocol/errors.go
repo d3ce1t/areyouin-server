@@ -7,8 +7,10 @@ const (
 	E_FB_MISSING_DATA         // Create User Account
 	E_FB_INVALID_TOKEN        // Create User Account
 	E_MALFORMED_MESSAGE       // User Friend
+	E_EVENT_CREATION_ERROR
 )
 
 const (
 	OK_AUTH int32 = iota
+	OK_ACK
 )

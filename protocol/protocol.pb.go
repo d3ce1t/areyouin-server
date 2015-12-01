@@ -36,21 +36,15 @@ func (x AuthType) String() string {
 
 // CREATE EVENT
 type CreateEvent struct {
-	Message      string     `protobuf:"bytes,1,opt,name=message" json:"message,omitempty"`
-	Date         *EventDate `protobuf:"bytes,2,opt,name=date" json:"date,omitempty"`
-	Participants []uint64   `protobuf:"varint,3,rep,name=participants" json:"participants,omitempty"`
+	Message      string   `protobuf:"bytes,1,opt,name=message" json:"message,omitempty"`
+	StartDate    int64    `protobuf:"varint,2,opt,name=start_date" json:"start_date,omitempty"`
+	EndDate      int64    `protobuf:"varint,3,opt,name=end_date" json:"end_date,omitempty"`
+	Participants []uint64 `protobuf:"varint,4,rep,name=participants" json:"participants,omitempty"`
 }
 
 func (m *CreateEvent) Reset()         { *m = CreateEvent{} }
 func (m *CreateEvent) String() string { return proto.CompactTextString(m) }
 func (*CreateEvent) ProtoMessage()    {}
-
-func (m *CreateEvent) GetDate() *EventDate {
-	if m != nil {
-		return m.Date
-	}
-	return nil
-}
 
 // CANCEL EVENT
 type CancelEvent struct {
@@ -96,21 +90,15 @@ func (*ConfirmAttendance) ProtoMessage()    {}
 // MODIFY EVENT MESSAGE
 // MODIFY EVENT
 type ModifyEvent struct {
-	EventId uint64     `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	Message string     `protobuf:"bytes,2,opt,name=message" json:"message,omitempty"`
-	Date    *EventDate `protobuf:"bytes,3,opt,name=date" json:"date,omitempty"`
+	EventId   uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	Message   string `protobuf:"bytes,2,opt,name=message" json:"message,omitempty"`
+	StartDate int64  `protobuf:"varint,3,opt,name=start_date" json:"start_date,omitempty"`
+	EndDate   int64  `protobuf:"varint,4,opt,name=end_date" json:"end_date,omitempty"`
 }
 
 func (m *ModifyEvent) Reset()         { *m = ModifyEvent{} }
 func (m *ModifyEvent) String() string { return proto.CompactTextString(m) }
 func (*ModifyEvent) ProtoMessage()    {}
-
-func (m *ModifyEvent) GetDate() *EventDate {
-	if m != nil {
-		return m.Date
-	}
-	return nil
-}
 
 // VOTE CHANGE
 type VoteChange struct {
@@ -175,22 +163,13 @@ func (*NewAuthToken) ProtoMessage()    {}
 
 // USER AUTH
 type UserAuthentication struct {
-	UserId    string `protobuf:"bytes,1,opt,name=user_id" json:"user_id,omitempty"`
+	UserId    uint64 `protobuf:"varint,1,opt,name=user_id" json:"user_id,omitempty"`
 	AuthToken string `protobuf:"bytes,2,opt,name=auth_token" json:"auth_token,omitempty"`
 }
 
 func (m *UserAuthentication) Reset()         { *m = UserAuthentication{} }
 func (m *UserAuthentication) String() string { return proto.CompactTextString(m) }
 func (*UserAuthentication) ProtoMessage()    {}
-
-// EVENT CREATED
-type EventCreated struct {
-	EventId uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-}
-
-func (m *EventCreated) Reset()         { *m = EventCreated{} }
-func (m *EventCreated) String() string { return proto.CompactTextString(m) }
-func (*EventCreated) ProtoMessage()    {}
 
 // EVENT CANCELLED
 type EventCancelled struct {
@@ -215,37 +194,15 @@ func (*EventExpired) ProtoMessage()    {}
 // EVENT MESSAGE MODIFIED
 // EVENT MODIFIED
 type EventModified struct {
-	EventId uint64     `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	Date    *EventDate `protobuf:"bytes,2,opt,name=date" json:"date,omitempty"`
-	Message string     `protobuf:"bytes,3,opt,name=message" json:"message,omitempty"`
+	EventId   uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	StartDate int64  `protobuf:"varint,2,opt,name=start_date" json:"start_date,omitempty"`
+	EndDate   int64  `protobuf:"varint,3,opt,name=end_date" json:"end_date,omitempty"`
+	Message   string `protobuf:"bytes,4,opt,name=message" json:"message,omitempty"`
 }
 
 func (m *EventModified) Reset()         { *m = EventModified{} }
 func (m *EventModified) String() string { return proto.CompactTextString(m) }
 func (*EventModified) ProtoMessage()    {}
-
-func (m *EventModified) GetDate() *EventDate {
-	if m != nil {
-		return m.Date
-	}
-	return nil
-}
-
-// INVITATION RECEIVED
-type InvitationReceived struct {
-	Event *Event `protobuf:"bytes,1,opt,name=event" json:"event,omitempty"`
-}
-
-func (m *InvitationReceived) Reset()         { *m = InvitationReceived{} }
-func (m *InvitationReceived) String() string { return proto.CompactTextString(m) }
-func (*InvitationReceived) ProtoMessage()    {}
-
-func (m *InvitationReceived) GetEvent() *Event {
-	if m != nil {
-		return m.Event
-	}
-	return nil
-}
 
 // INVITATION CANCELLED
 type InvitationCancelled struct {
@@ -277,22 +234,16 @@ func (m *AttendanceStatus) GetAttendanceStatus() []*EventParticipant {
 // EVENT CHANGE MESSAGE PROPOSED
 // EVENT CHANGE PROPOSED
 type EventChangeProposed struct {
-	EventId  uint64     `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	ChangeId uint32     `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
-	Date     *EventDate `protobuf:"bytes,3,opt,name=date" json:"date,omitempty"`
-	Message  string     `protobuf:"bytes,4,opt,name=message" json:"message,omitempty"`
+	EventId   uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	ChangeId  uint32 `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
+	StartDate int64  `protobuf:"varint,3,opt,name=start_date" json:"start_date,omitempty"`
+	EndDate   int64  `protobuf:"varint,4,opt,name=end_date" json:"end_date,omitempty"`
+	Message   string `protobuf:"bytes,5,opt,name=message" json:"message,omitempty"`
 }
 
 func (m *EventChangeProposed) Reset()         { *m = EventChangeProposed{} }
 func (m *EventChangeProposed) String() string { return proto.CompactTextString(m) }
 func (*EventChangeProposed) ProtoMessage()    {}
-
-func (m *EventChangeProposed) GetDate() *EventDate {
-	if m != nil {
-		return m.Date
-	}
-	return nil
-}
 
 // VOTING STATUS
 // VOTING FINISHED
@@ -333,7 +284,7 @@ func (*ChangeDiscarded) ProtoMessage()    {}
 
 // ACCESS GRANTED
 type AccessGranted struct {
-	UserId    string `protobuf:"bytes,1,opt,name=user_id" json:"user_id,omitempty"`
+	UserId    uint64 `protobuf:"varint,1,opt,name=user_id" json:"user_id,omitempty"`
 	AuthToken string `protobuf:"bytes,2,opt,name=auth_token" json:"auth_token,omitempty"`
 }
 
@@ -494,11 +445,9 @@ func init() {
 	proto.RegisterType((*CreateUserAccount)(nil), "protocol.CreateUserAccount")
 	proto.RegisterType((*NewAuthToken)(nil), "protocol.NewAuthToken")
 	proto.RegisterType((*UserAuthentication)(nil), "protocol.UserAuthentication")
-	proto.RegisterType((*EventCreated)(nil), "protocol.EventCreated")
 	proto.RegisterType((*EventCancelled)(nil), "protocol.EventCancelled")
 	proto.RegisterType((*EventExpired)(nil), "protocol.EventExpired")
 	proto.RegisterType((*EventModified)(nil), "protocol.EventModified")
-	proto.RegisterType((*InvitationReceived)(nil), "protocol.InvitationReceived")
 	proto.RegisterType((*InvitationCancelled)(nil), "protocol.InvitationCancelled")
 	proto.RegisterType((*AttendanceStatus)(nil), "protocol.AttendanceStatus")
 	proto.RegisterType((*EventChangeProposed)(nil), "protocol.EventChangeProposed")
