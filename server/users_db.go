@@ -5,10 +5,18 @@ import (
 	"log"
 )
 
+func NewUserDatabase() *UsersDatabase {
+	udb := &UsersDatabase{}
+	udb.allusers = make(map[string]*UserAccount)
+	udb.facebook = make(map[string]*UserAccount)
+	udb.idIndex = make(map[uint64]*UserAccount)
+	return udb
+}
+
 type UsersDatabase struct {
 	allusers map[string]*UserAccount // Index by E-mail
 	facebook map[string]*UserAccount // Index by Facebok User ID
-	idIndex  map[string]*UserAccount // Index by UserID
+	idIndex  map[uint64]*UserAccount // Index by UserID
 }
 
 // Checks if an email exists
@@ -24,17 +32,32 @@ func (udb *UsersDatabase) ExistFB(fbid string) bool {
 }
 
 // Checks if an User ID exists
-func (udb *UsersDatabase) ExistID(id string) bool {
+func (udb *UsersDatabase) ExistID(id uint64) bool {
 	_, ok := udb.idIndex[id]
 	return ok
 }
 
+// Check if a slice of User ID exists
+func (udb *UsersDatabase) ExistAllIDs(ids []uint64) bool {
+	// Check valid user participants
+	is_valid := true
+
+	for _, user_id := range ids {
+		if !udb.ExistID(user_id) {
+			is_valid = false
+			break
+		}
+	}
+
+	return is_valid
+}
+
 // Checks if a given user id with auth_token has access
-func (udb *UsersDatabase) CheckAccess(id uuid.UUID, auth_token uuid.UUID) bool {
+func (udb *UsersDatabase) CheckAccess(id uint64, auth_token uuid.UUID) bool {
 
 	result := false
 
-	if id != nil && auth_token != nil {
+	if auth_token != nil {
 		if userAccount, ok := udb.GetByID(id); ok {
 			if uuid.Equal(auth_token, userAccount.auth_token) {
 				result = true
@@ -52,8 +75,8 @@ func (udb *UsersDatabase) GetByEmail(email string) (uac *UserAccount, ok bool) {
 }
 
 // Get an user account by User ID
-func (udb *UsersDatabase) GetByID(id uuid.UUID) (uac *UserAccount, ok bool) {
-	uac, ok = udb.idIndex[id.String()]
+func (udb *UsersDatabase) GetByID(id uint64) (uac *UserAccount, ok bool) {
+	uac, ok = udb.idIndex[id]
 	return
 }
 
@@ -67,6 +90,7 @@ func (udb *UsersDatabase) GetByFBUID(fbid string) (uac *UserAccount, ok bool) {
 func (udb *UsersDatabase) Insert(account *UserAccount) bool {
 
 	if udb.ExistEmail(account.email) {
+		log.Println("Given account (", account.email, ") already exists")
 		return false
 	}
 
@@ -81,7 +105,7 @@ func (udb *UsersDatabase) Insert(account *UserAccount) bool {
 	}
 
 	udb.allusers[account.email] = account
-	udb.idIndex[account.id.String()] = account
+	udb.idIndex[account.id] = account
 	account.udb = udb
 
 	return true
@@ -93,17 +117,9 @@ func (udb *UsersDatabase) Remove(email string) {
 	if udb.ExistEmail(email) {
 		account := udb.allusers[email]
 		delete(udb.allusers, email)
-		delete(udb.idIndex, account.id.String())
+		delete(udb.idIndex, account.id)
 		if account.IsFacebook() {
 			delete(udb.facebook, account.fbid)
 		}
 	}
-}
-
-func newUserDatabase() *UsersDatabase {
-	udb := &UsersDatabase{}
-	udb.allusers = make(map[string]*UserAccount)
-	udb.facebook = make(map[string]*UserAccount)
-	udb.idIndex = make(map[string]*UserAccount)
-	return udb
 }
