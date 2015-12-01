@@ -5,9 +5,13 @@ import (
 	"sort"
 )
 
+func NewInbox(user_id uint64) *Inbox {
+	return &Inbox{user_id: user_id}
+}
+
 type Inbox struct {
-	users_id uint64
-	events   []*proto.Event
+	user_id uint64
+	events  []*proto.Event
 }
 
 func (in *Inbox) Add(event *proto.Event) {

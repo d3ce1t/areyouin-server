@@ -1,6 +1,7 @@
 package main
 
 import (
+	proto "areyouin/protocol"
 	"github.com/twinj/uuid"
 	"log"
 )
@@ -8,7 +9,7 @@ import (
 func NewUserAccount(name string, email string, password string, phone string, fbid string, fbtoken string) *UserAccount {
 
 	user := &UserAccount{
-		//id:         uuid.NewV4(), DO NOT CREATE ID
+		id:         getNewUserID(),
 		name:       name,
 		email:      email,
 		password:   password,
@@ -18,6 +19,7 @@ func NewUserAccount(name string, email string, password string, phone string, fb
 		auth_token: uuid.NewV4()}
 
 	user.friends = make(map[uint64]*Friend)
+	user.inbox = NewInbox(user.id)
 	user.udb = nil
 
 	return user
@@ -37,6 +39,7 @@ type UserAccount struct {
 	last_connection int64
 	friends         map[uint64]*Friend
 	udb             *UsersDatabase // Database the user belongs to
+	inbox           *Inbox
 }
 
 func (ua *UserAccount) IsFacebook() bool {
@@ -82,4 +85,17 @@ func (ua *UserAccount) GetAllFriends() []*Friend {
 	}
 
 	return list_friends
+}
+
+func (ua *UserAccount) GetAllEvents() []*proto.Event {
+
+	list_events := make([]*proto.Event, ua.inbox.Len())
+
+	i := 0
+	for _, v := range ua.inbox.events {
+		list_events[i] = v
+		i++
+	}
+
+	return list_events
 }

@@ -4,20 +4,23 @@ import (
 	"net"
 )
 
-func NewSession(conn net.Conn) *AyiSession {
-	return &AyiSession{
-		Conn:   conn,
-		UserId: 0,
-		IsAuth: false,
-	}
-}
-
 type AyiSession struct {
-	Conn   net.Conn
-	UserId uint64
-	IsAuth bool
+	Conn                net.Conn
+	UserId              uint64
+	IsAuth              bool
+	NotificationChannel chan []byte // Channel used to send notifications to clients
 }
 
-func (c *AyiSession) String() string {
-	return c.Conn.RemoteAddr().String()
+func (s *AyiSession) String() string {
+	return s.Conn.RemoteAddr().String()
+}
+
+func (s *AyiSession) Notify(msg []byte) {
+	s.NotificationChannel <- msg
+}
+
+func (s *AyiSession) Close() {
+	s.Conn.Close()
+	s.IsAuth = false
+	s.UserId = 0
 }

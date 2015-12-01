@@ -3,7 +3,6 @@ package protocol
 import (
 	"encoding/binary"
 	"io"
-	"log"
 	"net"
 	"syscall"
 )
@@ -18,39 +17,66 @@ func NewMessage() *MessageBuilder {
 	return mb
 }
 
+type ReadError struct {
+	s       string
+	timeout bool
+	closed  bool
+}
+
+func (e *ReadError) Error() string {
+	return e.s
+}
+
+func (e *ReadError) ConnectionClosed() bool {
+	return e.closed
+}
+
+func (e *ReadError) Timeout() bool {
+	return e.timeout
+}
+
+func getError(err error) *ReadError {
+
+	protoerror := &ReadError{}
+	oe, ok := err.(*net.OpError)
+
+	switch {
+	case err == io.EOF:
+		protoerror.closed = true
+	case ok && oe.Err == syscall.ECONNRESET:
+		protoerror.closed = true
+	case ok && oe.Timeout():
+		protoerror.timeout = true
+	}
+
+	protoerror.s = err.Error()
+
+	return protoerror
+}
+
 // Reads a message from an io.Reader
-func ReadPacket(reader io.Reader) *AyiPacket {
+func ReadPacket(reader io.Reader) (*AyiPacket, *ReadError) {
 
 	packet := &AyiPacket{}
 
 	// Read header
 	err := binary.Read(reader, binary.BigEndian, &packet.Header)
-	oe, ok := err.(*net.OpError)
 
-	// Manage Error
-	if err == io.EOF || ok && oe.Err == syscall.ECONNRESET {
-		log.Println("Connection closed by client")
-		return nil
-	} else if err != nil {
-		packet = nil
-		log.Fatal("Parsing message error: ", err)
+	if err != nil {
+		protoerror := getError(err)
+		return nil, protoerror
 	}
 
 	// Read Payload
 	packet.Data = make([]uint8, packet.Header.Size-6)
 	_, err = reader.Read(packet.Data)
-	oe, ok = err.(*net.OpError)
 
-	// Manage Error
-	if err == io.EOF || ok && oe.Err == syscall.ECONNRESET {
-		log.Println("Connection closed by client")
-		return nil
-	} else if err != nil {
-		packet = nil
-		log.Fatal("Parsing message error: ", err)
+	if err != nil {
+		protoerror := getError(err)
+		return nil, protoerror
 	}
 
-	return packet
+	return packet, nil
 }
 
 type Message interface {

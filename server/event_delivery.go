@@ -2,6 +2,7 @@ package main
 
 import (
 	proto "areyouin/protocol"
+	"log"
 )
 
 type DeliverMessage struct {
@@ -11,10 +12,9 @@ type DeliverMessage struct {
 
 func NewDeliverySystem() *DeliverySystem {
 	ds := &DeliverySystem{}
-	ds.queue = make(chan *DeliverMessage)
-	ds.udb = udb           // from server.go global scope
-	ds.edb = edb           // from server.go global scope
-	ds.inbox = users_inbox // from server.go global scope
+	ds.queue = make(chan *DeliverMessage, 100) // Buffered channel
+	ds.udb = udb                               // from server.go global scope
+	ds.edb = edb                               // from server.go global scope
 	return ds
 }
 
@@ -22,7 +22,6 @@ type DeliverySystem struct {
 	queue chan *DeliverMessage
 	udb   *UsersDatabase
 	edb   *EventsDatabase
-	inbox map[uint64]*Inbox
 }
 
 func (ds *DeliverySystem) Submit(event *proto.Event, dst []uint64) {
@@ -37,15 +36,17 @@ func (ds *DeliverySystem) Run() {
 			event := m.Event
 			dsts := m.Dst
 
-			// Add event to the author events queue
-			if ds.udb.ExistID(event.AuthorId) {
-				ds.inbox[event.AuthorId].Add(event)
+			// Add event to the author inbox
+			if uac, ok := ds.udb.GetByID(event.AuthorId); ok {
+				uac.inbox.Add(event)
+				log.Println("Event", event.EventId, "delivered to author", uac.id)
 			}
 
 			for _, user_id := range dsts {
 				// Add event to the user events queue
-				if ds.udb.ExistID(user_id) {
-					ds.inbox[user_id].Add(event)
+				if uac, ok := ds.udb.GetByID(user_id); ok {
+					uac.inbox.Add(event)
+					log.Println("Event", event.EventId, "delivered to user", uac.id)
 					// Send invitation to user
 					notifyUser(user_id,
 						proto.NewMessage().InvitationReceived(event).Marshal())

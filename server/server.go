@@ -12,8 +12,8 @@ import (
 )
 
 const MAX_WRITE_TIMEOUT = 10 * time.Second
+const MAX_READ_TIMEOUT = 2000 * time.Millisecond
 
-var users_inbox = make(map[uint64]*Inbox)
 var sessions = make(map[uint64]*AyiSession)
 var udb = NewUserDatabase()
 var edb = NewEventDatabase()
@@ -50,7 +50,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, client *
 	}
 
 	if udb.ExistAllIDs(msg.Participants) {
-		if ok := edb.Insert(event); ok {
+		if ok := edb.Insert(event); ok { // Insert is not thread-safe
 			ds.Submit(event, msg.Participants)
 			writeReply(proto.NewMessage().Ok(proto.OK_ACK).Marshal(), client)
 			log.Println("EVENT STORED BUT NOT PUBLISHED", event.EventId)
@@ -197,10 +197,11 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, c
 		writeReply(reply, client)
 		client.IsAuth = true
 		client.UserId = user_id
-		sessions[user_id] = client
+		RegisterSession(client)
 		log.Println("AUTH OK")
 		sendUserFriends(client)
-		// TODO: Send list of current events
+		// FIXME: Do not send all of the private events, but limit to a fixed number
+		sendPrivateEvents(client)
 	} else {
 		reply = proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER).Marshal()
 		writeReply(reply, client)
@@ -225,6 +226,24 @@ func onListAuthoredEvents(packet_type proto.PacketType, message proto.Message, c
 
 func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
 
+}
+
+func sendPrivateEvents(session *AyiSession) bool {
+
+	result := false
+
+	if uac, ok := udb.GetByID(session.UserId); ok {
+		events := uac.GetAllEvents()
+		reply := proto.NewMessage().EventsList(events).Marshal()
+		log.Println("SEND PRIVATE EVENTS to", session)
+		writeReply(reply, session)
+		result = true
+	} else {
+		log.Println("SendPrivateEvents failed because of an invalid UserID")
+		result = false
+	}
+
+	return result
 }
 
 func onListPublicEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
@@ -334,47 +353,10 @@ func writeReply(reply []byte, session *AyiSession) {
 	}
 }
 
-// TODO: Close connection if no login for a while (maybe 30 seconds)
-// TODO: Close connection if no PING, PONG dialog (each 15 minutes?)
-func handleSession(session *AyiSession) {
-
-	log.Println("New connection from", session)
-
-	for {
-		// Read messages and then write (if needed)
-		// Sync behaviour
-		msg := proto.ReadPacket(session.Conn)
-
-		if msg == nil {
-			log.Println("Session closed")
-			if uac, ok := udb.GetByID(session.UserId); ok {
-				uac.last_connection = time.Now().UTC().Unix()
-			}
-			delete(sessions, session.UserId)
-			return
-		}
-
-		err := ServeMessage(msg, session) // may block until writes are performed
-		if err != nil {
-			// Errors may happen
-			log.Println("Unexpected error happened while serving message", err)
-		}
-
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	//client.Close()
-}
-
-// TODO: Notify user through the active connection and from its own thread
 func notifyUser(user_id uint64, message []byte) {
-
-	/*client, ok := sessions[user_id]
-
-	if !ok {
-		return
-	}*/
-
+	if session, ok := sessions[user_id]; ok {
+		session.Notify(message)
+	}
 }
 
 func getNewUserID() uint64 {
@@ -399,8 +381,6 @@ func initDummyUsers() {
 
 	user1.id = 10745351749240831
 	user1.auth_token, _ = uuid.Parse("119376ac-c58e-4704-850a-66a6f9663eaa")
-	user2.id = getNewUserID()
-	user3.id = getNewUserID()
 
 	udb.Insert(user1)
 	udb.Insert(user2)
@@ -439,6 +419,73 @@ func ServeMessage(packet *proto.AyiPacket, session *AyiSession) error {
 	return nil
 }
 
+// TODO: Close connection if no login for a while (maybe 30 seconds)
+// TODO: Close connection if no PING, PONG dialog (each 15 minutes?)
+func handleSession(session *AyiSession) {
+
+	log.Println("New connection from", session)
+
+	var packet *proto.AyiPacket
+	var read_error *proto.ReadError
+	exit := false
+
+	for !exit {
+
+		select {
+		// Send Notifications
+		case notification := <-session.NotificationChannel:
+			log.Println("Send notification to", session.UserId)
+			writeReply(notification, session)
+
+		// Read messages and then write a reply (if needed)
+		default:
+			session.Conn.SetReadDeadline(time.Now().Add(MAX_READ_TIMEOUT))
+			if packet, read_error = proto.ReadPacket(session.Conn); read_error == nil {
+				err := ServeMessage(packet, session) // may block until writes are performed
+				if err != nil {                      // Errors may happen
+					log.Println("Unexpected error happened while serving message", err)
+				}
+			}
+		} // End select
+
+		// Manage possible error
+		if read_error != nil && read_error.ConnectionClosed() {
+			log.Println("Connection closed by client")
+			exit = true
+		} else if read_error != nil && !read_error.Timeout() {
+			log.Println(read_error.Error())
+		}
+
+		//time.Sleep(100 * time.Millisecond)
+	}
+
+	log.Println("Session closed")
+
+	if uac, ok := udb.GetByID(session.UserId); ok {
+		uac.last_connection = time.Now().UTC().Unix()
+	}
+
+	UnregisterSession(session)
+}
+
+func RegisterSession(session *AyiSession) {
+	sessions[session.UserId] = session
+}
+
+func UnregisterSession(session *AyiSession) {
+	session.Close()
+	delete(sessions, session.UserId)
+}
+
+func NewSession(conn net.Conn) *AyiSession {
+	return &AyiSession{
+		Conn:                conn,
+		UserId:              0,
+		IsAuth:              false,
+		NotificationChannel: make(chan []byte, 5),
+	}
+}
+
 func main() {
 
 	fmt.Println("GOMAXPROCS is", runtime.GOMAXPROCS(0))
@@ -458,9 +505,9 @@ func main() {
 	RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 
 	// Setup server components
-	go GeneratorTask(1, uid_ch)
+	go GeneratorTask(1, uid_ch) // UserID generator
 	initDummyUsers()
-	ds.Run()
+	ds.Run() // Delivery System
 
 	for {
 		client, err := listener.Accept()
