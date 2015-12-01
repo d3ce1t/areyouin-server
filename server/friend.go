@@ -1,10 +1,6 @@
 package main
 
-import (
-	"github.com/twinj/uuid"
-)
-
 type Friend struct {
-	id   uuid.UUID
+	id   uint64
 	name string
 }
