@@ -8,13 +8,11 @@ import (
 func NewEventDatabase() *EventsDatabase {
 	edb := &EventsDatabase{}
 	edb.allevents = make(map[uint64]*proto.Event)
-	//edb.userevents = make(map[uint64][]*Event)
 	return edb
 }
 
 type EventsDatabase struct {
 	allevents map[uint64]*proto.Event // Index by ID
-	//userevents map[uint64][]*Event // Index events by user ID
 }
 
 func (edb *EventsDatabase) ExistEvent(id uint64) bool {

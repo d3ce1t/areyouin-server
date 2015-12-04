@@ -33,15 +33,15 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, client *
 		return
 	}
 
-	uac, _ := udb.GetByID(client.UserId)
+	author, _ := udb.GetByID(client.UserId)
 
 	// TODO: Validate input data
 	// TODO: Check overlapping with other own published events
 	event := &proto.Event{
 		EventId:            getNewUserID(), // Maybe a bottleneck here
-		AuthorId:           client.UserId,
-		AuthorName:         uac.name,
-		CreationDate:       time.Now().UTC().Unix(),
+		AuthorId:           author.id,
+		AuthorName:         author.name,
+		CreationDate:       time.Now().UTC().Unix(), // Seconds
 		StartDate:          msg.StartDate,
 		EndDate:            msg.EndDate,
 		Message:            msg.Message,
@@ -49,15 +49,48 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, client *
 		NumberParticipants: 1, // The own author
 	}
 
-	if udb.ExistAllIDs(msg.Participants) {
+	// Put participants info into the event
+	allright := true
+
+	for _, user_id := range msg.Participants {
+
+		uac, ok := udb.GetByID(user_id)
+
+		if !ok {
+			log.Println("Trying to add into event", event.EventId, "a participant that does not exist")
+			allright = false
+			break
+		}
+
+		participant := &proto.EventParticipant{
+			UserId:    uac.id,
+			Name:      uac.name,
+			Response:  proto.AttendanceResponse_NO_RESPONSE,
+			Delivered: proto.MessageStatus_NO_DELIVERED,
+		}
+
+		event.Participants = append(event.Participants, participant)
+	}
+
+	if allright {
+		// Add author as another participant of the event and assume he or she
+		// will assist by default
+		event.Participants = append(event.Participants, &proto.EventParticipant{
+			UserId:    author.id,
+			Name:      author.name,
+			Response:  proto.AttendanceResponse_ASSIST,
+			Delivered: proto.MessageStatus_NO_DELIVERED,
+		})
+
 		if ok := edb.Insert(event); ok { // Insert is not thread-safe
-			ds.Submit(event, msg.Participants)
+			ds.Submit(event)
 			writeReply(proto.NewMessage().Ok(proto.OK_ACK).Marshal(), client)
 			log.Println("EVENT STORED BUT NOT PUBLISHED", event.EventId)
 		} else {
 			writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_CREATION_ERROR).Marshal(), client)
 			log.Println("EVENT CREATION ERROR")
 		}
+
 	} else {
 		writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_CREATION_ERROR).Marshal(), client)
 		log.Println("INVALID PARTICIPANTS")
@@ -353,9 +386,12 @@ func writeReply(reply []byte, session *AyiSession) {
 	}
 }
 
-func notifyUser(user_id uint64, message []byte) {
+func notifyUser(user_id uint64, message []byte, callback func()) {
 	if session, ok := sessions[user_id]; ok {
-		session.Notify(message)
+		session.Notify(&Notification{
+			Message:  message,
+			Callback: callback,
+		})
 	}
 }
 
@@ -434,8 +470,7 @@ func handleSession(session *AyiSession) {
 		select {
 		// Send Notifications
 		case notification := <-session.NotificationChannel:
-			log.Println("Send notification to", session.UserId)
-			writeReply(notification, session)
+			session.ProcessNotification(notification)
 
 		// Read messages and then write a reply (if needed)
 		default:
@@ -482,7 +517,7 @@ func NewSession(conn net.Conn) *AyiSession {
 		Conn:                conn,
 		UserId:              0,
 		IsAuth:              false,
-		NotificationChannel: make(chan []byte, 5),
+		NotificationChannel: make(chan *Notification, 5),
 	}
 }
 

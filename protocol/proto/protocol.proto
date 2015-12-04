@@ -242,10 +242,10 @@ message Pong {
 }
 
 // EVENT INFO
-message EventInfo {
+/*message EventInfo {
   Event event = 1;
   repeated EventParticipant attendance_status = 2;
-}
+}*/
 
 // EVENTS LIST
 message EventsList {

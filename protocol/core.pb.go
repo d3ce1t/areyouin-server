@@ -43,7 +43,6 @@ It has these top-level messages:
 	ListCursor
 	ListPublicEvents
 	Pong
-	EventInfo
 	EventsList
 	FriendsList
 */
@@ -108,16 +107,17 @@ func (x MessageStatus) String() string {
 }
 
 type Event struct {
-	EventId            uint64    `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	AuthorId           uint64    `protobuf:"varint,2,opt,name=author_id" json:"author_id,omitempty"`
-	AuthorName         string    `protobuf:"bytes,3,opt,name=author_name" json:"author_name,omitempty"`
-	CreationDate       int64     `protobuf:"varint,4,opt,name=creation_date" json:"creation_date,omitempty"`
-	StartDate          int64     `protobuf:"varint,5,opt,name=start_date" json:"start_date,omitempty"`
-	EndDate            int64     `protobuf:"varint,6,opt,name=end_date" json:"end_date,omitempty"`
-	Message            string    `protobuf:"bytes,7,opt,name=message" json:"message,omitempty"`
-	IsPublic           bool      `protobuf:"varint,8,opt,name=is_public" json:"is_public,omitempty"`
-	Geolocation        *Location `protobuf:"bytes,9,opt,name=geolocation" json:"geolocation,omitempty"`
-	NumberParticipants uint32    `protobuf:"varint,10,opt,name=number_participants" json:"number_participants,omitempty"`
+	EventId            uint64              `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	AuthorId           uint64              `protobuf:"varint,2,opt,name=author_id" json:"author_id,omitempty"`
+	AuthorName         string              `protobuf:"bytes,3,opt,name=author_name" json:"author_name,omitempty"`
+	CreationDate       int64               `protobuf:"varint,4,opt,name=creation_date" json:"creation_date,omitempty"`
+	StartDate          int64               `protobuf:"varint,5,opt,name=start_date" json:"start_date,omitempty"`
+	EndDate            int64               `protobuf:"varint,6,opt,name=end_date" json:"end_date,omitempty"`
+	Message            string              `protobuf:"bytes,7,opt,name=message" json:"message,omitempty"`
+	IsPublic           bool                `protobuf:"varint,8,opt,name=is_public" json:"is_public,omitempty"`
+	Geolocation        *Location           `protobuf:"bytes,9,opt,name=geolocation" json:"geolocation,omitempty"`
+	NumberParticipants uint32              `protobuf:"varint,10,opt,name=number_participants" json:"number_participants,omitempty"`
+	Participants       []*EventParticipant `protobuf:"bytes,11,rep,name=participants" json:"participants,omitempty"`
 }
 
 func (m *Event) Reset()         { *m = Event{} }
@@ -127,6 +127,13 @@ func (*Event) ProtoMessage()    {}
 func (m *Event) GetGeolocation() *Location {
 	if m != nil {
 		return m.Geolocation
+	}
+	return nil
+}
+
+func (m *Event) GetParticipants() []*EventParticipant {
+	if m != nil {
+		return m.Participants
 	}
 	return nil
 }

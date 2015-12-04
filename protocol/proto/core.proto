@@ -28,6 +28,7 @@ message Event {
   bool is_public = 8;
   Location geolocation = 9;
   uint32 number_participants = 10;
+  repeated EventParticipant participants = 11;
 }
 
 message Location {

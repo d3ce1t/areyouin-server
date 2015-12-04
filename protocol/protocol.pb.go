@@ -376,30 +376,6 @@ func (m *Pong) Reset()         { *m = Pong{} }
 func (m *Pong) String() string { return proto.CompactTextString(m) }
 func (*Pong) ProtoMessage()    {}
 
-// EVENT INFO
-type EventInfo struct {
-	Event            *Event              `protobuf:"bytes,1,opt,name=event" json:"event,omitempty"`
-	AttendanceStatus []*EventParticipant `protobuf:"bytes,2,rep,name=attendance_status" json:"attendance_status,omitempty"`
-}
-
-func (m *EventInfo) Reset()         { *m = EventInfo{} }
-func (m *EventInfo) String() string { return proto.CompactTextString(m) }
-func (*EventInfo) ProtoMessage()    {}
-
-func (m *EventInfo) GetEvent() *Event {
-	if m != nil {
-		return m.Event
-	}
-	return nil
-}
-
-func (m *EventInfo) GetAttendanceStatus() []*EventParticipant {
-	if m != nil {
-		return m.AttendanceStatus
-	}
-	return nil
-}
-
 // EVENTS LIST
 type EventsList struct {
 	Event []*Event `protobuf:"bytes,1,rep,name=event" json:"event,omitempty"`
@@ -462,7 +438,6 @@ func init() {
 	proto.RegisterType((*ListCursor)(nil), "protocol.ListCursor")
 	proto.RegisterType((*ListPublicEvents)(nil), "protocol.ListPublicEvents")
 	proto.RegisterType((*Pong)(nil), "protocol.Pong")
-	proto.RegisterType((*EventInfo)(nil), "protocol.EventInfo")
 	proto.RegisterType((*EventsList)(nil), "protocol.EventsList")
 	proto.RegisterType((*FriendsList)(nil), "protocol.FriendsList")
 	proto.RegisterEnum("protocol.AuthType", AuthType_name, AuthType_value)

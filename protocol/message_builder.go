@@ -281,12 +281,14 @@ func (mb *MessageBuilder) Pong() *AyiPacket {
 	return mb.message
 }
 
-func (mb *MessageBuilder) EventInfo(event *Event, status []*EventParticipant) *AyiPacket {
+/* Create an Event message with all its information, including participants information */
+func (mb *MessageBuilder) EventInfo(event *Event) *AyiPacket {
 	mb.message.Header.Type = M_EVENT_INFO
-	mb.message.SetMessage(&EventInfo{Event: event, AttendanceStatus: status})
+	mb.message.SetMessage(event)
 	return mb.message
 }
 
+/* Create a List of events */
 func (mb *MessageBuilder) EventsList(events_list []*Event) *AyiPacket {
 	mb.message.Header.Type = M_EVENTS_LIST
 	mb.message.SetMessage(&EventsList{Event: events_list})

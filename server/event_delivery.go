@@ -5,57 +5,61 @@ import (
 	"log"
 )
 
-type DeliverMessage struct {
-	Event *proto.Event
-	Dst   []uint64
-}
-
 func NewDeliverySystem() *DeliverySystem {
 	ds := &DeliverySystem{}
-	ds.queue = make(chan *DeliverMessage, 100) // Buffered channel
-	ds.udb = udb                               // from server.go global scope
-	ds.edb = edb                               // from server.go global scope
+	ds.queue = make(chan *proto.Event, 100) // Buffered channel
+	ds.udb = udb                            // from server.go global scope
+	ds.edb = edb                            // from server.go global scope
 	return ds
 }
 
 type DeliverySystem struct {
-	queue chan *DeliverMessage
+	queue chan *proto.Event
 	udb   *UsersDatabase
 	edb   *EventsDatabase
 }
 
-func (ds *DeliverySystem) Submit(event *proto.Event, dst []uint64) {
-	ds.queue <- &DeliverMessage{Event: event, Dst: dst}
+func (ds *DeliverySystem) Submit(event *proto.Event) {
+	ds.queue <- event
 }
 
 func (ds *DeliverySystem) Run() {
 	go func() {
 
 		for {
-			m := <-ds.queue
-			event := m.Event
-			dsts := m.Dst
+			// Get pending event from queue
+			event := <-ds.queue
 
-			// Add event to the author inbox
-			if uac, ok := ds.udb.GetByID(event.AuthorId); ok {
-				uac.inbox.Add(event)
-				log.Println("Event", event.EventId, "delivered to author", uac.id)
-			}
+			// Add event to participants inboxes (author is also a participant)
+			notificationMsg := proto.NewMessage().InvitationReceived(event).Marshal()
 
-			for _, user_id := range dsts {
-				// Add event to the user events queue
-				if uac, ok := ds.udb.GetByID(user_id); ok {
-					uac.inbox.Add(event)
-					log.Println("Event", event.EventId, "delivered to user", uac.id)
+			for _, pstatus := range event.Participants {
+
+				puac, ok := ds.udb.GetByID(pstatus.UserId)
+
+				if !ok {
+					log.Println("Coudn't deliver event", event.EventId, "to someone because useraccount does not exist")
+					continue
+				}
+
+				puac.inbox.Add(event)
+				pstatus.Delivered = proto.MessageStatus_SERVER_DELIVERED
+
+				if event.AuthorId == pstatus.UserId {
+					log.Println("Event", event.EventId, "delivered to author", puac.id)
+					// Send Event Created notification to the author
+					notifyUser(event.AuthorId,
+						proto.NewMessage().EventCreated(event).Marshal(), func() {
+							pstatus.Delivered = proto.MessageStatus_CLIENT_DELIVERED
+						})
+				} else {
+					log.Println("Event", event.EventId, "delivered to user", puac.id)
 					// Send invitation to user
-					notifyUser(user_id,
-						proto.NewMessage().InvitationReceived(event).Marshal())
+					notifyUser(pstatus.UserId, notificationMsg, func() {
+						pstatus.Delivered = proto.MessageStatus_CLIENT_DELIVERED
+					})
 				}
 			}
-
-			// Send Event Created notification to the author
-			notifyUser(event.AuthorId,
-				proto.NewMessage().EventCreated(event).Marshal())
 		}
 	}()
 }
