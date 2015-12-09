@@ -412,24 +412,33 @@ func GeneratorTask(gid uint16, uid_ch chan uint64) {
 
 func initDummyUsers() {
 	user1 := NewUserAccount("User 1", "user1@foo.com", "12345", "", "", "")
-	user2 := NewUserAccount("User 2B", "user2@foo.com", "12345", "", "", "")
-	user3 := NewUserAccount("User 3A", "user3@foo.com", "12345", "", "", "")
+	user2 := NewUserAccount("User 2", "user2@foo.com", "12345", "", "", "")
+	user3 := NewUserAccount("User 3", "user3@foo.com", "12345", "", "", "")
+	user4 := NewUserAccount("User 4", "user4@foo.com", "12345", "", "", "")
 
-	user1.id = 10745351749240831
-	user1.auth_token, _ = uuid.Parse("119376ac-c58e-4704-850a-66a6f9663eaa")
+	// user1.id = 10745351749240831
+	// user1.auth_token, _ = uuid.Parse("119376ac-c58e-4704-850a-66a6f9663eaa")
 
 	udb.Insert(user1)
 	udb.Insert(user2)
 	udb.Insert(user3)
+	udb.Insert(user4)
 
 	user1.AddFriend(user2.id)
 	user1.AddFriend(user3.id)
+	user1.AddFriend(user4.id)
 
 	user2.AddFriend(user1.id)
 	user2.AddFriend(user3.id)
+	user2.AddFriend(user4.id)
 
 	user3.AddFriend(user1.id)
 	user3.AddFriend(user2.id)
+	user3.AddFriend(user4.id)
+
+	user4.AddFriend(user1.id)
+	user4.AddFriend(user2.id)
+	user4.AddFriend(user3.id)
 }
 
 func RegisterCallback(command proto.PacketType, f Callback) {

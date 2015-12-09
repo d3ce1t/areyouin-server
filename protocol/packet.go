@@ -36,7 +36,8 @@ func (packet *AyiPacket) DecodeMessage() Message {
 	err := proto.Unmarshal(packet.Data, message)
 
 	if err != nil {
-		log.Fatal("Unmarshaling error: ", err)
+		log.Println("Unmarshaling error: ", err)
+		log.Println("PacketType:", packet.Header.Type, "Data", packet.Data, "Size", packet.Header.Size)
 		return nil
 	}
 
