@@ -415,6 +415,10 @@ func initDummyUsers() {
 	user2 := NewUserAccount("User 2", "user2@foo.com", "12345", "", "", "")
 	user3 := NewUserAccount("User 3", "user3@foo.com", "12345", "", "", "")
 	user4 := NewUserAccount("User 4", "user4@foo.com", "12345", "", "", "")
+	user5 := NewUserAccount("User 5", "user5@foo.com", "12345", "", "", "")
+	user6 := NewUserAccount("User 6", "user6@foo.com", "12345", "", "", "")
+	user7 := NewUserAccount("User 7", "user7@foo.com", "12345", "", "", "")
+	user8 := NewUserAccount("User 8", "user8@foo.com", "12345", "", "", "")
 
 	// user1.id = 10745351749240831
 	// user1.auth_token, _ = uuid.Parse("119376ac-c58e-4704-850a-66a6f9663eaa")
@@ -423,10 +427,18 @@ func initDummyUsers() {
 	udb.Insert(user2)
 	udb.Insert(user3)
 	udb.Insert(user4)
+	udb.Insert(user5)
+	udb.Insert(user6)
+	udb.Insert(user7)
+	udb.Insert(user8)
 
 	user1.AddFriend(user2.id)
 	user1.AddFriend(user3.id)
 	user1.AddFriend(user4.id)
+	user1.AddFriend(user5.id)
+	user1.AddFriend(user6.id)
+	user1.AddFriend(user7.id)
+	user1.AddFriend(user8.id)
 
 	user2.AddFriend(user1.id)
 	user2.AddFriend(user3.id)

@@ -87,6 +87,12 @@ func (ua *UserAccount) GetAllFriends() []*Friend {
 	return list_friends
 }
 
+// FIXME: It's being checked only one way, two way needed!
+func (ua *UserAccount) IsFriend(friend_id uint64) bool {
+	_, ok := ua.friends[friend_id]
+	return ok
+}
+
 func (ua *UserAccount) GetAllEvents() []*proto.Event {
 
 	list_events := make([]*proto.Event, ua.inbox.Len())
