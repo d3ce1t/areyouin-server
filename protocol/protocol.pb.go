@@ -33,6 +33,7 @@ var AuthType_value = map[string]int32{
 func (x AuthType) String() string {
 	return proto.EnumName(AuthType_name, int32(x))
 }
+func (AuthType) EnumDescriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
 
 // CREATE EVENT
 type CreateEvent struct {
@@ -42,9 +43,10 @@ type CreateEvent struct {
 	Participants []uint64 `protobuf:"varint,4,rep,name=participants" json:"participants,omitempty"`
 }
 
-func (m *CreateEvent) Reset()         { *m = CreateEvent{} }
-func (m *CreateEvent) String() string { return proto.CompactTextString(m) }
-func (*CreateEvent) ProtoMessage()    {}
+func (m *CreateEvent) Reset()                    { *m = CreateEvent{} }
+func (m *CreateEvent) String() string            { return proto.CompactTextString(m) }
+func (*CreateEvent) ProtoMessage()               {}
+func (*CreateEvent) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
 
 // CANCEL EVENT
 type CancelEvent struct {
@@ -52,9 +54,10 @@ type CancelEvent struct {
 	Reason  string `protobuf:"bytes,2,opt,name=reason" json:"reason,omitempty"`
 }
 
-func (m *CancelEvent) Reset()         { *m = CancelEvent{} }
-func (m *CancelEvent) String() string { return proto.CompactTextString(m) }
-func (*CancelEvent) ProtoMessage()    {}
+func (m *CancelEvent) Reset()                    { *m = CancelEvent{} }
+func (m *CancelEvent) String() string            { return proto.CompactTextString(m) }
+func (*CancelEvent) ProtoMessage()               {}
+func (*CancelEvent) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{1} }
 
 // INVITE USERS
 type InviteUsers struct {
@@ -62,9 +65,10 @@ type InviteUsers struct {
 	Participants []uint64 `protobuf:"varint,2,rep,name=participants" json:"participants,omitempty"`
 }
 
-func (m *InviteUsers) Reset()         { *m = InviteUsers{} }
-func (m *InviteUsers) String() string { return proto.CompactTextString(m) }
-func (*InviteUsers) ProtoMessage()    {}
+func (m *InviteUsers) Reset()                    { *m = InviteUsers{} }
+func (m *InviteUsers) String() string            { return proto.CompactTextString(m) }
+func (*InviteUsers) ProtoMessage()               {}
+func (*InviteUsers) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{2} }
 
 // CANCEL USERS INVITATION
 type CancelUsersInvitation struct {
@@ -72,9 +76,10 @@ type CancelUsersInvitation struct {
 	Participants []uint64 `protobuf:"varint,2,rep,name=participants" json:"participants,omitempty"`
 }
 
-func (m *CancelUsersInvitation) Reset()         { *m = CancelUsersInvitation{} }
-func (m *CancelUsersInvitation) String() string { return proto.CompactTextString(m) }
-func (*CancelUsersInvitation) ProtoMessage()    {}
+func (m *CancelUsersInvitation) Reset()                    { *m = CancelUsersInvitation{} }
+func (m *CancelUsersInvitation) String() string            { return proto.CompactTextString(m) }
+func (*CancelUsersInvitation) ProtoMessage()               {}
+func (*CancelUsersInvitation) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{3} }
 
 // CONFIRM ATTENDANCE
 type ConfirmAttendance struct {
@@ -82,9 +87,10 @@ type ConfirmAttendance struct {
 	ActionCode AttendanceResponse `protobuf:"varint,2,opt,name=action_code,enum=protocol.AttendanceResponse" json:"action_code,omitempty"`
 }
 
-func (m *ConfirmAttendance) Reset()         { *m = ConfirmAttendance{} }
-func (m *ConfirmAttendance) String() string { return proto.CompactTextString(m) }
-func (*ConfirmAttendance) ProtoMessage()    {}
+func (m *ConfirmAttendance) Reset()                    { *m = ConfirmAttendance{} }
+func (m *ConfirmAttendance) String() string            { return proto.CompactTextString(m) }
+func (*ConfirmAttendance) ProtoMessage()               {}
+func (*ConfirmAttendance) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{4} }
 
 // MODIFY EVENT DATE
 // MODIFY EVENT MESSAGE
@@ -96,9 +102,10 @@ type ModifyEvent struct {
 	EndDate   int64  `protobuf:"varint,4,opt,name=end_date" json:"end_date,omitempty"`
 }
 
-func (m *ModifyEvent) Reset()         { *m = ModifyEvent{} }
-func (m *ModifyEvent) String() string { return proto.CompactTextString(m) }
-func (*ModifyEvent) ProtoMessage()    {}
+func (m *ModifyEvent) Reset()                    { *m = ModifyEvent{} }
+func (m *ModifyEvent) String() string            { return proto.CompactTextString(m) }
+func (*ModifyEvent) ProtoMessage()               {}
+func (*ModifyEvent) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{5} }
 
 // VOTE CHANGE
 type VoteChange struct {
@@ -107,9 +114,10 @@ type VoteChange struct {
 	AcceptChange bool   `protobuf:"varint,3,opt,name=accept_change" json:"accept_change,omitempty"`
 }
 
-func (m *VoteChange) Reset()         { *m = VoteChange{} }
-func (m *VoteChange) String() string { return proto.CompactTextString(m) }
-func (*VoteChange) ProtoMessage()    {}
+func (m *VoteChange) Reset()                    { *m = VoteChange{} }
+func (m *VoteChange) String() string            { return proto.CompactTextString(m) }
+func (*VoteChange) ProtoMessage()               {}
+func (*VoteChange) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{6} }
 
 // USER POSITION
 type UserPosition struct {
@@ -117,9 +125,10 @@ type UserPosition struct {
 	EstimationError   float32   `protobuf:"fixed32,2,opt,name=estimation_error" json:"estimation_error,omitempty"`
 }
 
-func (m *UserPosition) Reset()         { *m = UserPosition{} }
-func (m *UserPosition) String() string { return proto.CompactTextString(m) }
-func (*UserPosition) ProtoMessage()    {}
+func (m *UserPosition) Reset()                    { *m = UserPosition{} }
+func (m *UserPosition) String() string            { return proto.CompactTextString(m) }
+func (*UserPosition) ProtoMessage()               {}
+func (*UserPosition) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{7} }
 
 func (m *UserPosition) GetGlobalCoordinates() *Location {
 	if m != nil {
@@ -133,9 +142,10 @@ type UserPositionRange struct {
 	RangeInMeters float32 `protobuf:"fixed32,1,opt,name=range_in_meters" json:"range_in_meters,omitempty"`
 }
 
-func (m *UserPositionRange) Reset()         { *m = UserPositionRange{} }
-func (m *UserPositionRange) String() string { return proto.CompactTextString(m) }
-func (*UserPositionRange) ProtoMessage()    {}
+func (m *UserPositionRange) Reset()                    { *m = UserPositionRange{} }
+func (m *UserPositionRange) String() string            { return proto.CompactTextString(m) }
+func (*UserPositionRange) ProtoMessage()               {}
+func (*UserPositionRange) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{8} }
 
 // CREATE USER ACCOUNT
 type CreateUserAccount struct {
@@ -147,9 +157,10 @@ type CreateUserAccount struct {
 	Fbtoken  string `protobuf:"bytes,6,opt,name=fbtoken" json:"fbtoken,omitempty"`
 }
 
-func (m *CreateUserAccount) Reset()         { *m = CreateUserAccount{} }
-func (m *CreateUserAccount) String() string { return proto.CompactTextString(m) }
-func (*CreateUserAccount) ProtoMessage()    {}
+func (m *CreateUserAccount) Reset()                    { *m = CreateUserAccount{} }
+func (m *CreateUserAccount) String() string            { return proto.CompactTextString(m) }
+func (*CreateUserAccount) ProtoMessage()               {}
+func (*CreateUserAccount) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{9} }
 
 type NewAuthToken struct {
 	Pass1 string   `protobuf:"bytes,1,opt,name=pass1" json:"pass1,omitempty"`
@@ -157,9 +168,10 @@ type NewAuthToken struct {
 	Type  AuthType `protobuf:"varint,3,opt,name=type,enum=protocol.AuthType" json:"type,omitempty"`
 }
 
-func (m *NewAuthToken) Reset()         { *m = NewAuthToken{} }
-func (m *NewAuthToken) String() string { return proto.CompactTextString(m) }
-func (*NewAuthToken) ProtoMessage()    {}
+func (m *NewAuthToken) Reset()                    { *m = NewAuthToken{} }
+func (m *NewAuthToken) String() string            { return proto.CompactTextString(m) }
+func (*NewAuthToken) ProtoMessage()               {}
+func (*NewAuthToken) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{10} }
 
 // USER AUTH
 type UserAuthentication struct {
@@ -167,9 +179,10 @@ type UserAuthentication struct {
 	AuthToken string `protobuf:"bytes,2,opt,name=auth_token" json:"auth_token,omitempty"`
 }
 
-func (m *UserAuthentication) Reset()         { *m = UserAuthentication{} }
-func (m *UserAuthentication) String() string { return proto.CompactTextString(m) }
-func (*UserAuthentication) ProtoMessage()    {}
+func (m *UserAuthentication) Reset()                    { *m = UserAuthentication{} }
+func (m *UserAuthentication) String() string            { return proto.CompactTextString(m) }
+func (*UserAuthentication) ProtoMessage()               {}
+func (*UserAuthentication) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{11} }
 
 // EVENT CANCELLED
 type EventCancelled struct {
@@ -177,18 +190,20 @@ type EventCancelled struct {
 	Reason  string `protobuf:"bytes,2,opt,name=reason" json:"reason,omitempty"`
 }
 
-func (m *EventCancelled) Reset()         { *m = EventCancelled{} }
-func (m *EventCancelled) String() string { return proto.CompactTextString(m) }
-func (*EventCancelled) ProtoMessage()    {}
+func (m *EventCancelled) Reset()                    { *m = EventCancelled{} }
+func (m *EventCancelled) String() string            { return proto.CompactTextString(m) }
+func (*EventCancelled) ProtoMessage()               {}
+func (*EventCancelled) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{12} }
 
 // EVENT EXPIRED
 type EventExpired struct {
 	EventId uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
 }
 
-func (m *EventExpired) Reset()         { *m = EventExpired{} }
-func (m *EventExpired) String() string { return proto.CompactTextString(m) }
-func (*EventExpired) ProtoMessage()    {}
+func (m *EventExpired) Reset()                    { *m = EventExpired{} }
+func (m *EventExpired) String() string            { return proto.CompactTextString(m) }
+func (*EventExpired) ProtoMessage()               {}
+func (*EventExpired) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{13} }
 
 // EVENT DATE MODIFIED
 // EVENT MESSAGE MODIFIED
@@ -200,18 +215,20 @@ type EventModified struct {
 	Message   string `protobuf:"bytes,4,opt,name=message" json:"message,omitempty"`
 }
 
-func (m *EventModified) Reset()         { *m = EventModified{} }
-func (m *EventModified) String() string { return proto.CompactTextString(m) }
-func (*EventModified) ProtoMessage()    {}
+func (m *EventModified) Reset()                    { *m = EventModified{} }
+func (m *EventModified) String() string            { return proto.CompactTextString(m) }
+func (*EventModified) ProtoMessage()               {}
+func (*EventModified) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{14} }
 
 // INVITATION CANCELLED
 type InvitationCancelled struct {
 	EventId uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
 }
 
-func (m *InvitationCancelled) Reset()         { *m = InvitationCancelled{} }
-func (m *InvitationCancelled) String() string { return proto.CompactTextString(m) }
-func (*InvitationCancelled) ProtoMessage()    {}
+func (m *InvitationCancelled) Reset()                    { *m = InvitationCancelled{} }
+func (m *InvitationCancelled) String() string            { return proto.CompactTextString(m) }
+func (*InvitationCancelled) ProtoMessage()               {}
+func (*InvitationCancelled) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{15} }
 
 // ATTENDANCE STATUS
 type AttendanceStatus struct {
@@ -219,9 +236,10 @@ type AttendanceStatus struct {
 	AttendanceStatus []*EventParticipant `protobuf:"bytes,2,rep,name=attendance_status" json:"attendance_status,omitempty"`
 }
 
-func (m *AttendanceStatus) Reset()         { *m = AttendanceStatus{} }
-func (m *AttendanceStatus) String() string { return proto.CompactTextString(m) }
-func (*AttendanceStatus) ProtoMessage()    {}
+func (m *AttendanceStatus) Reset()                    { *m = AttendanceStatus{} }
+func (m *AttendanceStatus) String() string            { return proto.CompactTextString(m) }
+func (*AttendanceStatus) ProtoMessage()               {}
+func (*AttendanceStatus) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{16} }
 
 func (m *AttendanceStatus) GetAttendanceStatus() []*EventParticipant {
 	if m != nil {
@@ -241,9 +259,10 @@ type EventChangeProposed struct {
 	Message   string `protobuf:"bytes,5,opt,name=message" json:"message,omitempty"`
 }
 
-func (m *EventChangeProposed) Reset()         { *m = EventChangeProposed{} }
-func (m *EventChangeProposed) String() string { return proto.CompactTextString(m) }
-func (*EventChangeProposed) ProtoMessage()    {}
+func (m *EventChangeProposed) Reset()                    { *m = EventChangeProposed{} }
+func (m *EventChangeProposed) String() string            { return proto.CompactTextString(m) }
+func (*EventChangeProposed) ProtoMessage()               {}
+func (*EventChangeProposed) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{17} }
 
 // VOTING STATUS
 // VOTING FINISHED
@@ -258,9 +277,10 @@ type VotingStatus struct {
 	Finished      bool   `protobuf:"varint,8,opt,name=finished" json:"finished,omitempty"`
 }
 
-func (m *VotingStatus) Reset()         { *m = VotingStatus{} }
-func (m *VotingStatus) String() string { return proto.CompactTextString(m) }
-func (*VotingStatus) ProtoMessage()    {}
+func (m *VotingStatus) Reset()                    { *m = VotingStatus{} }
+func (m *VotingStatus) String() string            { return proto.CompactTextString(m) }
+func (*VotingStatus) ProtoMessage()               {}
+func (*VotingStatus) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{18} }
 
 // CHANGE ACCEPTED
 type ChangeAccepted struct {
@@ -268,9 +288,10 @@ type ChangeAccepted struct {
 	ChangeId uint32 `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
 }
 
-func (m *ChangeAccepted) Reset()         { *m = ChangeAccepted{} }
-func (m *ChangeAccepted) String() string { return proto.CompactTextString(m) }
-func (*ChangeAccepted) ProtoMessage()    {}
+func (m *ChangeAccepted) Reset()                    { *m = ChangeAccepted{} }
+func (m *ChangeAccepted) String() string            { return proto.CompactTextString(m) }
+func (*ChangeAccepted) ProtoMessage()               {}
+func (*ChangeAccepted) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{19} }
 
 // CHANGE DISCARDED
 type ChangeDiscarded struct {
@@ -278,9 +299,10 @@ type ChangeDiscarded struct {
 	ChangeId uint32 `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
 }
 
-func (m *ChangeDiscarded) Reset()         { *m = ChangeDiscarded{} }
-func (m *ChangeDiscarded) String() string { return proto.CompactTextString(m) }
-func (*ChangeDiscarded) ProtoMessage()    {}
+func (m *ChangeDiscarded) Reset()                    { *m = ChangeDiscarded{} }
+func (m *ChangeDiscarded) String() string            { return proto.CompactTextString(m) }
+func (*ChangeDiscarded) ProtoMessage()               {}
+func (*ChangeDiscarded) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{20} }
 
 // ACCESS GRANTED
 type AccessGranted struct {
@@ -288,18 +310,20 @@ type AccessGranted struct {
 	AuthToken string `protobuf:"bytes,2,opt,name=auth_token" json:"auth_token,omitempty"`
 }
 
-func (m *AccessGranted) Reset()         { *m = AccessGranted{} }
-func (m *AccessGranted) String() string { return proto.CompactTextString(m) }
-func (*AccessGranted) ProtoMessage()    {}
+func (m *AccessGranted) Reset()                    { *m = AccessGranted{} }
+func (m *AccessGranted) String() string            { return proto.CompactTextString(m) }
+func (*AccessGranted) ProtoMessage()               {}
+func (*AccessGranted) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{21} }
 
 // OK
 type Ok struct {
 	Type int32 `protobuf:"varint,1,opt,name=type" json:"type,omitempty"`
 }
 
-func (m *Ok) Reset()         { *m = Ok{} }
-func (m *Ok) String() string { return proto.CompactTextString(m) }
-func (*Ok) ProtoMessage()    {}
+func (m *Ok) Reset()                    { *m = Ok{} }
+func (m *Ok) String() string            { return proto.CompactTextString(m) }
+func (*Ok) ProtoMessage()               {}
+func (*Ok) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{22} }
 
 // ERROR
 type Error struct {
@@ -307,27 +331,30 @@ type Error struct {
 	Error int32 `protobuf:"varint,2,opt,name=error" json:"error,omitempty"`
 }
 
-func (m *Error) Reset()         { *m = Error{} }
-func (m *Error) String() string { return proto.CompactTextString(m) }
-func (*Error) ProtoMessage()    {}
+func (m *Error) Reset()                    { *m = Error{} }
+func (m *Error) String() string            { return proto.CompactTextString(m) }
+func (*Error) ProtoMessage()               {}
+func (*Error) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{23} }
 
 // PING
 type Ping struct {
 	CurrentTime int64 `protobuf:"varint,1,opt,name=current_time" json:"current_time,omitempty"`
 }
 
-func (m *Ping) Reset()         { *m = Ping{} }
-func (m *Ping) String() string { return proto.CompactTextString(m) }
-func (*Ping) ProtoMessage()    {}
+func (m *Ping) Reset()                    { *m = Ping{} }
+func (m *Ping) String() string            { return proto.CompactTextString(m) }
+func (*Ping) ProtoMessage()               {}
+func (*Ping) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{24} }
 
 // READ EVENT
 type ReadEvent struct {
 	EventId uint64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
 }
 
-func (m *ReadEvent) Reset()         { *m = ReadEvent{} }
-func (m *ReadEvent) String() string { return proto.CompactTextString(m) }
-func (*ReadEvent) ProtoMessage()    {}
+func (m *ReadEvent) Reset()                    { *m = ReadEvent{} }
+func (m *ReadEvent) String() string            { return proto.CompactTextString(m) }
+func (*ReadEvent) ProtoMessage()               {}
+func (*ReadEvent) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{25} }
 
 // LIST AUTHORED EVENTS
 // LIST PRIVATE EVENTS
@@ -339,9 +366,10 @@ type ListCursor struct {
 	Cursor uint32 `protobuf:"varint,1,opt,name=cursor" json:"cursor,omitempty"`
 }
 
-func (m *ListCursor) Reset()         { *m = ListCursor{} }
-func (m *ListCursor) String() string { return proto.CompactTextString(m) }
-func (*ListCursor) ProtoMessage()    {}
+func (m *ListCursor) Reset()                    { *m = ListCursor{} }
+func (m *ListCursor) String() string            { return proto.CompactTextString(m) }
+func (*ListCursor) ProtoMessage()               {}
+func (*ListCursor) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{26} }
 
 type ListPublicEvents struct {
 	UserCoordinates *Location   `protobuf:"bytes,1,opt,name=user_coordinates" json:"user_coordinates,omitempty"`
@@ -349,9 +377,10 @@ type ListPublicEvents struct {
 	Cursor          *ListCursor `protobuf:"bytes,3,opt,name=cursor" json:"cursor,omitempty"`
 }
 
-func (m *ListPublicEvents) Reset()         { *m = ListPublicEvents{} }
-func (m *ListPublicEvents) String() string { return proto.CompactTextString(m) }
-func (*ListPublicEvents) ProtoMessage()    {}
+func (m *ListPublicEvents) Reset()                    { *m = ListPublicEvents{} }
+func (m *ListPublicEvents) String() string            { return proto.CompactTextString(m) }
+func (*ListPublicEvents) ProtoMessage()               {}
+func (*ListPublicEvents) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{27} }
 
 func (m *ListPublicEvents) GetUserCoordinates() *Location {
 	if m != nil {
@@ -372,18 +401,20 @@ type Pong struct {
 	CurrentTime int64 `protobuf:"varint,1,opt,name=current_time" json:"current_time,omitempty"`
 }
 
-func (m *Pong) Reset()         { *m = Pong{} }
-func (m *Pong) String() string { return proto.CompactTextString(m) }
-func (*Pong) ProtoMessage()    {}
+func (m *Pong) Reset()                    { *m = Pong{} }
+func (m *Pong) String() string            { return proto.CompactTextString(m) }
+func (*Pong) ProtoMessage()               {}
+func (*Pong) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{28} }
 
 // EVENTS LIST
 type EventsList struct {
 	Event []*Event `protobuf:"bytes,1,rep,name=event" json:"event,omitempty"`
 }
 
-func (m *EventsList) Reset()         { *m = EventsList{} }
-func (m *EventsList) String() string { return proto.CompactTextString(m) }
-func (*EventsList) ProtoMessage()    {}
+func (m *EventsList) Reset()                    { *m = EventsList{} }
+func (m *EventsList) String() string            { return proto.CompactTextString(m) }
+func (*EventsList) ProtoMessage()               {}
+func (*EventsList) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{29} }
 
 func (m *EventsList) GetEvent() []*Event {
 	if m != nil {
@@ -397,9 +428,10 @@ type FriendsList struct {
 	Friends []*Friend `protobuf:"bytes,1,rep,name=friends" json:"friends,omitempty"`
 }
 
-func (m *FriendsList) Reset()         { *m = FriendsList{} }
-func (m *FriendsList) String() string { return proto.CompactTextString(m) }
-func (*FriendsList) ProtoMessage()    {}
+func (m *FriendsList) Reset()                    { *m = FriendsList{} }
+func (m *FriendsList) String() string            { return proto.CompactTextString(m) }
+func (*FriendsList) ProtoMessage()               {}
+func (*FriendsList) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{30} }
 
 func (m *FriendsList) GetFriends() []*Friend {
 	if m != nil {
@@ -441,4 +473,66 @@ func init() {
 	proto.RegisterType((*EventsList)(nil), "protocol.EventsList")
 	proto.RegisterType((*FriendsList)(nil), "protocol.FriendsList")
 	proto.RegisterEnum("protocol.AuthType", AuthType_name, AuthType_value)
+}
+
+var fileDescriptor1 = []byte{
+	// 913 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x9c, 0x54, 0xdf, 0x6f, 0x1b, 0x45,
+	0x10, 0xc6, 0xbf, 0x52, 0x7b, 0xfc, 0x23, 0xce, 0xa5, 0x05, 0xab, 0xb4, 0x28, 0x9c, 0x2a, 0x11,
+	0xa1, 0xc8, 0x50, 0x43, 0x90, 0x78, 0x42, 0xae, 0x71, 0xa1, 0xa2, 0x24, 0x56, 0x28, 0x11, 0x82,
+	0x87, 0xd3, 0x7a, 0x6f, 0x9d, 0xac, 0x7a, 0xde, 0x3d, 0x76, 0xd7, 0x29, 0x79, 0xe2, 0x3f, 0xe2,
+	0x6f, 0x64, 0x76, 0x36, 0xf1, 0x99, 0x70, 0x41, 0x16, 0x6f, 0xbb, 0xb3, 0x33, 0xdf, 0xcc, 0x7c,
+	0x3b, 0xdf, 0x40, 0x2f, 0x37, 0xda, 0x69, 0xae, 0xb3, 0x21, 0x1d, 0xa2, 0xe6, 0xed, 0xfd, 0x31,
+	0x70, 0x6d, 0x44, 0xb0, 0xc6, 0xbf, 0x42, 0x7b, 0x62, 0x04, 0x73, 0x62, 0x7a, 0x25, 0x94, 0x8b,
+	0x76, 0xe1, 0xc1, 0x52, 0x58, 0xcb, 0x2e, 0xc4, 0xa0, 0x72, 0x50, 0x39, 0x6c, 0x45, 0x11, 0x80,
+	0x75, 0xcc, 0xb8, 0x24, 0x45, 0x9f, 0x41, 0x15, 0x6d, 0xb5, 0xa8, 0x0f, 0x4d, 0xa1, 0xd2, 0x60,
+	0xa9, 0x91, 0xe5, 0x21, 0x74, 0x72, 0x74, 0x92, 0x5c, 0xe6, 0x4c, 0x39, 0x3b, 0xa8, 0x1f, 0xd4,
+	0x0e, 0xeb, 0xf1, 0x67, 0x88, 0xcd, 0x14, 0x17, 0x59, 0xc0, 0xf6, 0x61, 0xfe, 0x90, 0xc8, 0x94,
+	0xc0, 0xeb, 0x51, 0x0f, 0x76, 0x30, 0xb7, 0xd5, 0x8a, 0x80, 0x5b, 0xf1, 0x31, 0xb4, 0x5f, 0xa9,
+	0x2b, 0xe9, 0xc4, 0xcf, 0x56, 0x18, 0x5b, 0x12, 0x70, 0x37, 0x4f, 0x95, 0xf2, 0x7c, 0x03, 0x8f,
+	0x42, 0x1e, 0x0a, 0x23, 0x04, 0xe6, 0xa4, 0x56, 0x5b, 0x03, 0xfc, 0x02, 0x7b, 0x13, 0xad, 0x16,
+	0xd2, 0x2c, 0xc7, 0xce, 0x61, 0x6b, 0x1e, 0xac, 0x24, 0xf8, 0x39, 0xb4, 0x19, 0xf7, 0xc0, 0x09,
+	0xd7, 0x69, 0x20, 0xa3, 0x37, 0x7a, 0x32, 0x5c, 0xf3, 0x5c, 0x04, 0x9f, 0x09, 0x9b, 0x6b, 0x65,
+	0x45, 0x7c, 0x0e, 0xed, 0x1f, 0x75, 0x2a, 0x17, 0xd7, 0xf7, 0x51, 0xb0, 0x41, 0x78, 0xb5, 0x84,
+	0xf0, 0xda, 0xbf, 0x08, 0xaf, 0x7b, 0x4b, 0xfc, 0x3d, 0xc0, 0xb9, 0x76, 0x62, 0x72, 0xc9, 0xd4,
+	0x45, 0x59, 0xa9, 0x7b, 0xd0, 0xe2, 0xf4, 0xe6, 0x4d, 0x1e, 0xb8, 0x1b, 0x3d, 0x82, 0x2e, 0xe3,
+	0x5c, 0xe4, 0x2e, 0x09, 0x2f, 0x84, 0xdd, 0xc4, 0xde, 0x3b, 0x9e, 0xb6, 0x99, 0xb6, 0x92, 0x38,
+	0x1b, 0x42, 0x74, 0x91, 0xe9, 0x39, 0xcb, 0xb0, 0x49, 0x6d, 0x52, 0xa9, 0x30, 0xa9, 0x25, 0xd4,
+	0xf6, 0x28, 0x2a, 0x7a, 0x7d, 0xad, 0x79, 0xe0, 0x78, 0x00, 0x7d, 0x61, 0x9d, 0x5c, 0xd2, 0x2d,
+	0x11, 0xc6, 0x68, 0x43, 0x09, 0xab, 0xf1, 0x11, 0xec, 0x6d, 0x22, 0x9f, 0x51, 0xa9, 0x1f, 0xc0,
+	0xae, 0x09, 0x75, 0xa9, 0x64, 0x29, 0x1c, 0xfe, 0x17, 0x61, 0x57, 0xe3, 0x1c, 0xff, 0x80, 0x06,
+	0xd1, 0xc7, 0x8c, 0x39, 0xd7, 0x2b, 0xe4, 0xab, 0x03, 0x75, 0xc5, 0x96, 0xb7, 0xb3, 0xd8, 0x85,
+	0x86, 0x58, 0x32, 0x99, 0xdd, 0x30, 0x85, 0x5d, 0xe7, 0xcc, 0xda, 0x77, 0x58, 0x25, 0xf5, 0x42,
+	0x0e, 0xf9, 0xa5, 0x56, 0x81, 0xa4, 0x96, 0x8f, 0x5e, 0xcc, 0xb1, 0xff, 0x06, 0xdd, 0x90, 0xe9,
+	0xc5, 0xdc, 0xe9, 0xb7, 0x42, 0x0d, 0x76, 0x68, 0xda, 0x4e, 0xa0, 0x73, 0x22, 0xde, 0x8d, 0x57,
+	0xee, 0xf2, 0x8d, 0xb7, 0x52, 0x34, 0xe2, 0x3d, 0x2f, 0xb2, 0xf9, 0xeb, 0xe8, 0x26, 0xdb, 0x01,
+	0xd4, 0xdd, 0x75, 0x1e, 0x58, 0xeb, 0x6d, 0x32, 0x41, 0x00, 0xf8, 0x12, 0x7f, 0x0d, 0x11, 0xd5,
+	0x8e, 0x77, 0xfc, 0x0b, 0x79, 0xc3, 0x0f, 0xa6, 0x5d, 0xa1, 0xb5, 0xf8, 0x1a, 0xfc, 0x60, 0x86,
+	0x2e, 0x49, 0x28, 0x25, 0x0c, 0xfe, 0x08, 0x7a, 0x34, 0x20, 0x61, 0x8c, 0x33, 0x91, 0x6e, 0x21,
+	0x96, 0x03, 0xe8, 0x50, 0xcc, 0xf4, 0x8f, 0x5c, 0x9a, 0xb2, 0x08, 0xfc, 0xda, 0x2e, 0x79, 0xd0,
+	0x04, 0xca, 0x52, 0xd0, 0xed, 0xe4, 0xbd, 0x31, 0xa4, 0xc4, 0x6c, 0xfc, 0x09, 0xec, 0x17, 0x32,
+	0xfb, 0x8f, 0xa2, 0xe3, 0xdf, 0xa0, 0x5f, 0xa8, 0xe2, 0x27, 0xf4, 0x5f, 0x95, 0xc9, 0xfa, 0x18,
+	0xf6, 0xd8, 0xda, 0x2b, 0xb1, 0xe4, 0x46, 0xd2, 0x6c, 0x8f, 0x1e, 0x17, 0x44, 0x53, 0x2f, 0xb3,
+	0x42, 0xbd, 0xf1, 0xef, 0xb0, 0x1f, 0x58, 0xa3, 0x79, 0x9e, 0x19, 0x9d, 0x6b, 0x5b, 0xda, 0x65,
+	0x89, 0x1a, 0xb6, 0x92, 0xd9, 0x66, 0xe3, 0x34, 0x44, 0xf1, 0x5f, 0x15, 0xe8, 0xa0, 0xf0, 0xa4,
+	0xba, 0xb8, 0xb7, 0x99, 0xff, 0x9d, 0x0c, 0x77, 0x93, 0xc8, 0x58, 0x8e, 0x2d, 0x24, 0xa8, 0xa7,
+	0x90, 0xb1, 0x16, 0xbd, 0x0f, 0xbd, 0x2b, 0x54, 0xba, 0x4d, 0x8c, 0xe0, 0x42, 0x5e, 0x89, 0x94,
+	0xa6, 0xb7, 0x1b, 0xed, 0x43, 0x3b, 0xd8, 0x9d, 0x76, 0x2c, 0x1b, 0x3c, 0x20, 0x23, 0x82, 0x2e,
+	0xa4, 0x92, 0xf6, 0x12, 0xdd, 0x9a, 0x24, 0xef, 0x63, 0xe8, 0x05, 0x7a, 0xc6, 0xa4, 0xfd, 0x2d,
+	0xe9, 0x89, 0xbf, 0x82, 0xdd, 0x10, 0xf6, 0xad, 0xb4, 0x9c, 0x99, 0x74, 0xdb, 0xb8, 0x2f, 0xa1,
+	0xeb, 0x13, 0x59, 0xfb, 0x1d, 0xaa, 0xdc, 0x67, 0xdb, 0x6a, 0xfc, 0x23, 0xa8, 0x9e, 0xbe, 0xf5,
+	0x72, 0x25, 0x85, 0x79, 0xbf, 0x46, 0xfc, 0x0c, 0x1a, 0x53, 0xbf, 0x4c, 0xfe, 0x69, 0xa6, 0x1d,
+	0xb0, 0xde, 0x31, 0x8d, 0xf8, 0x09, 0xd4, 0x67, 0xf8, 0x19, 0x9e, 0x3b, 0xbe, 0x32, 0xc6, 0x97,
+	0x47, 0xdc, 0x55, 0x68, 0x4b, 0x3e, 0x85, 0xd6, 0x99, 0x60, 0xe9, 0x3d, 0xbb, 0x17, 0x83, 0xe1,
+	0xb5, 0xb4, 0x6e, 0xb2, 0x32, 0x16, 0xf3, 0xa0, 0xbe, 0x38, 0x9d, 0xe8, 0xb5, 0x1b, 0xff, 0x09,
+	0x7d, 0xff, 0x3a, 0x5b, 0xcd, 0x33, 0xc9, 0x09, 0xc2, 0x46, 0x47, 0xd0, 0xa7, 0x6e, 0xb6, 0x5b,
+	0x8d, 0x25, 0xbb, 0x2e, 0xcc, 0xc3, 0xb3, 0x75, 0xaa, 0x1a, 0x05, 0x3f, 0xdc, 0x08, 0x5e, 0x17,
+	0x44, 0xbd, 0xe9, 0x7b, 0x7b, 0x3b, 0x02, 0x08, 0x45, 0xf9, 0x88, 0xe8, 0x23, 0xa4, 0xc5, 0xdf,
+	0xf0, 0xd1, 0xab, 0x66, 0xf7, 0x8e, 0x6a, 0xe2, 0xcf, 0xa1, 0xfd, 0xd2, 0x48, 0x1c, 0xb8, 0xe0,
+	0xfe, 0x31, 0xee, 0xc2, 0x70, 0xbd, 0x09, 0xe8, 0x17, 0x01, 0xc1, 0xef, 0xd3, 0x43, 0x68, 0xde,
+	0x6e, 0x36, 0xfc, 0x82, 0xe6, 0x38, 0x39, 0x19, 0xbf, 0x79, 0x75, 0x3e, 0xed, 0xbf, 0x87, 0x44,
+	0xc1, 0x38, 0x79, 0x39, 0x9e, 0x4c, 0x5f, 0x9c, 0x9e, 0xfe, 0xd0, 0xaf, 0xbc, 0x78, 0x0a, 0x1f,
+	0x0a, 0x3b, 0xcc, 0x85, 0xc8, 0x33, 0x31, 0x64, 0x46, 0x5c, 0xeb, 0x95, 0x54, 0x6b, 0xbc, 0xf9,
+	0x0e, 0x9d, 0xbe, 0xf8, 0x3b, 0x00, 0x00, 0xff, 0xff, 0x68, 0x27, 0x0a, 0x3d, 0x90, 0x08, 0x00,
+	0x00,
 }

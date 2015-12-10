@@ -82,6 +82,8 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, client *
 			Delivered: proto.MessageStatus_NO_DELIVERED,
 		})
 
+		event.NumberParticipants = uint32(len(event.Participants))
+
 		if ok := edb.Insert(event); ok { // Insert is not thread-safe
 			ds.Submit(event)
 			writeReply(proto.NewMessage().Ok(proto.OK_ACK).Marshal(), client)
