@@ -81,9 +81,10 @@ func GetConfirmedParticipants(user_account *UserAccount, participants []*proto.E
 
 	for _, p := range participants {
 		// If the participant is a confirmed user (yes or cannot assist answer has been given)
-		if p.Response == proto.AttendanceResponse_ASSIST || p.Response == proto.AttendanceResponse_CANNOT_ASSIST {
-			result = append(result, p)
-		} else if user_account.IsFriend(p.UserId) { // Is a friend: Participant is in the given friend list
+		if p.Response == proto.AttendanceResponse_ASSIST ||
+			p.Response == proto.AttendanceResponse_CANNOT_ASSIST ||
+			user_account.IsFriend(p.UserId) ||
+			user_account.id == p.UserId { // self-user
 			result = append(result, p)
 		}
 	}
