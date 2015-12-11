@@ -13,6 +13,7 @@ func NewUIDGen(id uint16) *UIDGen {
 type UIDGen struct {
 	id             uint16 // 12 bits used (4096 different values)
 	auto_increment uint16 // 10 bits used (1024 different values)
+	last_time      time.Time
 }
 
 /*
@@ -26,14 +27,32 @@ type UIDGen struct {
 
   Because of the auto_increment number, a single generator can generate
   up to 1024 different IDs per millisecond
+
+	FIXME: It's not thread-safe
 */
 func (uid *UIDGen) GenerateID() uint64 {
-	curr_time := time.Now().UTC().UnixNano() / int64(time.Millisecond)
-	curr_time -= epoch
-	newId := uint64(curr_time) << (64 - 42)
+
+	curr_time := time.Now().UTC()
+
+	if uid.auto_increment == 0 {
+		diff_time := curr_time.Sub(uid.last_time)
+		for diff_time <= 2*time.Millisecond {
+			time.Sleep(2*time.Millisecond - diff_time)
+			curr_time = time.Now().UTC()
+			diff_time = curr_time.Sub(uid.last_time)
+		}
+		uid.last_time = curr_time
+	}
+
+	curr_time_ms := curr_time.UnixNano() / int64(time.Millisecond)
+	curr_time_ms -= epoch
+
+	newId := uint64(curr_time_ms) << (64 - 42)
 	newId |= uint64(uid.id) << (64 - 42 - 12)
-	auto_inc := uid.auto_increment % 1024
+
+	auto_inc := uid.auto_increment
 	newId |= uint64(auto_inc)
+
 	uid.auto_increment = (auto_inc + 1) % 1024
 	return newId
 }

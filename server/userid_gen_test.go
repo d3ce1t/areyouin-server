@@ -7,9 +7,9 @@ import (
 func TestUIDGenerator(t *testing.T) {
 
 	hash := make(map[uint64]bool)
-	uidgen := NewUIDGen(2)
+	uidgen := NewUIDGen(1)
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 40000; i++ {
 		newId := uidgen.GenerateID()
 
 		if _, ok := hash[newId]; ok {
