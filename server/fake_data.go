@@ -48,12 +48,13 @@ func initFakeUsers(server *Server) {
 
 func initFakeEvents(server *Server) {
 
-	user1, _ := server.udb.GetByEmail("user1@foo.com")
+	author, _ := server.udb.GetByEmail("user1@foo.com")
 
+	// Create event with user1 as author
 	event1 := &proto.Event{
 		EventId:            server.GetNewUserID(), // Maybe a bottleneck here
-		AuthorId:           user1.id,
-		AuthorName:         user1.name,
+		AuthorId:           author.id,
+		AuthorName:         author.name,
 		CreationDate:       time.Now().UTC().Unix(), // Seconds
 		StartDate:          time.Now().UTC().Unix(),
 		EndDate:            time.Now().UTC().Unix(),
@@ -62,7 +63,8 @@ func initFakeEvents(server *Server) {
 		NumberParticipants: 1, // The own author
 	}
 
-	for _, friend := range user1.GetAllFriends() {
+	// Add all author's friends as participants
+	for _, friend := range author.GetAllFriends() {
 		participant := &proto.EventParticipant{
 			UserId:    friend.id,
 			Name:      friend.name,
@@ -71,4 +73,20 @@ func initFakeEvents(server *Server) {
 		}
 		event1.Participants = append(event1.Participants, participant)
 	}
+
+	// Add author as another participant
+	event1.Participants = append(event1.Participants, &proto.EventParticipant{
+		UserId:    author.id,
+		Name:      author.name,
+		Response:  proto.AttendanceResponse_ASSIST,
+		Delivered: proto.MessageStatus_NO_DELIVERED,
+	})
+
+	event1.NumberParticipants = uint32(len(event1.Participants))
+
+	if ok := server.edb.Insert(event1); ok { // Insert is not thread-safe
+		server.ds.Submit(event1)
+	}
+
+	time.Sleep(time.Second)
 }

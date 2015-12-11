@@ -102,6 +102,8 @@ func (ua *UserAccount) GetAllEvents() []*proto.Event {
 
 	i := 0
 	for _, event := range ua.inbox.events {
+		list_events[i] = &proto.Event{}
+		*list_events[i] = *event // copy
 		filterEventParticipants(ua, list_events[i], event)
 		i++
 	}

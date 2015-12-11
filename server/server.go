@@ -265,8 +265,8 @@ func (s *Server) notifyUser(user_id uint64, message []byte, callback func()) {
 func filterEventParticipants(user *UserAccount, dst_event *proto.Event, src_event *proto.Event) {
 
 	if dst_event == nil {
-		dst_event = &proto.Event{}
-		*dst_event = *src_event
+		log.Println("filterEventParticipants() dst_event argument is nil")
+		return
 	}
 
 	dst_event.Participants = make([]*proto.EventParticipant, 0, 4)

@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	//"fmt"
 	"os"
 	"testing"
 )
@@ -20,8 +19,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestFilterEventParticipants(t *testing.T) {
-	//user2, _ := udb.GetByEmail("user2@foo.com")
-	//events := user2.GetAllEvents()
-	//fmt.Println(events)
-	//filterEventParticipants(user2, dst_event*proto.Event, src_event*proto.Event)
+
+	user2, _ := server.udb.GetByEmail("user2@foo.com")
+	events := user2.GetAllEvents()
+
+	for _, v := range events {
+		if v == nil {
+			t.Fatal("Event is nil!")
+		}
+	}
 }
