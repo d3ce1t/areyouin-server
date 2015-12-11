@@ -5,21 +5,6 @@ import (
 )
 
 const epoch int64 = 1446336000000 // Milliseconds since 1 Nov 2015 00:00
-var mapped_generators map[uint16]*UIDGen
-
-func CreateGenerator(id uint16) func() uint64 {
-
-	var generator *UIDGen
-	var ok bool
-
-	if generator, ok = mapped_generators[id]; !ok {
-		generator = NewUIDGen(id)
-	}
-
-	return func() uint64 {
-		return generator.GenerateID()
-	}
-}
 
 func NewUIDGen(id uint16) *UIDGen {
 	return &UIDGen{id: id, auto_increment: 0}

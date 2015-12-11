@@ -5,18 +5,16 @@ import (
 	"log"
 )
 
-func NewDeliverySystem() *DeliverySystem {
+func NewDeliverySystem(server *Server) *DeliverySystem {
 	ds := &DeliverySystem{}
 	ds.queue = make(chan *proto.Event, 100) // Buffered channel
-	ds.udb = udb                            // from server.go global scope
-	ds.edb = edb                            // from server.go global scope
+	ds.server = server
 	return ds
 }
 
 type DeliverySystem struct {
-	queue chan *proto.Event
-	udb   *UsersDatabase
-	edb   *EventsDatabase
+	queue  chan *proto.Event
+	server *Server
 }
 
 func (ds *DeliverySystem) Submit(event *proto.Event) {
@@ -34,7 +32,7 @@ func (ds *DeliverySystem) Run() {
 			// Add event to participants inboxes (author is also a participant)
 			for _, participant := range event.Participants {
 
-				puac, ok := ds.udb.GetByID(participant.UserId)
+				puac, ok := ds.server.udb.GetByID(participant.UserId)
 
 				if !ok {
 					log.Println("Coudn't deliver event", event.EventId, "to someone because useraccount does not exist")
@@ -53,41 +51,21 @@ func (ds *DeliverySystem) Run() {
 			for _, participant := range event.Participants {
 				// Send Event Created notification to the author
 				if event.AuthorId == participant.UserId {
-					notifyUser(event.AuthorId,
+					ds.server.notifyUser(event.AuthorId,
 						proto.NewMessage().EventCreated(event).Marshal(), func() {
 							participant.Delivered = proto.MessageStatus_CLIENT_DELIVERED
 						})
 				} else { // Send invitation to user
-					if puac, ok := ds.udb.GetByID(participant.UserId); ok {
-						//event_copy.Participants = make([]*proto.EventParticipant, 2)
-						//copy(event_copy.Participants, GetConfirmedParticipants(puac, event.Participants))
-						event_copy.Participants = GetConfirmedParticipants(puac, event.Participants)
+					if puac, ok := ds.server.udb.GetByID(participant.UserId); ok {
+						filterEventParticipants(puac, event_copy, event)
 						notificationMsg := proto.NewMessage().InvitationReceived(event_copy).Marshal()
-						notifyUser(participant.UserId, notificationMsg, func() {
+						ds.server.notifyUser(participant.UserId, notificationMsg, func() {
 							participant.Delivered = proto.MessageStatus_CLIENT_DELIVERED
 						})
 					}
 				}
-
 			}
 
 		} // For loop
 	}() // Go func
-}
-
-func GetConfirmedParticipants(user_account *UserAccount, participants []*proto.EventParticipant) []*proto.EventParticipant {
-
-	result := make([]*proto.EventParticipant, 0, 10) // FIXME: Make constant
-
-	for _, p := range participants {
-		// If the participant is a confirmed user (yes or cannot assist answer has been given)
-		if p.Response == proto.AttendanceResponse_ASSIST ||
-			p.Response == proto.AttendanceResponse_CANNOT_ASSIST ||
-			user_account.IsFriend(p.UserId) ||
-			user_account.id == p.UserId { // self-user
-			result = append(result, p)
-		}
-	}
-
-	return result
 }

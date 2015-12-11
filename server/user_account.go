@@ -6,10 +6,10 @@ import (
 	"log"
 )
 
-func NewUserAccount(name string, email string, password string, phone string, fbid string, fbtoken string) *UserAccount {
+func NewUserAccount(id uint64, name string, email string, password string, phone string, fbid string, fbtoken string) *UserAccount {
 
 	user := &UserAccount{
-		id:         getNewUserID(),
+		id:         id,
 		name:       name,
 		email:      email,
 		password:   password,
@@ -52,14 +52,14 @@ func (ua *UserAccount) IsFacebook() bool {
 
 func (ua *UserAccount) AddFriend(friend_id uint64) bool {
 
-	if udb == nil {
+	if ua.udb == nil {
 		log.Println("Trying to add a friend into a user account that has not been added to a user's database")
 		return false
 	}
 
 	result := false
 
-	if uac, ok := udb.GetByID(friend_id); ok {
+	if uac, ok := ua.udb.GetByID(friend_id); ok {
 		ua.friends[friend_id] = &Friend{id: uac.id, name: uac.name}
 		result = true
 	} else {
@@ -93,13 +93,16 @@ func (ua *UserAccount) IsFriend(friend_id uint64) bool {
 	return ok
 }
 
+/* Returns a list of the events that the user has been invited but
+   with the participants list filtered to protect privacy of non-friend
+	 users*/
 func (ua *UserAccount) GetAllEvents() []*proto.Event {
 
 	list_events := make([]*proto.Event, ua.inbox.Len())
 
 	i := 0
-	for _, v := range ua.inbox.events {
-		list_events[i] = v
+	for _, event := range ua.inbox.events {
+		filterEventParticipants(ua, list_events[i], event)
 		i++
 	}
 

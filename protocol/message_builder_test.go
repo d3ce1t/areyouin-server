@@ -7,7 +7,7 @@ import (
 
 func TestOkMessage1(t *testing.T) {
 	// Check header
-	msg := &OkMsg{Type: 234}
+	msg := &Ok{Type: 234}
 	if msg.Type != 234 {
 		t.Fail()
 	}
@@ -15,7 +15,7 @@ func TestOkMessage1(t *testing.T) {
 
 func TestOkMessage2(t *testing.T) {
 	// Check header
-	msg := &OkMsg{Type: 0}
+	msg := &Ok{Type: 0}
 	if msg.Type != 0 {
 		t.Fail()
 	}
@@ -23,7 +23,7 @@ func TestOkMessage2(t *testing.T) {
 
 func TestOkMessage3(t *testing.T) {
 	// Check header
-	msg := &OkMsg{Type: OK_AUTH}
+	msg := &Ok{Type: OK_AUTH}
 
 	if msg.Type != OK_AUTH {
 		t.Fail()
@@ -32,7 +32,7 @@ func TestOkMessage3(t *testing.T) {
 
 func TestOkMessage4(t *testing.T) {
 
-	msg := &OkMsg{Type: 234}
+	msg := &Ok{Type: 234}
 	data, err := pb.Marshal(msg)
 
 	if err != nil {
@@ -46,7 +46,7 @@ func TestOkMessage4(t *testing.T) {
 
 func TestOkMessage5(t *testing.T) {
 
-	msg := &OkMsg{Type: 0}
+	msg := &Ok{Type: 0}
 	data, err := pb.Marshal(msg)
 
 	if err != nil {

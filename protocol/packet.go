@@ -3,8 +3,10 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	proto "github.com/golang/protobuf/proto"
 	"log"
+	"runtime/debug"
 )
 
 type AyiHeader struct { // 6 bytes
@@ -14,10 +16,20 @@ type AyiHeader struct { // 6 bytes
 	Size    uint16
 }
 
+func (h *AyiHeader) String() string {
+	return fmt.Sprintln("Version:", h.Version, "Token:", h.Token, "Type:", h.Type, "Size:", h.Size)
+}
+
 // An AyiPacket is a network container for a message
 type AyiPacket struct {
 	Header AyiHeader
 	Data   []uint8 // Holds a message encoded as binary data
+}
+
+func (packet *AyiPacket) String() string {
+	str := fmt.Sprintf("Header {%s}\n", packet.Header.String())
+	str += fmt.Sprintln("Data:", packet.Data)
+	return str
 }
 
 func (packet *AyiPacket) Type() PacketType {
@@ -29,6 +41,7 @@ func (packet *AyiPacket) DecodeMessage() Message {
 	message := createEmptyMessage(packet.Type())
 
 	if message == nil {
+		debug.PrintStack()
 		log.Fatal("Unknown message", packet)
 		return nil
 	}
@@ -49,12 +62,14 @@ func (packet *AyiPacket) SetMessage(message Message) {
 	data, err := proto.Marshal(message)
 
 	if err != nil {
+		debug.PrintStack()
 		log.Fatal("Marshaling error: ", err)
 	}
 
 	size := len(data)
 
 	if size > 65530 {
+		debug.PrintStack()
 		log.Fatal("Message exceeds max.size of 65530 bytes")
 	}
 

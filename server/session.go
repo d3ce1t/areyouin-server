@@ -5,6 +5,16 @@ import (
 	"net"
 )
 
+func NewSession(conn net.Conn, server *Server) *AyiSession {
+	return &AyiSession{
+		Conn:                conn,
+		UserId:              0,
+		IsAuth:              false,
+		NotificationChannel: make(chan *Notification, 5),
+		Server:              server,
+	}
+}
+
 type Notification struct {
 	Message  []byte
 	Callback func()
@@ -15,6 +25,7 @@ type AyiSession struct {
 	UserId              uint64
 	IsAuth              bool
 	NotificationChannel chan *Notification // Channel used to send notifications to clients
+	Server              *Server
 }
 
 func (s *AyiSession) String() string {
