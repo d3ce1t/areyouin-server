@@ -50,7 +50,7 @@ func (packet *AyiPacket) DecodeMessage() Message {
 
 	if err != nil {
 		log.Println("Unmarshaling error: ", err)
-		log.Println("PacketType:", packet.Header.Type, "Data", packet.Data, "Size", packet.Header.Size)
+		log.Println(packet)
 		return nil
 	}
 
@@ -85,14 +85,14 @@ func (packet *AyiPacket) Marshal() []byte {
 	// Write Header
 	err := binary.Write(buf, binary.BigEndian, packet.Header) // X86 is LittleEndian, whereas ARM is BigEndian / Bi-Endian
 	if err != nil {
-		log.Fatal("Build message failed:", err)
+		log.Fatal("Build message failed (1):", err)
 	}
 
 	// Write Payload
 	if len(packet.Data) > 0 {
 		_, err = buf.Write(packet.Data)
 		if err != nil {
-			log.Fatal("Build message failed:", err)
+			log.Fatal("Build message failed (2):", err)
 		}
 	}
 

@@ -6,9 +6,9 @@ option java_package = "es.peeple.areyouin.protocol";
 
 enum AttendanceResponse {
   NO_RESPONSE = 0;
-  ASSIST = 1;
+  NO_ASSIST = 1;
   CANNOT_ASSIST = 2;
-  NO_ASSIST = 3;
+  ASSIST = 3;
 }
 
 enum MessageStatus {
@@ -21,14 +21,14 @@ message Event {
   uint64 event_id = 1;
   uint64 author_id = 2;
   string author_name = 3;
-  int64 creation_date = 4;
-  int64 start_date = 5;
-  int64 end_date = 6;
-  string message = 7;
-  bool is_public = 8;
-  Location geolocation = 9;
-  uint32 number_participants = 10;
-  repeated EventParticipant participants = 11;
+  int64 start_date = 4;
+  int64 end_date = 5;
+  string message = 6;
+  bool is_public = 7;
+  Location geolocation = 8;
+  int32 num_attendees = 9;
+  int32 num_guests = 10;
+  int64 created_date = 11;
 }
 
 message Location {
