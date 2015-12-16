@@ -37,8 +37,13 @@ func (s *AyiSession) Notify(notification *Notification) {
 }
 
 func (s *AyiSession) ProcessNotification(notification *Notification) {
+
+	if err := writeReply(notification.Message, s); err != nil {
+		log.Println("ProcessNotification:", err)
+		return
+	}
+
 	log.Println("Send notification to", s.UserId)
-	writeReply(notification.Message, s)
 	if notification.Callback != nil {
 		notification.Callback()
 	}

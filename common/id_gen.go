@@ -1,4 +1,4 @@
-package main
+package common
 
 import (
 	"time"
@@ -6,11 +6,11 @@ import (
 
 const epoch int64 = 1446336000000 // Milliseconds since 1 Nov 2015 00:00
 
-func NewUIDGen(id uint16) *UIDGen {
-	return &UIDGen{id: id, auto_increment: 0}
+func NewIDGen(id uint16) *IDGen {
+	return &IDGen{id: id, auto_increment: 0}
 }
 
-type UIDGen struct {
+type IDGen struct {
 	id             uint16 // 12 bits used (4096 different values)
 	auto_increment uint16 // 10 bits used (1024 different values)
 	last_time      time.Time
@@ -30,7 +30,7 @@ type UIDGen struct {
 
 	FIXME: It's not thread-safe
 */
-func (uid *UIDGen) GenerateID() uint64 {
+func (uid *IDGen) GenerateID() uint64 {
 
 	curr_time := time.Now().UTC()
 
@@ -57,10 +57,12 @@ func (uid *UIDGen) GenerateID() uint64 {
 	return newId
 }
 
-func (uid *UIDGen) LoadState() {
+// TODO: Load state from Cassandra DB
+func (uid *IDGen) LoadState() {
 
 }
 
-func (uid *UIDGen) SaveState() {
+// TODO: Save state in Cassandra DB
+func (uid *IDGen) SaveState() {
 
 }

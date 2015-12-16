@@ -1,22 +1,23 @@
 package main
 
 import (
+	core "areyouin/common"
 	"github.com/twinj/uuid"
 	"log"
 )
 
 func NewUserDatabase() *UsersDatabase {
 	udb := &UsersDatabase{}
-	udb.allusers = make(map[string]*UserAccount)
-	udb.facebook = make(map[string]*UserAccount)
-	udb.idIndex = make(map[uint64]*UserAccount)
+	udb.allusers = make(map[string]*core.UserAccount)
+	udb.facebook = make(map[string]*core.UserAccount)
+	udb.idIndex = make(map[uint64]*core.UserAccount)
 	return udb
 }
 
 type UsersDatabase struct {
-	allusers map[string]*UserAccount // Index by E-mail
-	facebook map[string]*UserAccount // Index by Facebok User ID
-	idIndex  map[uint64]*UserAccount // Index by UserID
+	allusers map[string]*core.UserAccount // Index by E-mail
+	facebook map[string]*core.UserAccount // Index by Facebok User ID
+	idIndex  map[uint64]*core.UserAccount // Index by UserID
 }
 
 // Checks if an email exists
@@ -59,7 +60,7 @@ func (udb *UsersDatabase) CheckAccess(id uint64, auth_token uuid.UUID) bool {
 
 	if auth_token != nil {
 		if userAccount, ok := udb.GetByID(id); ok {
-			if uuid.Equal(auth_token, userAccount.auth_token) {
+			if uuid.Equal(auth_token, userAccount.AuthToken) {
 				result = true
 			}
 		}
@@ -69,44 +70,44 @@ func (udb *UsersDatabase) CheckAccess(id uint64, auth_token uuid.UUID) bool {
 }
 
 // Get an user account by e-mail
-func (udb *UsersDatabase) GetByEmail(email string) (uac *UserAccount, ok bool) {
+func (udb *UsersDatabase) GetByEmail(email string) (uac *core.UserAccount, ok bool) {
 	uac, ok = udb.allusers[email]
 	return
 }
 
 // Get an user account by User ID
-func (udb *UsersDatabase) GetByID(id uint64) (uac *UserAccount, ok bool) {
+func (udb *UsersDatabase) GetByID(id uint64) (uac *core.UserAccount, ok bool) {
 	uac, ok = udb.idIndex[id]
 	return
 }
 
 // Get an user account by FB User ID
-func (udb *UsersDatabase) GetByFBUID(fbid string) (uac *UserAccount, ok bool) {
+func (udb *UsersDatabase) GetByFBUID(fbid string) (uac *core.UserAccount, ok bool) {
 	uac, ok = udb.facebook[fbid]
 	return
 }
 
 // Insert a new user into the database
-func (udb *UsersDatabase) Insert(account *UserAccount) bool {
+func (udb *UsersDatabase) Insert(account *core.UserAccount) bool {
 
-	if udb.ExistEmail(account.email) {
-		log.Println("Given account (", account.email, ") already exists")
+	if udb.ExistEmail(account.Email) {
+		log.Println("Given account (", account.Email, ") already exists")
 		return false
 	}
 
-	if account.IsFacebook() {
-		if _, exist := udb.facebook[account.fbid]; exist {
+	if account.HasFacebookCredentials() {
+		if _, exist := udb.facebook[account.Fbid]; exist {
 			log.Println("FIXME: Facebook ID already exists. This isn't supposed to happen but it has")
 			return false
 			// FIXME: Can I recover? May be overwrite anyway?
 		}
 
-		udb.facebook[account.fbid] = account
+		udb.facebook[account.Fbid] = account
 	}
 
-	udb.allusers[account.email] = account
-	udb.idIndex[account.id] = account
-	account.udb = udb
+	udb.allusers[account.Email] = account
+	udb.idIndex[account.Id] = account
+	//account.udb = udb
 
 	return true
 }
@@ -117,9 +118,9 @@ func (udb *UsersDatabase) Remove(email string) {
 	if udb.ExistEmail(email) {
 		account := udb.allusers[email]
 		delete(udb.allusers, email)
-		delete(udb.idIndex, account.id)
-		if account.IsFacebook() {
-			delete(udb.facebook, account.fbid)
+		delete(udb.idIndex, account.Id)
+		if account.HasFacebookCredentials() {
+			delete(udb.facebook, account.Fbid)
 		}
 	}
 }
