@@ -65,8 +65,6 @@ func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token uuid.UUID) bool {
 		return false
 	}
 
-	//log.Println("Comparing", auth_token.String(), stored_token.String())
-
 	if auth_token.String() != stored_token.String() {
 		return false
 	}

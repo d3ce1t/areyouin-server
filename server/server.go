@@ -4,7 +4,6 @@ import (
 	core "areyouin/common"
 	"areyouin/dao"
 	proto "areyouin/protocol"
-	"errors"
 	"fmt"
 	"github.com/gocql/gocql"
 	fb "github.com/huandu/facebook"
@@ -135,10 +134,18 @@ func (s *Server) AddFriend(user_id uint64, friend *proto.Friend) error {
 // TODO: Close connection if no PING, PONG dialog (each 15 minutes?)
 func (s *Server) handleSession(session *AyiSession) {
 
+	// Defer session close
+	defer func() {
+		log.Println("Session closed")
+		last_connection := core.GetCurrentTimeMillis()
+		session.Server.NewUserDAO().SetLastConnection(session.UserId, last_connection)
+		s.UnregisterSession(session)
+	}()
+
 	log.Println("New connection from", session)
 
 	var packet *proto.AyiPacket
-	var read_error *proto.ReadError
+	var err error
 	exit := false
 
 	for !exit {
@@ -147,35 +154,27 @@ func (s *Server) handleSession(session *AyiSession) {
 		// Send Notifications
 		case notification := <-session.NotificationChannel:
 			session.ProcessNotification(notification)
+			continue
 
-		// Read messages and then write a reply (if needed)
+		// Read messages
 		default:
 			session.Conn.SetReadDeadline(time.Now().Add(MAX_READ_TIMEOUT))
-			if packet, read_error = proto.ReadPacket(session.Conn); read_error == nil {
-				err := s.serveMessage(packet, session) // may block until writes are performed
-				if err != nil {                        // Errors may happen
-					log.Println("Unexpected error happened while serving message")
-					log.Println(err)
-				}
-			}
-		} // End select
-
-		// Manage possible error
-		if read_error != nil && read_error.ConnectionClosed() {
-			log.Println("Connection closed by client")
-			exit = true
-		} else if read_error != nil && !read_error.Timeout() {
-			log.Println(read_error.Error())
+			packet, err = proto.ReadPacket(session.Conn)
 		}
 
-		//time.Sleep(100 * time.Millisecond)
+		if err == nil {
+			if err := s.serveMessage(packet, session); err != nil { // may block until writes are performed
+				log.Println("Error:", err)
+				log.Println(packet)
+			}
+		} else if err == proto.ErrConnectionClosed {
+			log.Println("Connection closed by client")
+			exit = true
+		} else if err != proto.ErrTimeout {
+			log.Println(err)
+		}
+
 	}
-
-	log.Println("Session closed")
-
-	last_connection := core.GetCurrentTimeMillis()
-	session.Server.NewUserDAO().SetLastConnection(session.UserId, last_connection)
-	s.UnregisterSession(session)
 }
 
 func (s *Server) getIDGenerator(id uint16) *core.IDGen {
@@ -200,19 +199,34 @@ func (s *Server) generatorTask(gid uint16) {
 	}
 }
 
-func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) error {
+func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err error) {
 
 	message := packet.DecodeMessage()
+	err = nil
 
-	if message == nil {
-		return errors.New("Unknown message from this packet: " + packet.String())
+	if message != nil {
+
+		// Defer recovery
+		defer func() {
+			if r := recover(); r == ErrAuthRequired {
+				err = r.(error)
+			} else if r != nil {
+				panic(r)
+			}
+		}()
+
+		// Call function to manage this message
+		if f, ok := s.callbacks[packet.Type()]; ok {
+			f(packet.Type(), message, session)
+		} else {
+			err = ErrUnhandledMessage
+		}
+
+	} else {
+		err = ErrUnknownMessage
 	}
 
-	if f, ok := s.callbacks[packet.Type()]; ok {
-		f(packet.Type(), message, session)
-	}
-
-	return nil
+	return
 }
 
 func (s *Server) notifyUser(user_id uint64, message []byte, callback func()) {
@@ -372,6 +386,12 @@ func checkFacebookAccess(id string, access_token string) (fbaccount *FacebookAcc
 		return account, false
 	} else {
 		return account, true
+	}
+}
+
+func checkAuthenticated(session *AyiSession) {
+	if !session.IsAuth {
+		panic(ErrAuthRequired)
 	}
 }
 

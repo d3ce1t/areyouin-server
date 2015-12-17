@@ -19,6 +19,33 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestOperationPermission(t *testing.T) {
+
+	fakeCallback := func(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+		checkAuthenticated(session)
+	}
+
+	server.RegisterCallback(proto.M_CREATE_EVENT, fakeCallback)
+
+	session := NewSession(nil, server)
+
+	packet := proto.NewMessage().CreateEvent("Test",
+		core.GetCurrentTimeMillis(),
+		core.GetCurrentTimeMillis()+3600*1000,
+		[]uint64{1, 2, 3, 4, 5, 6, 7, 8})
+
+	// Session no authenticated, so I expect ErrAuthRequired, if not test fail
+	if err := server.serveMessage(packet, session); err != ErrAuthRequired {
+		t.Fatal(err)
+	}
+
+	// Session is authenticated, so any error should happen
+	session.IsAuth = true
+	if err := server.serveMessage(packet, session); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDispatchEvent(t *testing.T) {
 
 	user_dao := server.NewUserDAO()

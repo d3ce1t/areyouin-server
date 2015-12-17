@@ -1,11 +1,9 @@
-// TODO: Study size of commitlogs in order to avoid growing so much
-
 // Drop and recreate the keyspace
-DROP KEYSPACE IF EXISTS areyouin_demo;
-CREATE KEYSPACE areyouin_demo WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };
+DROP KEYSPACE IF EXISTS areyouin;
+CREATE KEYSPACE areyouin WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };
 
 // Create the schema
-USE areyouin_demo;
+USE areyouin;
 
 DROP TABLE IF EXISTS user_email_credentials;
 CREATE TABLE user_email_credentials (

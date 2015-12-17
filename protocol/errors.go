@@ -1,5 +1,9 @@
 package protocol
 
+import (
+	"errors"
+)
+
 const (
 	E_NO_ERROR          int32 = iota
 	E_INVALID_USER            // Auth, AuthNewToken
@@ -14,4 +18,9 @@ const (
 	OK_AUTH int32 = iota
 	OK_CREATE_EVENT
 	OK_ATTENDANCE
+)
+
+var (
+	ErrConnectionClosed = errors.New("connection closed")
+	ErrTimeout          = errors.New("input/output timeout")
 )

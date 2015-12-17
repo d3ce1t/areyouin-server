@@ -17,45 +17,26 @@ func NewMessage() *MessageBuilder {
 	return mb
 }
 
-type ReadError struct {
-	s       string
-	timeout bool
-	closed  bool
-}
+func getError(err error) (protoerror error) {
 
-func (e *ReadError) Error() string {
-	return e.s
-}
-
-func (e *ReadError) ConnectionClosed() bool {
-	return e.closed
-}
-
-func (e *ReadError) Timeout() bool {
-	return e.timeout
-}
-
-func getError(err error) *ReadError {
-
-	protoerror := &ReadError{}
 	oe, ok := err.(*net.OpError)
 
 	switch {
 	case err == io.EOF:
-		protoerror.closed = true
+		protoerror = ErrConnectionClosed
 	case ok && oe.Err == syscall.ECONNRESET:
-		protoerror.closed = true
+		protoerror = ErrConnectionClosed
 	case ok && oe.Timeout():
-		protoerror.timeout = true
+		protoerror = ErrTimeout
+	default:
+		protoerror = err
 	}
 
-	protoerror.s = err.Error()
-
-	return protoerror
+	return
 }
 
 // Reads a message from an io.Reader
-func ReadPacket(reader io.Reader) (*AyiPacket, *ReadError) {
+func ReadPacket(reader io.Reader) (*AyiPacket, error) {
 
 	packet := &AyiPacket{}
 

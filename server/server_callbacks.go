@@ -140,14 +140,11 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 
 func onCreateEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
+	checkAuthenticated(session)
+
 	server := session.Server
 	msg := message.(*proto.CreateEvent)
 	log.Println("CREATE EVENT", msg)
-
-	if !session.IsAuth {
-		log.Println("Received CREATE EVENT message from unauthenticated session", session)
-		return
-	}
 
 	dao := server.NewUserDAO()
 
@@ -188,19 +185,27 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	}
 }
 
-func onCancelEvent(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onCancelEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onInviteUsers(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onInviteUsers(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
 func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 	//server := session.Server
 	msg := message.(*proto.ConfirmAttendance)
@@ -208,51 +213,75 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 
 }
 
-func onModifyEvent(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onModifyEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onVoteChange(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onVoteChange(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onUserPosition(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onUserPosition(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onUserPositionRange(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onUserPositionRange(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onReadEvent(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onReadEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onListAuthoredEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onListAuthoredEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onListPublicEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onListPublicEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onHistoryAuthoredEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onHistoryAuthoredEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onHistoryPrivateEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onHistoryPrivateEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
-func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 }
 
 func onUserFriends(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	checkAuthenticated(session)
 
 	log.Println("USER FRIENDS") // Message does not has payload
 
