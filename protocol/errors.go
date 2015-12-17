@@ -12,5 +12,5 @@ const (
 
 const (
 	OK_AUTH int32 = iota
-	OK_ACK
+	OK_ATTENDANCE
 )

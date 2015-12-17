@@ -4,6 +4,7 @@ import (
 	core "areyouin/common"
 	"areyouin/dao"
 	proto "areyouin/protocol"
+	"errors"
 	"fmt"
 	"github.com/gocql/gocql"
 	fb "github.com/huandu/facebook"
@@ -153,7 +154,8 @@ func (s *Server) handleSession(session *AyiSession) {
 			if packet, read_error = proto.ReadPacket(session.Conn); read_error == nil {
 				err := s.serveMessage(packet, session) // may block until writes are performed
 				if err != nil {                        // Errors may happen
-					log.Println("Unexpected error happened while serving message", err)
+					log.Println("Unexpected error happened while serving message")
+					log.Println(err)
 				}
 			}
 		} // End select
@@ -203,8 +205,7 @@ func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) erro
 	message := packet.DecodeMessage()
 
 	if message == nil {
-		log.Fatal("Unknown message", packet)
-		return nil
+		return errors.New("Unknown message from this packet: " + packet.String())
 	}
 
 	if f, ok := s.callbacks[packet.Type()]; ok {
@@ -312,8 +313,7 @@ func sendPrivateEvents(session *AyiSession) {
 
 	server := session.Server
 	dao := server.NewEventDAO()
-	events, err := dao.LoadUserEvents(session.UserId,
-		time.Now().UTC().UnixNano()/int64(time.Millisecond))
+	events, err := dao.LoadUserEvents(session.UserId, core.GetCurrentTimeMillis())
 
 	if err != nil {
 		log.Println("sendPrivateEvents()", err)

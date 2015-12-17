@@ -17,7 +17,7 @@ type AyiHeader struct { // 6 bytes
 }
 
 func (h *AyiHeader) String() string {
-	return fmt.Sprintln("Version:", h.Version, "Token:", h.Token, "Type:", h.Type, "Size:", h.Size)
+	return fmt.Sprint("Version:", h.Version, "Token:", h.Token, "Type:", h.Type, "Size:", h.Size)
 }
 
 // An AyiPacket is a network container for a message
@@ -36,22 +36,20 @@ func (packet *AyiPacket) Type() PacketType {
 	return packet.Header.Type
 }
 
+// Decodes a packet in order to get a message. If the message
+// is unknown a nil message is returned
 func (packet *AyiPacket) DecodeMessage() Message {
 
 	message := createEmptyMessage(packet.Type())
 
-	if message == nil {
-		debug.PrintStack()
-		log.Fatal("Unknown message", packet)
-		return nil
-	}
+	if message != nil {
+		err := proto.Unmarshal(packet.Data, message)
 
-	err := proto.Unmarshal(packet.Data, message)
-
-	if err != nil {
-		log.Println("Unmarshaling error: ", err)
-		log.Println(packet)
-		return nil
+		if err != nil {
+			log.Println("Unmarshaling error: ", err)
+			log.Println(packet)
+			return nil
+		}
 	}
 
 	return message
@@ -77,15 +75,16 @@ func (packet *AyiPacket) SetMessage(message Message) {
 	packet.Header.Size = 6 + uint16(size)
 }
 
-// Change this function to use directly a write stream (avoid copy)
+// FIXME: Change this function to use directly a write stream (avoid copy)
 func (packet *AyiPacket) Marshal() []byte {
 
-	buf := new(bytes.Buffer)
+	buf := &bytes.Buffer{}
 
 	// Write Header
 	err := binary.Write(buf, binary.BigEndian, packet.Header) // X86 is LittleEndian, whereas ARM is BigEndian / Bi-Endian
 	if err != nil {
-		log.Fatal("Build message failed (1):", err)
+		log.Println("Build message failed (1):", err)
+
 	}
 
 	// Write Payload
