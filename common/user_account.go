@@ -59,6 +59,7 @@ type UserAccount struct {
 	Email          string
 	EmailVerified  bool
 	Password       string
+	salt           [32]byte
 	Name           string
 	phone          string
 	phone_verified bool

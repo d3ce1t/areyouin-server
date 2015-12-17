@@ -27,20 +27,30 @@ func NewUserDAO(session *gocql.Session) core.UserDAO {
 */
 func (dao *UserDAO) CheckEmailCredentials(email string, password string) uint64 {
 
-	stmt := `SELECT password, user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
+	stmt := `SELECT password, salt, user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
 	q := dao.session.Query(stmt, email)
 
-	var pass string
+	var pass_slice, salt_slice []byte
 	var uid uint64
 
-	if err := q.Scan(&pass, &uid); err != nil {
+	// FIXME: Scan doesn't work with array[:] notation
+	if err := q.Scan(&pass_slice, &salt_slice, &uid); err == nil {
+
+		// HACK: Copy slices to vectors
+		var pass, salt [32]byte
+		copy(pass[:], pass_slice)
+		copy(salt[:], salt_slice)
+		// --- End Hack ---
+
+		hashedPassword := core.HashPasswordWithSalt(password, salt)
+		if hashedPassword == pass {
+			return uid
+		}
+	} else if err != gocql.ErrNotFound {
 		log.Println("CheckEmailCredentials:", err)
-		return 0
-	} else if password != pass {
-		return 0
 	}
 
-	return uid
+	return 0
 }
 
 func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token uuid.UUID) bool {
@@ -270,12 +280,21 @@ func (dao *UserDAO) insertEmailCredentials(user_id uint64, email string, passwor
 		return false, errors.New("Invalid arguments")
 	}
 
+	// Hash Password
+	salt, err := core.NewRandomSalt32()
+	if err != nil {
+		return false, errors.New("insertEmailCredentials error when hashing password")
+	}
+
+	hashedPassword := core.HashPasswordWithSalt(password, salt)
+
 	insertUserEmailCredentials := `INSERT INTO user_email_credentials
-			(email, password, user_id)
-			VALUES (?, ?, ?)
+			(email, user_id, password, salt)
+			VALUES (?, ?, ?, ?)
 			IF NOT EXISTS`
 
-	return dao.session.Query(insertUserEmailCredentials, email, password, user_id).ScanCAS(nil)
+	return dao.session.Query(insertUserEmailCredentials, email, user_id,
+		hashedPassword[:], salt[:]).ScanCAS(nil)
 }
 
 func (dao *UserDAO) insertEmail(user_id uint64, email string) (ok bool, err error) {

@@ -426,5 +426,6 @@ func main() {
 	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
 	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
 	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
+	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
 	server.Run()
 }

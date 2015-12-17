@@ -10,8 +10,9 @@ USE areyouin_demo;
 DROP TABLE IF EXISTS user_email_credentials;
 CREATE TABLE user_email_credentials (
 	email text,
-	password text,
 	user_id bigint,
+	password blob, // 32 Bytes
+	salt blob, // 32 bytes
 	PRIMARY KEY (email)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};

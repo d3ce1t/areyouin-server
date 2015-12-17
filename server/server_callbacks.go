@@ -22,7 +22,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// Create new user account
 	user := core.NewUserAccount(server.GetNewID(), msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
 
-	// Check if user exists. If user e-mail exists maybe orphan due to the way users are
+	// Check if user exists. If user e-mail exists may be orphan due to the way users are
 	// inserted into cassandra. So it's needed to check if the user related to this e-mail
 	// also exists. In case it doesn't exist, then delete it in order to avoid a collision
 	// when inserting later.
@@ -32,7 +32,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 			writeReply(reply, session)
 			return
 		} else {
-			if user.HasEmailCredentials() && dao.GetIDByFacebookID(user.Fbid) == user_id {
+			if user.HasFacebookCredentials() && dao.GetIDByFacebookID(user.Fbid) == user_id {
 				dao.DeleteFacebookCredentials(user.Fbid)
 			}
 			dao.DeleteEmailCredentials(msg.Email)
@@ -138,13 +138,6 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	}
 }
 
-func onPing(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
-	msg := message.(*proto.Ping)
-	log.Println("PING", msg.CurrentTime, client)
-	reply := proto.NewMessage().Pong().Marshal()
-	writeReply(reply, client)
-}
-
 func onCreateEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	server := session.Server
@@ -182,7 +175,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	if len(participantsList) > 1 {
 
 		if ok := server.PublishEvent(event, participantsList); ok {
-			writeReply(proto.NewMessage().Ok(proto.OK_ACK).Marshal(), session)
+			writeReply(proto.NewMessage().Ok(proto.OK_CREATE_EVENT).Marshal(), session)
 			log.Println("EVENT STORED BUT NOT PUBLISHED", event.EventId)
 		} else {
 			writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_CREATION_ERROR).Marshal(), session)
@@ -207,7 +200,11 @@ func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message
 
 }
 
-func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	//server := session.Server
+	msg := message.(*proto.ConfirmAttendance)
+	log.Println("CONFIRM ATTENDANCE", msg)
 
 }
 
@@ -275,4 +272,11 @@ func onUserFriends(packet_type proto.PacketType, message proto.Message, session 
 		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_INVALID_USER).Marshal()
 		writeReply(reply, session)
 	}*/
+}
+
+func onPing(packet_type proto.PacketType, message proto.Message, client *AyiSession) {
+	msg := message.(*proto.Ping)
+	log.Println("PING", msg.CurrentTime, client)
+	reply := proto.NewMessage().Pong().Marshal()
+	writeReply(reply, client)
 }

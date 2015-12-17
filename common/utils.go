@@ -2,7 +2,10 @@ package common
 
 import (
 	proto "areyouin/protocol"
+	"crypto/rand"
+	"crypto/sha256"
 	"github.com/gocql/gocql"
+	"log"
 	"time"
 )
 
@@ -39,4 +42,18 @@ func CreateParticipantsFromFriends(author_id uint64, friends []*proto.Friend) []
 	}
 
 	return result
+}
+
+func NewRandomSalt32() (salt [32]byte, err error) {
+	_, err = rand.Read(salt[:])
+	if err != nil {
+		log.Println("NewRandomSalt32() error:", err)
+	}
+	return
+}
+
+func HashPasswordWithSalt(password string, salt [32]byte) [32]byte {
+	data := []byte(password)
+	data = append(data, salt[:]...)
+	return sha256.Sum256(data)
 }

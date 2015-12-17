@@ -3,6 +3,7 @@ package dao
 import (
 	core "areyouin/common"
 	"testing"
+	"time"
 )
 
 // Test inserting invalid users and valid users
@@ -10,6 +11,7 @@ func TestInsert1(t *testing.T) {
 
 	dao := NewUserDAO(session)
 	core.ClearUserAccounts(session)
+	time.Sleep(2 * time.Second)
 
 	var tests = []struct {
 		user *core.UserAccount
@@ -134,6 +136,29 @@ func TestGetIDByEmail(t *testing.T) {
 	}
 }
 
+func TestCheckEmailCredentials(t *testing.T) {
+
+	dao := NewUserDAO(session)
+
+	var tests = []struct {
+		email, password string
+		want            uint64
+	}{
+		{"user1@foo.com", "12345", 15919019823465493}, // Valid user and password
+		{"user1@foo.com", "123456", 0},                // User exists but invalid password
+		{"user2@foo.com", "12345", 0},                 // User exists but doesn't have e-mail credentials
+		{"user3@foo.com", "12345", 15918606642578451}, // Valid user and password
+		{"noexist@foo.com", "12345", 0},               // Invalid user
+		{"user1@foo.com", "", 0},                      // User exist but invalid password
+	}
+
+	for i, test := range tests {
+		if user_id := dao.CheckEmailCredentials(test.email, test.password); user_id != test.want {
+			t.Fatal("Failed at test", i)
+		}
+	}
+}
+
 func TestDelete(t *testing.T) {
 
 	dao := NewUserDAO(session)
@@ -178,9 +203,5 @@ func TestUUID(t *testing.T) {
 
 	if user.AuthToken.String() != same_user.AuthToken.String() {
 		t.Fatal("Auth are different but should be the same")
-	}
-
-	if err := dao.Delete(user); err != nil {
-		t.Fatal(err)
 	}
 }

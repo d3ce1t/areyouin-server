@@ -12,5 +12,6 @@ const (
 
 const (
 	OK_AUTH int32 = iota
+	OK_CREATE_EVENT
 	OK_ATTENDANCE
 )

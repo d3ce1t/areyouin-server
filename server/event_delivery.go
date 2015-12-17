@@ -65,6 +65,7 @@ func (ds *DeliverySystem) Run() {
 
 func (ds *DeliverySystem) dispatchEvent(event *proto.Event, participant *proto.EventParticipant) error {
 
+	// FIXME: These two writes should be a batch
 	// Add event to participant inbox (author is also a participant)
 	dao := ds.server.NewEventDAO()
 	if err := dao.AddEventToUserInbox(participant.UserId, event, participant.Response); err != nil {
