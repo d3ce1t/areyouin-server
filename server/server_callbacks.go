@@ -215,18 +215,36 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	event_dao := server.NewEventDAO()
 	var reply []byte
 
-	if event_dao.EventHasParticipant(msg.EventId, session.UserId) {
-		if err := event_dao.SetParticipantResponse(session.UserId, msg.EventId, msg.ActionCode); err == nil {
-			reply = proto.NewMessage().Ok(proto.OK_ATTENDANCE).Marshal()
-			// TODO: Notify participants
-		} else {
-			reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED).Marshal()
-		}
-	} else {
+	participant, err := event_dao.LoadParticipant(msg.EventId, session.UserId)
+
+	if err != nil {
 		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_INVALID_EVENT_OR_PARTICIPANT).Marshal()
+		writeReply(reply, session)
+		log.Println("ConfirmAttendance:", err)
+		return
 	}
 
+	if err := event_dao.SetParticipantResponse(session.UserId, msg.EventId, msg.ActionCode); err != nil {
+		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED).Marshal()
+		writeReply(reply, session)
+		return
+	}
+
+	// Send OK Response
+	participant.Response = msg.ActionCode
+	reply = proto.NewMessage().Ok(proto.OK_ATTENDANCE).Marshal()
 	writeReply(reply, session)
+
+	// Notify participants
+	task := &NotifyParticipantChange{
+		EventId:  msg.EventId,
+		UserId:   session.UserId,
+		Name:     participant.Name,
+		Response: participant.Response,
+		Status:   participant.Delivered,
+	}
+
+	server.task_executor.Submit(task)
 }
 
 func onModifyEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {

@@ -35,7 +35,7 @@ func (dao *EventDAO) Insert(event *proto.Event) (ok bool, err error) {
 }
 
 // FIXME: There is no different between error and not found
-func (dao *EventDAO) EventHasParticipant(event_id uint64, user_id uint64) bool {
+/*func (dao *EventDAO) EventHasParticipant(event_id uint64, user_id uint64) bool {
 
 	stmt := `SELECT event_id FROM event_participants
 		WHERE event_id = ? AND user_id = ? LIMIT 1`
@@ -47,9 +47,38 @@ func (dao *EventDAO) EventHasParticipant(event_id uint64, user_id uint64) bool {
 	}
 
 	return exists
+}*/
+
+// Load the participant of an event and returns it. If not found returns a nil participant
+// and error. Whatever else returns (nil, error)
+func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*proto.EventParticipant, error) {
+
+	stmt := `SELECT name, response, status FROM event_participants
+		WHERE event_id = ? AND user_id = ? LIMIT 1`
+
+	q := dao.session.Query(stmt, event_id, user_id)
+
+	var name string
+	var response, status int32
+	var participant *proto.EventParticipant
+
+	err := q.Scan(&name, &response, &status)
+
+	if err == nil {
+		participant = &proto.EventParticipant{
+			UserId:    user_id,
+			Name:      name,
+			Response:  proto.AttendanceResponse(response),
+			Delivered: proto.MessageStatus(status),
+		}
+	} else if err != gocql.ErrNotFound {
+		log.Println("LoadParticipant:", err)
+	}
+
+	return participant, err
 }
 
-func (dao *EventDAO) LoadParticipants(event_id uint64) []*proto.EventParticipant {
+func (dao *EventDAO) LoadAllParticipants(event_id uint64) []*proto.EventParticipant {
 
 	stmt := `SELECT user_id, name, response, status FROM event_participants
 		WHERE event_id = ? LIMIT ?`

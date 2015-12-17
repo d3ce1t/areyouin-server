@@ -33,9 +33,8 @@ func NewTestServer() *Server {
 type Callback func(proto.PacketType, proto.Message, *AyiSession)
 
 type Server struct {
-	sessions map[uint64]*AyiSession
-	//udb            *UsersDatabase
-	//edb            *EventsDatabase
+	sessions      map[uint64]*AyiSession
+	task_executor *TaskExecutor
 	ds            *DeliverySystem
 	id_gen_ch     chan uint64
 	callbacks     map[proto.PacketType]Callback
@@ -43,18 +42,6 @@ type Server struct {
 	cluster       *gocql.ClusterConfig
 	dbsession     *gocql.Session
 	Keyspace      string
-}
-
-// Public methods
-func (s *Server) GetNewID() uint64 {
-	return <-s.id_gen_ch
-}
-
-func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
-	if s.callbacks == nil {
-		s.callbacks = make(map[proto.PacketType]Callback)
-	}
-	s.callbacks[command] = f
 }
 
 // Setup server components
@@ -79,6 +66,10 @@ func (s *Server) init() {
 		log.Println("Error connection to cassandra", err)
 		return
 	}
+
+	// Task Executor
+	s.task_executor = NewTaskExecutor(s)
+	s.task_executor.Start()
 
 	// Start Event Delivery
 	s.ds = NewDeliverySystem(s)
@@ -105,6 +96,17 @@ func (s *Server) Run() {
 		session := NewSession(client, s)
 		go s.handleSession(session)
 	}
+}
+
+func (s *Server) GetNewID() uint64 {
+	return <-s.id_gen_ch
+}
+
+func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
+	if s.callbacks == nil {
+		s.callbacks = make(map[proto.PacketType]Callback)
+	}
+	s.callbacks[command] = f
 }
 
 func (s *Server) RegisterSession(session *AyiSession) {
@@ -343,7 +345,7 @@ func sendPrivateEvents(session *AyiSession) {
 
 		// Send participants info of each event and update participant status as delivered
 		for _, event := range events {
-			event_participants := dao.LoadParticipants(event.EventId)
+			event_participants := dao.LoadAllParticipants(event.EventId)
 			event_participants = session.Server.filterParticipants(session.UserId, event_participants)
 			msg := proto.NewMessage().AttendanceStatus(event.EventId, event_participants).Marshal()
 			writeReply(msg, session)

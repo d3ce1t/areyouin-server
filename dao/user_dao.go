@@ -61,7 +61,9 @@ func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token uuid.UUID) bool {
 	var stored_token gocql.UUID
 
 	if err := q.Scan(&stored_token); err != nil {
-		log.Println("CheckAuthToken:", err)
+		if err != gocql.ErrNotFound {
+			log.Println("CheckAuthToken:", err)
+		}
 		return false
 	}
 
