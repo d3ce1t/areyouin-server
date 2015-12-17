@@ -11,7 +11,9 @@ const (
 	E_FB_MISSING_DATA         // Create User Account
 	E_FB_INVALID_TOKEN        // Create User Account
 	E_MALFORMED_MESSAGE       // User Friend
-	E_EVENT_CREATION_ERROR
+	E_EVENT_PARTICIPANTS_REQUIRED
+	E_OPERATION_FAILED
+	E_INVALID_EVENT_OR_PARTICIPANT
 )
 
 const (

@@ -151,7 +151,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	author := dao.Load(session.UserId)
 	if author == nil {
 		log.Println("Author should exist but it seems it didn't on an error ocurred")
-		writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_CREATION_ERROR).Marshal(), session)
+		writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_INVALID_USER).Marshal(), session)
 		return
 	}
 
@@ -175,12 +175,12 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 			writeReply(proto.NewMessage().Ok(proto.OK_CREATE_EVENT).Marshal(), session)
 			log.Println("EVENT STORED BUT NOT PUBLISHED", event.EventId)
 		} else {
-			writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_CREATION_ERROR).Marshal(), session)
+			writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_OPERATION_FAILED).Marshal(), session)
 			log.Println("EVENT CREATION ERROR")
 		}
 
 	} else {
-		writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_CREATION_ERROR).Marshal(), session)
+		writeReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_PARTICIPANTS_REQUIRED).Marshal(), session)
 		log.Println("EVENT CREATION ERROR INVALID PARTICIPANTS")
 	}
 }
@@ -207,10 +207,26 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 
 	checkAuthenticated(session)
 
-	//server := session.Server
+	server := session.Server
 	msg := message.(*proto.ConfirmAttendance)
 	log.Println("CONFIRM ATTENDANCE", msg)
 
+	// preconditions: User must have received the invitation
+	event_dao := server.NewEventDAO()
+	var reply []byte
+
+	if event_dao.EventHasParticipant(msg.EventId, session.UserId) {
+		if err := event_dao.SetParticipantResponse(session.UserId, msg.EventId, msg.ActionCode); err == nil {
+			reply = proto.NewMessage().Ok(proto.OK_ATTENDANCE).Marshal()
+			// TODO: Notify participants
+		} else {
+			reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED).Marshal()
+		}
+	} else {
+		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_INVALID_EVENT_OR_PARTICIPANT).Marshal()
+	}
+
+	writeReply(reply, session)
 }
 
 func onModifyEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {

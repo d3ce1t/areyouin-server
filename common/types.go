@@ -7,6 +7,7 @@ import (
 
 type EventDAO interface {
 	Insert(event *proto.Event) (ok bool, err error)
+	EventHasParticipant(event_id uint64, user_id uint64) bool
 	LoadParticipants(event_id uint64) []*proto.EventParticipant
 	AddOrUpdateParticipants(event_id uint64, participantList []*proto.EventParticipant) error
 	AddEventToUserInbox(user_id uint64, event *proto.Event, response proto.AttendanceResponse) error

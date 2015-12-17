@@ -137,6 +137,7 @@ func (dao *UserDAO) GetIDByFacebookID(fb_id string) uint64 {
 	return user_id
 }
 
+// FIXME: There is no different between error and not found
 func (dao *UserDAO) Exists(user_id uint64) bool {
 
 	stmt := `SELECT user_id FROM user_account WHERE user_id = ? LIMIT 1`

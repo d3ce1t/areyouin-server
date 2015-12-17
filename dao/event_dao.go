@@ -34,6 +34,21 @@ func (dao *EventDAO) Insert(event *proto.Event) (ok bool, err error) {
 	return q.ScanCAS(nil)
 }
 
+// FIXME: There is no different between error and not found
+func (dao *EventDAO) EventHasParticipant(event_id uint64, user_id uint64) bool {
+
+	stmt := `SELECT event_id FROM event_participants
+		WHERE event_id = ? AND user_id = ? LIMIT 1`
+
+	exists := false
+
+	if err := dao.session.Query(stmt, event_id, user_id).Scan(nil); err == nil {
+		exists = true
+	}
+
+	return exists
+}
+
 func (dao *EventDAO) LoadParticipants(event_id uint64) []*proto.EventParticipant {
 
 	stmt := `SELECT user_id, name, response, status FROM event_participants
