@@ -36,6 +36,7 @@ func (shell *Shell) Execute() {
 
 func (shell *Shell) init() {
 	shell.commands = map[string]Command{
+		"help":            shell.help,
 		"list_sessions":   shell.listSessions,
 		"send_auth_error": shell.sendAuthError,
 	}
@@ -76,6 +77,13 @@ func (shell *Shell) executeShell() (exit bool) {
 func manageShellError(err error) {
 	if err != nil {
 		panic(err)
+	}
+}
+
+// help
+func (shell *Shell) help(args []string) {
+	for k, _ := range shell.commands {
+		fmt.Printf("- %v\n", k)
 	}
 }
 
