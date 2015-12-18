@@ -58,7 +58,7 @@ func (s *Server) init() {
 	// Connect to Cassandra
 	s.cluster = gocql.NewCluster("192.168.1.2" /*"192.168.1.3"*/)
 	s.cluster.Keyspace = s.Keyspace
-	s.cluster.Consistency = gocql.Quorum
+	s.cluster.Consistency = gocql.LocalQuorum
 
 	if session, err := s.cluster.CreateSession(); err == nil {
 		s.dbsession = session
@@ -250,9 +250,11 @@ func (s *Server) PublishEvent(event *proto.Event, participants []*proto.EventPar
 	dao := s.NewEventDAO()
 
 	if len(participants) > 0 {
-
+		// FIXME: Insert uses lightweight-transaction but actually may be not needed because
+		// EventID (primary key) is unique if, and only if, IDGen ID do not overlap with
+		// others IDGen running concurrently. In other words, if each IDGen produces keys
+		// of its assigned space, then EventID is unique.
 		if ok, err := dao.Insert(event); ok {
-
 			if err := dao.AddOrUpdateParticipants(event.EventId, participants); err == nil {
 				event.NumGuests = int32(len(participants))
 				if err := dao.SetNumGuests(event.EventId, event.NumGuests); err != nil {

@@ -129,7 +129,7 @@ func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []
 	stmt := `INSERT INTO event_participants (event_id, user_id, name, response, status)
 		VALUES (?, ?, ?, ?, ?)`
 
-	batch := dao.session.NewBatch(gocql.LoggedBatch)
+	batch := dao.session.NewBatch(gocql.UnloggedBatch) // Use unlogged batches when making updates to the same partition key.
 
 	for _, participant := range participantList {
 		batch.Query(stmt, event_id, participant.UserId, participant.Name,
@@ -150,7 +150,8 @@ func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *proto.Event, res
 }
 
 // FIXME: Each event of event table is in its own partition, classify events by date
-// or something in order to improve read performance
+// or something in order to improve read performance.
+// TODO: Split in two functions
 func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*proto.Event, err error) {
 
 	// First read events from user_events to get the IDs
@@ -214,10 +215,50 @@ func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*p
 	return events, nil
 }
 
+// Compare-and-set (read-before) update operation
+func (dao *EventDAO) CompareAndSetNumGuests(event_id uint64, num_guests int32) (ok bool, err error) {
+
+	read_stmt := `SELECT num_guests FROM event WHERE event_id = ?`
+	q := dao.session.Query(read_stmt, event_id)
+
+	var old_num_guests int32
+	var write_stmt string
+
+	if err := q.Scan(&old_num_guests); err != nil {
+		return false, err
+	}
+
+	write_stmt = `UPDATE event SET num_guests = ? WHERE event_id = ?
+								IF num_guests = ?`
+
+	q = dao.session.Query(write_stmt, num_guests, event_id, old_num_guests)
+	return q.ScanCAS(nil)
+}
+
 func (dao *EventDAO) SetNumGuests(event_id uint64, num_guests int32) error {
 	stmt := `UPDATE event SET num_guests = ? WHERE event_id = ?`
 	q := dao.session.Query(stmt, num_guests, event_id)
 	return q.Exec()
+}
+
+// Compare-and-set (read-before) update operation
+func (dao *EventDAO) CompareAndSetNumAttendees(event_id uint64, num_attendees int) (ok bool, err error) {
+
+	read_stmt := `SELECT num_attendees FROM event WHERE event_id = ?`
+	q := dao.session.Query(read_stmt, event_id)
+
+	var old_attendees int32
+	var write_stmt string
+
+	if err := q.Scan(&old_attendees); err != nil {
+		return false, err
+	}
+
+	write_stmt = `UPDATE event SET num_attendees = ? WHERE event_id = ?
+								IF num_attendees = ?`
+
+	q = dao.session.Query(write_stmt, num_attendees, event_id, old_attendees)
+	return q.ScanCAS(nil)
 }
 
 func (dao *EventDAO) SetNumAttendees(event_id uint64, num_attendees int) error {

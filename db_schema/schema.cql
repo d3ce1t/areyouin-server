@@ -64,7 +64,7 @@ CREATE TABLE user_events (
 	event_id bigint,
 	response int, // 0) no response, 1) no assist, 2) cannot assist, 3) assist
 	// num_attendees int,
-	PRIMARY KEY (user_id, end_date, event_id)
+	PRIMARY KEY (user_id, end_date, event_id) // FIXME: Make partitions because a user could have a lot of events as time goes further
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
 AND CLUSTERING ORDER BY (end_date ASC, event_id ASC);

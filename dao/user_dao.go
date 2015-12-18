@@ -91,7 +91,7 @@ func (dao *UserDAO) SetLastConnection(user_id uint64, time int64) error {
 
 func (dao *UserDAO) SetFacebookAccessToken(user_id uint64, fb_id string, fb_token string) error {
 
-	batch := dao.session.NewBatch(gocql.LoggedBatch)
+	batch := dao.session.NewBatch(gocql.LoggedBatch) // the primary use case of a logged batch is when you need to keep tables in sync with one another, and NOT performance.
 
 	batch.Query(`UPDATE user_facebook_credentials SET fb_token = ? WHERE fb_id = ?`,
 		fb_token, fb_id)

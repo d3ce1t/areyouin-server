@@ -203,24 +203,36 @@ func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message
 
 }
 
+// When a ConfirmAttendance message is received, the attendance response of the participant
+// in the participant event list is changed and notified to the other participants. It is
+// important to note that num_attendees is not changed server-side till the event has started.
+// Clients are cool counting attendees :)
 func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	checkAuthenticated(session)
 
-	server := session.Server
 	msg := message.(*proto.ConfirmAttendance)
 	log.Println("CONFIRM ATTENDANCE", msg)
 
-	// preconditions: User must have received the invitation
+	server := session.Server
 	event_dao := server.NewEventDAO()
-	var reply []byte
 
+	// Preconditions: User must have received the invitationm, so user must be in the event participant list
+	// or user has the event in his inbox
 	participant, err := event_dao.LoadParticipant(msg.EventId, session.UserId)
+	var reply []byte
 
 	if err != nil {
 		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_INVALID_EVENT_OR_PARTICIPANT).Marshal()
 		writeReply(reply, session)
 		log.Println("ConfirmAttendance:", err)
+		return
+	}
+
+	// If the stored response is the same as the provided, send OK response inmediately
+	if participant.Response == msg.ActionCode {
+		reply = proto.NewMessage().Ok(proto.OK_ATTENDANCE).Marshal()
+		writeReply(reply, session)
 		return
 	}
 

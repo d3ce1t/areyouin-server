@@ -13,7 +13,9 @@ type EventDAO interface {
 	AddOrUpdateParticipants(event_id uint64, participantList []*proto.EventParticipant) error
 	AddEventToUserInbox(user_id uint64, event *proto.Event, response proto.AttendanceResponse) error
 	LoadUserEvents(user_id uint64, fromDate int64) (events []*proto.Event, err error)
+	CompareAndSetNumGuests(event_id uint64, num_guests int32) (bool, error)
 	SetNumGuests(event_id uint64, num_guests int32) error
+	CompareAndSetNumAttendees(event_id uint64, num_attendees int) (bool, error)
 	SetNumAttendees(event_id uint64, num_attendees int) error
 	SetParticipantStatus(user_id uint64, event_id uint64, status proto.MessageStatus) error
 	SetParticipantResponse(user_id uint64, event_id uint64, response proto.AttendanceResponse) error
