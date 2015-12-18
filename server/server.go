@@ -357,6 +357,11 @@ func sendPrivateEvents(session *AyiSession) {
 	}
 }
 
+func sendAuthError(session *AyiSession) {
+	writeReply(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER).Marshal(), session)
+	log.Println("SEND INVALID USER")
+}
+
 func checkFacebookAccess(id string, access_token string) (fbaccount *FacebookAccount, ok bool) {
 
 	// Contact Facebook
@@ -451,5 +456,7 @@ func main() {
 	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
 	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
-	server.Run()
+	shell := &Shell{Server: server}
+	go shell.Execute()
+	server.Run() // start server loop
 }

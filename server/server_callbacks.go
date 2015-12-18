@@ -133,8 +133,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 		// FIXME: Do not send all of the private events, but limit to a fixed number
 		sendPrivateEvents(session)
 	} else {
-		writeReply(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER).Marshal(), session)
-		log.Println("INVALID USER")
+		sendAuthError(session)
 	}
 }
 
