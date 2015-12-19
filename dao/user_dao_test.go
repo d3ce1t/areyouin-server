@@ -1,7 +1,7 @@
 package dao
 
 import (
-	core "areyouin/common"
+	core "peeple/areyouin/common"
 	"testing"
 	"time"
 )

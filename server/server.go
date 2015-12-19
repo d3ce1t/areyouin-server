@@ -1,14 +1,14 @@
 package main
 
 import (
-	core "areyouin/common"
-	"areyouin/dao"
-	proto "areyouin/protocol"
 	"fmt"
 	"github.com/gocql/gocql"
 	fb "github.com/huandu/facebook"
 	"log"
 	"net"
+	core "peeple/areyouin/common"
+	"peeple/areyouin/dao"
+	proto "peeple/areyouin/protocol"
 	"time"
 )
 

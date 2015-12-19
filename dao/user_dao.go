@@ -1,12 +1,12 @@
 package dao
 
 import (
-	core "areyouin/common"
-	proto "areyouin/protocol"
 	"errors"
 	"github.com/gocql/gocql"
 	"github.com/twinj/uuid"
 	"log"
+	core "peeple/areyouin/common"
+	proto "peeple/areyouin/protocol"
 )
 
 const (

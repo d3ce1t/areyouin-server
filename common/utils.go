@@ -1,11 +1,11 @@
 package common
 
 import (
-	proto "areyouin/protocol"
 	"crypto/rand"
 	"crypto/sha256"
 	"github.com/gocql/gocql"
 	"log"
+	proto "peeple/areyouin/protocol"
 	"time"
 )
 

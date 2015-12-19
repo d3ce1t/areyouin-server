@@ -1,10 +1,10 @@
 package main
 
 import (
-	core "areyouin/common"
-	proto "areyouin/protocol"
 	"flag"
 	"os"
+	core "peeple/areyouin/common"
+	proto "peeple/areyouin/protocol"
 	"testing"
 )
 

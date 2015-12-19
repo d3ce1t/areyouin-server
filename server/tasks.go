@@ -1,7 +1,7 @@
 package main
 
 import (
-	proto "areyouin/protocol"
+	proto "peeple/areyouin/protocol"
 )
 
 type NotifyParticipantChange struct {

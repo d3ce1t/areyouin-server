@@ -1,10 +1,10 @@
 package main
 
 import (
-	core "areyouin/common"
-	proto "areyouin/protocol"
 	"github.com/twinj/uuid"
 	"log"
+	core "peeple/areyouin/common"
+	proto "peeple/areyouin/protocol"
 )
 
 func onCreateAccount(packet_type proto.PacketType, message proto.Message, session *AyiSession) {

@@ -1,8 +1,8 @@
 package dao
 
 import (
-	core "areyouin/common"
-	proto "areyouin/protocol"
+	core "peeple/areyouin/common"
+	proto "peeple/areyouin/protocol"
 	"testing"
 )
 
@@ -108,7 +108,7 @@ func TestEventAddOrUpdateParticipants(t *testing.T) {
 
 func TestLoadParticipants(t *testing.T) {
 	dao := NewEventDAO(session)
-	event_participants := dao.LoadParticipants(uint64(16364452597203970))
+	event_participants := dao.LoadAllParticipants(uint64(16364452597203970))
 	if len(event_participants) != 7 {
 		t.FailNow()
 	}

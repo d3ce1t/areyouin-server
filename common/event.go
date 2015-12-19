@@ -1,7 +1,7 @@
 package common
 
 import (
-	proto "areyouin/protocol"
+	proto "peeple/areyouin/protocol"
 )
 
 func CreateNewEvent(event_id uint64, author_id uint64, author_name string, start_date int64,

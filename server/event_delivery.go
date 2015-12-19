@@ -1,8 +1,8 @@
 package main
 
 import (
-	proto "areyouin/protocol"
 	"log"
+	proto "peeple/areyouin/protocol"
 )
 
 const SIZE_QUEUE = 100

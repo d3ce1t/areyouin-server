@@ -1,10 +1,10 @@
 package dao
 
 import (
-	core "areyouin/common"
-	proto "areyouin/protocol"
 	"github.com/gocql/gocql"
 	"log"
+	core "peeple/areyouin/common"
+	proto "peeple/areyouin/protocol"
 )
 
 const (

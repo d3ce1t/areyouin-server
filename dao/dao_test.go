@@ -1,12 +1,12 @@
 package dao
 
 import (
-	core "areyouin/common"
-	proto "areyouin/protocol"
 	"flag"
 	"github.com/gocql/gocql"
 	"log"
 	"os"
+	core "peeple/areyouin/common"
+	proto "peeple/areyouin/protocol"
 	"testing"
 )
 

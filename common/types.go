@@ -1,8 +1,8 @@
 package common
 
 import (
-	proto "areyouin/protocol"
 	"github.com/twinj/uuid"
+	proto "peeple/areyouin/protocol"
 )
 
 type EventDAO interface {
