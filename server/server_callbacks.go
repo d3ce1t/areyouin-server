@@ -28,6 +28,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// when inserting later.
 	if user_id := dao.GetIDByEmail(user.Email); user_id != 0 {
 		if dao.Exists(user_id) {
+			// FIXME: I'm giving info about existing users on my server by e-mail
 			reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_USER_EXISTS).Marshal()
 			writeReply(reply, session)
 			return
@@ -84,7 +85,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 			log.Println("ACCESS GRANTED")
 		} else {
 			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER).Marshal()
-			log.Println("INVALID USER")
+			log.Println("INVALID USER OR PASSWORD")
 		}
 		// Get new token by Facebook User ID and Facebook Access Token
 	} else if msg.Type == proto.AuthType_A_FACEBOOK {
@@ -92,8 +93,9 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		_, valid_token := checkFacebookAccess(msg.Pass1, msg.Pass2)
 
 		if !valid_token {
+			// FIXME: Give the E_INVALID_USER to no give attackers more information than needed
 			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_FB_INVALID_TOKEN).Marshal()
-			log.Println("INVALID TOKEN")
+			log.Println("INVALID FBID OR ACCESS TOKEN")
 		} else if user_id := dao.GetIDByFacebookID(msg.Pass1); user_id != 0 {
 			new_auth_token := uuid.NewV4()
 			dao.SetAuthTokenAndFBToken(user_id, new_auth_token, msg.Pass1, msg.Pass2)

@@ -46,10 +46,11 @@ func (shell *Shell) executeShell() (exit bool) {
 
 	// Defer recovery
 	defer func() {
-		r := recover()
-		err := r.(error)
-		fmt.Println("Error:", err)
-		exit = false
+		if r := recover(); r != nil {
+			err := r.(error)
+			fmt.Println("Error:", err)
+			exit = false
+		}
 	}()
 
 	var args []string

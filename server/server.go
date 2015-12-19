@@ -114,8 +114,9 @@ func (s *Server) RegisterSession(session *AyiSession) {
 }
 
 func (s *Server) UnregisterSession(session *AyiSession) {
+	user_id := session.UserId
 	session.Close()
-	delete(s.sessions, session.UserId)
+	delete(s.sessions, user_id)
 }
 
 func (s *Server) NewUserDAO() core.UserDAO {
@@ -138,7 +139,7 @@ func (s *Server) handleSession(session *AyiSession) {
 
 	// Defer session close
 	defer func() {
-		log.Println("Session closed")
+		log.Println("Session closed:", session)
 		last_connection := core.GetCurrentTimeMillis()
 		session.Server.NewUserDAO().SetLastConnection(session.UserId, last_connection)
 		s.UnregisterSession(session)
@@ -170,7 +171,7 @@ func (s *Server) handleSession(session *AyiSession) {
 				log.Println(packet)
 			}
 		} else if err == proto.ErrConnectionClosed {
-			log.Println("Connection closed by client")
+			log.Println("Connection closed by client:", session)
 			exit = true
 		} else if err != proto.ErrTimeout {
 			log.Println(err)
