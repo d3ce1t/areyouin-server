@@ -15,7 +15,7 @@ import (
 const (
 	ALL_CONTACTS_GROUP = 0 // Id for the main friend group of a user
 	MAX_WRITE_TIMEOUT  = 10 * time.Second
-	MAX_READ_TIMEOUT   = 1 * time.Second
+	//MAX_READ_TIMEOUT   = 1 * time.Second
 )
 
 func NewServer() *Server {
@@ -147,8 +147,6 @@ func (s *Server) handleSession(session *AyiSession) {
 
 	log.Println("New connection from", session)
 
-	var packet *proto.AyiPacket
-	var err error
 	exit := false
 
 	for !exit {
@@ -159,25 +157,24 @@ func (s *Server) handleSession(session *AyiSession) {
 			session.ProcessNotification(notification)
 			continue
 
-		// Read messages
-		default:
-			session.Conn.SetReadDeadline(time.Now().Add(MAX_READ_TIMEOUT))
-			packet, err = proto.ReadPacket(session.Conn)
-		}
-
-		if err == nil {
+			// Read messages
+		case packet := <-session.SocketChannel:
 			if err := s.serveMessage(packet, session); err != nil { // may block until writes are performed
 				log.Println("Error:", err)
 				log.Println(packet)
 			}
-		} else if err == proto.ErrConnectionClosed {
-			log.Println("Connection closed by client:", session)
-			exit = true
-		} else if err != proto.ErrTimeout {
-			log.Println(err)
-		}
 
-	}
+		case err := <-session.SocketError:
+			if err == proto.ErrConnectionClosed {
+				log.Println("Connection closed by client:", session)
+				exit = true
+			} else if err != proto.ErrTimeout {
+				log.Println(err)
+			}
+
+		} // End select
+
+	} // End loop
 }
 
 func (s *Server) getIDGenerator(id uint16) *core.IDGen {
@@ -447,7 +444,6 @@ func (s *Server) canSee(p1 uint64, p2 *proto.EventParticipant) bool {
 }
 
 func main() {
-	//fmt.Println("GOMAXPROCS is", runtime.GOMAXPROCS(0))
 	server := NewServer() // Server is global
 	core.CreateFakeUsers(server.NewUserDAO())
 	server.RegisterCallback(proto.M_PING, onPing)

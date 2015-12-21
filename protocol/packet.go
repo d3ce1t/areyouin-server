@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	proto "github.com/golang/protobuf/proto"
 	"log"
@@ -28,7 +29,7 @@ type AyiPacket struct {
 
 func (packet *AyiPacket) String() string {
 	str := fmt.Sprintf("Header {%s}\n", packet.Header.String())
-	str += fmt.Sprintln("Data:", packet.Data)
+	str += fmt.Sprintln("Data:", hex.EncodeToString(packet.Data))
 	return str
 }
 
