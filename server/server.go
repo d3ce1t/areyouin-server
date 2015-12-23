@@ -14,8 +14,10 @@ import (
 
 const (
 	ALL_CONTACTS_GROUP = 0 // Id for the main friend group of a user
-	MAX_WRITE_TIMEOUT  = 10 * time.Second
+	MAX_WRITE_TIMEOUT  = 15 * time.Second
 	//MAX_READ_TIMEOUT   = 1 * time.Second
+	MAX_IDLE_TIME  = 30 * 60 * time.Second // 30m
+	MAX_LOGIN_TIME = 30 * time.Second      // 30s
 )
 
 func NewServer() *Server {
@@ -110,6 +112,11 @@ func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
 }
 
 func (s *Server) RegisterSession(session *AyiSession) {
+
+	if oldSession, ok := s.sessions[session.UserId]; ok {
+		s.UnregisterSession(oldSession)
+	}
+
 	s.sessions[session.UserId] = session
 }
 
@@ -132,17 +139,14 @@ func (s *Server) AddFriend(user_id uint64, friend *proto.Friend) error {
 }
 
 // Private methods
-
-// TODO: Close connection if no login for a while (maybe 30 seconds)
-// TODO: Close connection if no PING, PONG dialog (each 15 minutes?)
 func (s *Server) handleSession(session *AyiSession) {
 
 	// Defer session close
 	defer func() {
-		log.Println("Session closed:", session)
 		last_connection := core.GetCurrentTimeMillis()
-		session.Server.NewUserDAO().SetLastConnection(session.UserId, last_connection)
 		s.UnregisterSession(session)
+		session.Server.NewUserDAO().SetLastConnection(session.UserId, last_connection)
+		log.Println("Session closed:", session)
 	}()
 
 	log.Println("New connection from", session)
@@ -157,20 +161,42 @@ func (s *Server) handleSession(session *AyiSession) {
 			session.ProcessNotification(notification)
 			continue
 
-			// Read messages
+		// Read messages
 		case packet := <-session.SocketChannel:
+			session.lastRecvMsg = time.Now().UTC()
 			if err := s.serveMessage(packet, session); err != nil { // may block until writes are performed
 				log.Println("Error:", err)
 				log.Println(packet)
 			}
 
+		// Manage errors
 		case err := <-session.SocketError:
 			if err == proto.ErrConnectionClosed {
 				log.Println("Connection closed by client:", session)
 				exit = true
 			} else if err != proto.ErrTimeout {
-				log.Println(err)
+				if session.isClosed {
+					exit = true
+				}
+				log.Println("Error:", err)
 			}
+
+		default:
+			current_time := time.Now().UTC()
+			if !session.IsAuth {
+				if current_time.After(session.lastRecvMsg.Add(MAX_LOGIN_TIME)) {
+					session.lastRecvMsg = time.Now().UTC()
+					log.Println("Connection IDLE", session)
+					exit = true
+				}
+			} else {
+				if session.IsAuth && current_time.After(session.lastRecvMsg.Add(MAX_IDLE_TIME)) {
+					session.lastRecvMsg = time.Now().UTC()
+					log.Println("Connection IDLE", session)
+					exit = true
+				}
+			}
+			time.Sleep(100 * time.Millisecond)
 
 		} // End select
 
@@ -320,7 +346,7 @@ func sendUserFriends(session *AyiSession) {
 	if len(friends) > 0 {
 		reply := proto.NewMessage().FriendsList(friends).Marshal()
 		log.Println("SEND USER FRIENDS to", session)
-		writeReply(reply, session)
+		session.WriteReply(reply)
 	}
 }
 
@@ -339,16 +365,15 @@ func sendPrivateEvents(session *AyiSession) {
 	if len(events) > 0 {
 
 		// Send events list to user
-		reply := proto.NewMessage().EventsList(events).Marshal()
 		log.Println("SEND PRIVATE EVENTS to", session)
-		writeReply(reply, session)
+		session.WriteReply(proto.NewMessage().EventsList(events).Marshal())
 
 		// Send participants info of each event and update participant status as delivered
 		for _, event := range events {
 			event_participants := dao.LoadAllParticipants(event.EventId)
 			event_participants = session.Server.filterParticipants(session.UserId, event_participants)
 			msg := proto.NewMessage().AttendanceStatus(event.EventId, event_participants).Marshal()
-			writeReply(msg, session)
+			session.WriteReply(msg)
 			// FIXME: Probably could do so in only one operation
 			dao.SetParticipantStatus(session.UserId, event.EventId, proto.MessageStatus_CLIENT_DELIVERED)
 		}
@@ -356,7 +381,7 @@ func sendPrivateEvents(session *AyiSession) {
 }
 
 func sendAuthError(session *AyiSession) {
-	writeReply(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER).Marshal(), session)
+	session.WriteReply(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER).Marshal())
 	log.Println("SEND INVALID USER")
 }
 
@@ -402,14 +427,10 @@ func checkAuthenticated(session *AyiSession) {
 	}
 }
 
-func writeReply(reply []byte, session *AyiSession) error {
-	client := session.Conn
-	client.SetWriteDeadline(time.Now().Add(MAX_WRITE_TIMEOUT))
-	_, err := client.Write(reply)
-	if err != nil {
-		log.Println("Coudn't send reply: ", err)
+func checkUnauthenticated(session *AyiSession) {
+	if session.IsAuth {
+		panic(ErrAuthRequired)
 	}
-	return err
 }
 
 /* Returns a participant list where users that will not assist the event or aren't

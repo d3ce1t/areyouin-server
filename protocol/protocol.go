@@ -36,12 +36,12 @@ func getError(err error) (protoerror error) {
 }
 
 // Reads a message from an io.Reader
-func ReadPacket(reader io.Reader) (*AyiPacket, error) {
+func ReadPacket(conn net.Conn) (*AyiPacket, error) {
 
 	packet := &AyiPacket{}
 
 	// Read header
-	err := binary.Read(reader, binary.BigEndian, &packet.Header)
+	err := binary.Read(conn, binary.BigEndian, &packet.Header)
 
 	if err != nil {
 		protoerror := getError(err)
@@ -50,7 +50,7 @@ func ReadPacket(reader io.Reader) (*AyiPacket, error) {
 
 	// Read Payload
 	packet.Data = make([]uint8, packet.Header.Size-6)
-	_, err = reader.Read(packet.Data)
+	_, err = conn.Read(packet.Data)
 
 	if err != nil {
 		protoerror := getError(err)

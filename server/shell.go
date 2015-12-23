@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	proto "peeple/areyouin/protocol"
 	"strconv"
 	"strings"
 )
@@ -39,6 +40,7 @@ func (shell *Shell) init() {
 		"help":            shell.help,
 		"list_sessions":   shell.listSessions,
 		"send_auth_error": shell.sendAuthError,
+		"ping":            shell.pingClient,
 	}
 }
 
@@ -107,5 +109,18 @@ func (shell *Shell) listSessions(args []string) {
 
 	for k, session := range server.sessions {
 		fmt.Printf("- %v %v\n", k, session)
+	}
+}
+
+// ping client
+func (shell *Shell) pingClient(args []string) {
+
+	user_id, err := strconv.ParseUint(args[1], 10, 64)
+	manageShellError(err)
+
+	server := shell.Server
+	if session, ok := server.sessions[user_id]; ok {
+		ping_msg := proto.NewMessage().Ping().Marshal()
+		session.WriteReply(ping_msg)
 	}
 }

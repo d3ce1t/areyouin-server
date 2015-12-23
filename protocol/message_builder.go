@@ -207,9 +207,9 @@ func (mb *MessageBuilder) UserAccessGranted(user_id uint64, auth_token uuid.UUID
 	return mb.message
 }
 
-func (mb *MessageBuilder) Ok(ok_code int32) *AyiPacket {
+func (mb *MessageBuilder) Ok(msg_type PacketType) *AyiPacket {
 	mb.message.Header.Type = M_OK
-	mb.message.SetMessage(&Ok{Type: ok_code})
+	mb.message.SetMessage(&Ok{Type: int32(msg_type)})
 	return mb.message
 }
 

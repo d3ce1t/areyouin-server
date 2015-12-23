@@ -16,12 +16,6 @@ const (
 	E_INVALID_EVENT_OR_PARTICIPANT
 )
 
-const (
-	OK_AUTH int32 = iota
-	OK_CREATE_EVENT
-	OK_ATTENDANCE
-)
-
 var (
 	ErrConnectionClosed = errors.New("connection closed")
 	ErrTimeout          = errors.New("input/output timeout")

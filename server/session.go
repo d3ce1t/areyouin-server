@@ -4,8 +4,10 @@ import (
 	"log"
 	"net"
 	proto "peeple/areyouin/protocol"
+	"time"
 )
 
+// Creates a new sessions with an already connected client
 func NewSession(conn net.Conn, server *Server) *AyiSession {
 
 	session := &AyiSession{
@@ -16,6 +18,7 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 		SocketChannel:       make(chan *proto.AyiPacket),
 		SocketError:         make(chan error),
 		Server:              server,
+		lastRecvMsg:         time.Now().UTC(),
 	}
 
 	// Read socket in background and send result through channels SocketChannel
@@ -43,6 +46,7 @@ type AyiSession struct {
 	SocketError         chan error
 	Server              *Server
 	isClosed            bool
+	lastRecvMsg         time.Time
 }
 
 func (s *AyiSession) String() string {
@@ -55,7 +59,7 @@ func (s *AyiSession) Notify(notification *Notification) {
 
 func (s *AyiSession) ProcessNotification(notification *Notification) {
 
-	if err := writeReply(notification.Message, s); err != nil {
+	if err := s.WriteReply(notification.Message); err != nil {
 		log.Println("ProcessNotification:", err)
 		return
 	}
@@ -74,6 +78,16 @@ func (s *AyiSession) doRead() {
 	} else {
 		s.SocketChannel <- packet
 	}
+}
+
+func (s *AyiSession) WriteReply(reply []byte) error {
+	client := s.Conn
+	client.SetWriteDeadline(time.Now().Add(MAX_WRITE_TIMEOUT))
+	_, err := client.Write(reply)
+	if err != nil {
+		log.Println("Coudn't send reply: ", err)
+	}
+	return err
 }
 
 func (s *AyiSession) Close() {
