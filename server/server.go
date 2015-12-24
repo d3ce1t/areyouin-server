@@ -312,6 +312,7 @@ func (s *Server) createParticipantsList(author_id uint64, participants_id []uint
 
 	dao := s.NewUserDAO()
 
+	// TODO: Optimise this path
 	for _, user_id := range participants_id {
 		if dao.AreFriends(author_id, user_id) {
 			if uac := dao.Load(user_id); uac != nil {

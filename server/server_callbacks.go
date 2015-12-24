@@ -5,6 +5,11 @@ import (
 	"log"
 	core "peeple/areyouin/common"
 	proto "peeple/areyouin/protocol"
+	"time"
+)
+
+const (
+	SECURITY_WAIT_TIME = 1 * time.Second
 )
 
 func onCreateAccount(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
@@ -13,34 +18,33 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 
 	server := session.Server
 	msg := message.(*proto.CreateUserAccount)
-	log.Println("USER CREATE ACCOUNT", msg)
-
-	var reply []byte
-
-	dao := server.NewUserDAO()
-
-	// TODO: Validate user data
+	log.Println("> USER CREATE ACCOUNT", msg)
 
 	// Create new user account
 	user := core.NewUserAccount(server.GetNewID(), msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
+
+	// Check if its a valid user, so the input was correct
+	if !user.IsValid() {
+		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_INVALID_INPUT).Marshal())
+		return
+	}
+
+	// Because an attacker could use the create account feature in order to check if a user exists,
+	// a security wait is introduced here to prevent attackers of massive e-mails checking
+	time.Sleep(SECURITY_WAIT_TIME)
+
+	dao := server.NewUserDAO()
 
 	// Check if user exists. If user e-mail exists may be orphan due to the way users are
 	// inserted into cassandra. So it's needed to check if the user related to this e-mail
 	// also exists. In case it doesn't exist, then delete it in order to avoid a collision
 	// when inserting later.
-	if user_id := dao.GetIDByEmail(user.Email); user_id != 0 {
-		if dao.Exists(user_id) {
-			// FIXME: I'm giving info about existing users on my server by e-mail
-			reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_USER_EXISTS).Marshal()
-			session.WriteReply(reply)
-			return
-		} else {
-			if user.HasFacebookCredentials() && dao.GetIDByFacebookID(user.Fbid) == user_id {
-				dao.DeleteFacebookCredentials(user.Fbid)
-			}
-			dao.DeleteEmailCredentials(msg.Email)
-		}
+	if dao.ExistWithSanity(user) {
+		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_EMAIL_EXISTS).Marshal())
+		return
 	}
+
+	var reply []byte
 
 	// If it's a Facebook account (fbid and fbtoken not empty) then check token
 	if user.HasFacebookCredentials() {
@@ -50,7 +54,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 				user.EmailVerified = true
 			}
 		} else {
-			reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_FB_INVALID_TOKEN).Marshal()
+			reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_FB_INVALID_ACCESS).Marshal()
 			session.WriteReply(reply)
 			return
 		}
@@ -60,7 +64,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	if ok, _ := dao.Insert(user); ok {
 		reply = proto.NewMessage().UserAccessGranted(user.Id, user.AuthToken).Marshal()
 	} else { // Facebook account may already be linked to another user
-		reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_USER_EXISTS).Marshal()
+		reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_FB_EXISTS).Marshal()
 	}
 
 	session.WriteReply(reply)
@@ -72,7 +76,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 	server := session.Server
 	msg := message.(*proto.NewAuthToken)
-	log.Println("USER NEW AUTH TOKEN", msg)
+	log.Println("> USER NEW AUTH TOKEN", msg)
 
 	dao := server.NewUserDAO()
 
@@ -86,10 +90,10 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 				log.Println("onUserNewAuthToken:", err)
 			}
 			reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token).Marshal()
-			log.Println("ACCESS GRANTED")
+			log.Println("< ACCESS GRANTED")
 		} else {
-			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER).Marshal()
-			log.Println("INVALID USER OR PASSWORD")
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
+			log.Println("< INVALID USER OR PASSWORD")
 		}
 		// Get new token by Facebook User ID and Facebook Access Token
 	} else if msg.Type == proto.AuthType_A_FACEBOOK {
@@ -98,20 +102,20 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 		if !valid_token {
 			// FIXME: Give the E_INVALID_USER to no give attackers more information than needed
-			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_FB_INVALID_TOKEN).Marshal()
-			log.Println("INVALID FBID OR ACCESS TOKEN")
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_FB_INVALID_ACCESS).Marshal()
+			log.Println("< INVALID FBID OR ACCESS TOKEN")
 		} else if user_id := dao.GetIDByFacebookID(msg.Pass1); user_id != 0 {
 			new_auth_token := uuid.NewV4()
 			dao.SetAuthTokenAndFBToken(user_id, new_auth_token, msg.Pass1, msg.Pass2)
 			reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token).Marshal()
-			log.Println("ACCESS GRANTED")
+			log.Println("< ACCESS GRANTED")
 		} else {
 			// User do not exist
-			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER).Marshal()
-			log.Println("INVALID USER")
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
+			log.Println("< INVALID USER")
 		}
 	} else {
-		log.Println("USER NEW AUTH TOKEN malformed message")
+		log.Println("< USER NEW AUTH TOKEN malformed message")
 		reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_MALFORMED_MESSAGE).Marshal()
 	}
 
@@ -124,7 +128,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 
 	server := session.Server
 	msg := message.(*proto.UserAuthentication)
-	log.Println("USER AUTH", msg)
+	log.Println("> USER AUTH", msg)
 
 	dao := server.NewUserDAO()
 
@@ -136,7 +140,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 		session.IsAuth = true
 		session.UserId = user_id
 		server.RegisterSession(session)
-		log.Println("AUTH OK")
+		log.Println("< AUTH OK")
 		sendUserFriends(session)
 		// FIXME: Do not send all of the private events, but limit to a fixed number
 		sendPrivateEvents(session)
@@ -151,20 +155,24 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 
 	server := session.Server
 	msg := message.(*proto.CreateEvent)
-	log.Println("CREATE EVENT", msg)
+	log.Println("> CREATE EVENT", msg)
 
 	dao := server.NewUserDAO()
 
 	author := dao.Load(session.UserId)
 	if author == nil {
-		log.Println("Author should exist but it seems it didn't on an error ocurred")
-		session.WriteReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_INVALID_USER).Marshal())
+		log.Println("Author should exist but it seems it didn't, so an error ocurred")
+		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal())
 		return
 	}
 
-	// TODO: Validate input data
 	// TODO: Check overlapping with other own published events
 	event := core.CreateNewEvent(server.GetNewID(), author.Id, author.Name, msg.StartDate, msg.EndDate, msg.Message)
+
+	if !event.IsValid() {
+		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_INVALID_INPUT).Marshal())
+		return
+	}
 
 	// Prepare participants
 	participantsList := server.createParticipantsList(author.Id, msg.Participants)
@@ -172,7 +180,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	// Add author as another participant of the event and assume he or she
 	// will assist by default
 	participant := author.AsParticipant()
-	participant.SetFields(proto.AttendanceResponse_ASSIST, proto.MessageStatus_NO_DELIVERED)
+	participant.SetFields(core.AttendanceResponse_ASSIST, core.MessageStatus_NO_DELIVERED)
 	participantsList = append(participantsList, participant)
 
 	// Only proceed if there are more participants than the only author
@@ -180,15 +188,15 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 
 		if ok := server.PublishEvent(event, participantsList); ok {
 			session.WriteReply(proto.NewMessage().Ok(packet_type).Marshal())
-			log.Println("EVENT STORED BUT NOT PUBLISHED", event.EventId)
+			log.Println("< EVENT STORED BUT NOT PUBLISHED", event.EventId)
 		} else {
-			session.WriteReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_OPERATION_FAILED).Marshal())
-			log.Println("EVENT CREATION ERROR")
+			session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal())
+			log.Println("< EVENT CREATION ERROR")
 		}
 
 	} else {
-		session.WriteReply(proto.NewMessage().Error(proto.M_CREATE_EVENT, proto.E_EVENT_PARTICIPANTS_REQUIRED).Marshal())
-		log.Println("EVENT CREATION ERROR INVALID PARTICIPANTS")
+		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_EVENT_PARTICIPANTS_REQUIRED).Marshal())
+		log.Println("< EVENT CREATION ERROR INVALID PARTICIPANTS")
 	}
 }
 
@@ -219,7 +227,7 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	checkAuthenticated(session)
 
 	msg := message.(*proto.ConfirmAttendance)
-	log.Println("CONFIRM ATTENDANCE", msg)
+	log.Println("> CONFIRM ATTENDANCE", msg)
 
 	server := session.Server
 	event_dao := server.NewEventDAO()
@@ -232,7 +240,7 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	if err != nil {
 		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_INVALID_EVENT_OR_PARTICIPANT).Marshal()
 		session.WriteReply(reply)
-		log.Println("ConfirmAttendance:", err)
+		log.Println("< ConfirmAttendance:", err)
 		return
 	}
 
@@ -336,7 +344,7 @@ func onUserFriends(packet_type proto.PacketType, message proto.Message, session 
 
 	checkAuthenticated(session)
 
-	log.Println("USER FRIENDS") // Message does not has payload
+	log.Println("> USER FRIENDS") // Message does not has payload
 
 	if !session.IsAuth {
 		log.Println("Received USER FRIENDS message from unauthenticated client", session)
@@ -359,7 +367,7 @@ func onUserFriends(packet_type proto.PacketType, message proto.Message, session 
 func onPing(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 	checkAuthenticated(session)
 	msg := message.(*proto.Ping)
-	log.Println("PING", msg.CurrentTime, session)
+	log.Println("> PING", msg.CurrentTime, session)
 	reply := proto.NewMessage().Pong().Marshal()
 	session.WriteReply(reply)
 }

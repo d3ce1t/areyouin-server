@@ -9,7 +9,17 @@ import (
 )
 
 func GetCurrentTimeMillis() int64 {
-	return time.Now().UTC().UnixNano() / int64(time.Millisecond)
+	return TimeToMillis(time.Now())
+}
+
+func TimeToMillis(t time.Time) int64 {
+	return t.UnixNano() / int64(time.Millisecond)
+}
+
+func UnixMillisToTime(timestamp int64) time.Time {
+	seconds := timestamp / 1000
+	millis := timestamp % 1000
+	return time.Unix(seconds, millis*int64(time.Millisecond))
 }
 
 func ClearUserAccounts(session *gocql.Session) {

@@ -6,7 +6,6 @@ import (
 	"github.com/twinj/uuid"
 	"log"
 	core "peeple/areyouin/common"
-	proto "peeple/areyouin/protocol"
 )
 
 const (
@@ -192,7 +191,7 @@ func (dao *UserDAO) LoadByEmail(email string) *core.UserAccount {
 func (dao *UserDAO) Insert(user *core.UserAccount) (ok bool, err error) {
 
 	// Check if user account has a valid ID and email or fb credentials
-	if !core.CheckUserAccount(user) {
+	if !user.IsValid() {
 		return false, errors.New("UserDAO: Trying to insert an invalid user account")
 	}
 
@@ -372,7 +371,7 @@ func (dao *UserDAO) DeleteFacebookCredentials(fb_id string) error {
 	return dao.session.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, fb_id).Exec()
 }
 
-func (dao *UserDAO) AddFriend(user_id uint64, friend *proto.Friend, group_id int32) error {
+func (dao *UserDAO) AddFriend(user_id uint64, friend *core.Friend, group_id int32) error {
 
 	stmt := `INSERT INTO user_friends (user_id, group_id, group_name, friend_id, name)
 							VALUES (?, ?, ?, ?, ?)`
@@ -380,20 +379,20 @@ func (dao *UserDAO) AddFriend(user_id uint64, friend *proto.Friend, group_id int
 	return dao.session.Query(stmt, user_id, group_id, "All Friends", friend.UserId, friend.Name).Exec()
 }
 
-func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) []*proto.Friend {
+func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) []*core.Friend {
 
 	stmt := `SELECT friend_id, name FROM user_friends
 						WHERE user_id = ? AND group_id = ? LIMIT ?`
 
 	iter := dao.session.Query(stmt, user_id, group_id, MAX_NUM_FRIENDS).Iter()
 
-	friend_list := make([]*proto.Friend, 0, 10)
+	friend_list := make([]*core.Friend, 0, 10)
 
 	var friend_id uint64
 	var friend_name string
 
 	for iter.Scan(&friend_id, &friend_name) {
-		friend_list = append(friend_list, &proto.Friend{UserId: friend_id, Name: friend_name})
+		friend_list = append(friend_list, &core.Friend{UserId: friend_id, Name: friend_name})
 	}
 
 	if err := iter.Close(); err != nil {
@@ -419,4 +418,22 @@ func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) bool {
 	}
 
 	return one_way && two_way
+}
+
+func (dao *UserDAO) ExistWithSanity(user *core.UserAccount) bool {
+
+	result := false
+
+	if user_id := dao.GetIDByEmail(user.Email); user_id != 0 {
+		if dao.Exists(user_id) {
+			result = true
+		} else {
+			if user.HasFacebookCredentials() && dao.GetIDByFacebookID(user.Fbid) == user_id {
+				dao.DeleteFacebookCredentials(user.Fbid)
+			}
+			dao.DeleteEmailCredentials(user.Email)
+		}
+	}
+
+	return result
 }
