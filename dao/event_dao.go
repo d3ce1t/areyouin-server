@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"errors"
 	"github.com/gocql/gocql"
 	"log"
 	core "peeple/areyouin/common"
@@ -77,7 +78,7 @@ func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*core.Eve
 	return participant, err
 }
 
-func (dao *EventDAO) LoadAllParticipants(event_id uint64) []*core.EventParticipant {
+func (dao *EventDAO) LoadAllParticipants(event_id uint64) ([]*core.EventParticipant, error) {
 
 	stmt := `SELECT user_id, name, response, status FROM event_participants
 		WHERE event_id = ? LIMIT ?`
@@ -86,7 +87,7 @@ func (dao *EventDAO) LoadAllParticipants(event_id uint64) []*core.EventParticipa
 
 	if iter == nil {
 		log.Println("LoadParticipants iter is nil!!")
-		return nil
+		return nil, errors.New("LoadParticipants iter is nill")
 	}
 
 	participants := make([]*core.EventParticipant, 0, 10)
@@ -107,9 +108,10 @@ func (dao *EventDAO) LoadAllParticipants(event_id uint64) []*core.EventParticipa
 
 	if err := iter.Close(); err != nil {
 		log.Println("LoadParticipants (", event_id, "):", err)
+		return nil, err
 	}
 
-	return participants
+	return participants, nil
 }
 
 func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *core.EventParticipant) error {

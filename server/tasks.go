@@ -17,7 +17,7 @@ func (task *NotifyParticipantChange) Run(ex *TaskExecutor) {
 
 	server := ex.server
 	event_dao := server.NewEventDAO()
-	participants := event_dao.LoadAllParticipants(task.EventId)
+	participants, _ := event_dao.LoadAllParticipants(task.EventId)
 
 	if participants == nil {
 		return

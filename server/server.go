@@ -314,8 +314,8 @@ func (s *Server) createParticipantsList(author_id uint64, participants_id []uint
 
 	// TODO: Optimise this path
 	for _, user_id := range participants_id {
-		if dao.AreFriends(author_id, user_id) {
-			if uac := dao.Load(user_id); uac != nil {
+		if ok, _ := dao.AreFriends(author_id, user_id); ok {
+			if uac, _ := dao.Load(user_id); uac != nil {
 				result = append(result, uac.AsParticipant())
 			} else {
 				log.Println("createParticipantList() participant", user_id, "does not exist")
@@ -331,7 +331,7 @@ func (s *Server) createParticipantsList(author_id uint64, participants_id []uint
 func (s *Server) createParticipantsFromFriends(author_id uint64) []*core.EventParticipant {
 
 	dao := s.NewUserDAO()
-	friends := dao.LoadFriends(author_id, ALL_CONTACTS_GROUP)
+	friends, _ := dao.LoadFriends(author_id, ALL_CONTACTS_GROUP)
 
 	if friends != nil {
 		return core.CreateParticipantsFromFriends(author_id, friends)
@@ -346,9 +346,9 @@ func sendUserFriends(session *AyiSession) {
 	server := session.Server
 	dao := server.NewUserDAO()
 
-	friends := dao.LoadFriends(session.UserId, ALL_CONTACTS_GROUP)
+	friends, err := dao.LoadFriends(session.UserId, ALL_CONTACTS_GROUP)
 
-	if len(friends) > 0 {
+	if err == nil {
 		reply := proto.NewMessage().FriendsList(friends).Marshal()
 		log.Println("SEND USER FRIENDS to", session)
 		session.WriteReply(reply)
@@ -375,7 +375,7 @@ func sendPrivateEvents(session *AyiSession) {
 
 		// Send participants info of each event and update participant status as delivered
 		for _, event := range events {
-			event_participants := dao.LoadAllParticipants(event.EventId)
+			event_participants, _ := dao.LoadAllParticipants(event.EventId)
 			event_participants = session.Server.filterParticipants(session.UserId, event_participants)
 			msg := proto.NewMessage().AttendanceStatus(event.EventId, event_participants).Marshal()
 			session.WriteReply(msg)
@@ -387,7 +387,7 @@ func sendPrivateEvents(session *AyiSession) {
 
 func sendAuthError(session *AyiSession) {
 	session.WriteReply(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD).Marshal())
-	log.Println("SEND INVALID USER")
+	log.Println("SEND INVALID USER OR PASSWORD")
 }
 
 func checkFacebookAccess(id string, access_token string) (fbaccount *FacebookAccount, ok bool) {
@@ -462,8 +462,9 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 	dao := s.NewUserDAO()
 	if p2.Response == core.AttendanceResponse_ASSIST ||
 		p2.Response == core.AttendanceResponse_CANNOT_ASSIST ||
-		p1 == p2.UserId ||
-		dao.AreFriends(p1, p2.UserId) {
+		p1 == p2.UserId {
+		return true
+	} else if ok, _ := dao.AreFriends(p1, p2.UserId); ok {
 		return true
 	}
 	return false

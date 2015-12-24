@@ -24,16 +24,17 @@ func NewUserDAO(session *gocql.Session) core.UserDAO {
 	Check if exists an user with given e-mail and password. Returns user id if
 	exists or 0 if doesn't exist.
 */
-func (dao *UserDAO) CheckEmailCredentials(email string, password string) uint64 {
+func (dao *UserDAO) CheckEmailCredentials(email string, password string) (user_id uint64, err error) {
 
 	stmt := `SELECT password, salt, user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
 	q := dao.session.Query(stmt, email)
 
 	var pass_slice, salt_slice []byte
 	var uid uint64
+	user_id = 0
 
 	// FIXME: Scan doesn't work with array[:] notation
-	if err := q.Scan(&pass_slice, &salt_slice, &uid); err == nil {
+	if err = q.Scan(&pass_slice, &salt_slice, &uid); err == nil {
 
 		// HACK: Copy slices to vectors
 		var pass, salt [32]byte
@@ -43,34 +44,34 @@ func (dao *UserDAO) CheckEmailCredentials(email string, password string) uint64 
 
 		hashedPassword := core.HashPasswordWithSalt(password, salt)
 		if hashedPassword == pass {
-			return uid
+			user_id = uid
 		}
 	} else if err != gocql.ErrNotFound {
 		log.Println("CheckEmailCredentials:", err)
 	}
 
-	return 0
+	return
 }
 
-func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token uuid.UUID) bool {
+func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token uuid.UUID) (bool, error) {
 
 	stmt := `SELECT auth_token FROM user_account WHERE user_id = ? LIMIT 1`
 	q := dao.session.Query(stmt, user_id)
 
 	var stored_token gocql.UUID
 
-	if err := q.Scan(&stored_token); err != nil {
-		if err != gocql.ErrNotFound {
-			log.Println("CheckAuthToken:", err)
+	if err_tmp := q.Scan(&stored_token); err_tmp != nil {
+		if err_tmp != gocql.ErrNotFound {
+			log.Println("CheckAuthToken:", err_tmp)
 		}
-		return false
+		return false, err_tmp
 	}
 
 	if auth_token.String() != stored_token.String() {
-		return false
+		return false, nil
 	}
 
-	return true
+	return true, nil
 }
 
 func (dao *UserDAO) SetAuthToken(user_id uint64, auth_token uuid.UUID) error {
@@ -114,44 +115,42 @@ func (dao *UserDAO) SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID,
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *UserDAO) GetIDByEmail(email string) uint64 {
+func (dao *UserDAO) GetIDByEmail(email string) (uint64, error) {
 
 	stmt := `SELECT user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
 	var user_id uint64
 
 	if err := dao.session.Query(stmt, email).Scan(&user_id); err != nil {
-		return 0
+		return 0, err
 	}
 
-	return user_id
+	return user_id, nil
 }
 
-func (dao *UserDAO) GetIDByFacebookID(fb_id string) uint64 {
+func (dao *UserDAO) GetIDByFacebookID(fb_id string) (uint64, error) {
 
 	stmt := `SELECT user_id FROM user_facebook_credentials WHERE fb_id = ? LIMIT 1`
 	var user_id uint64
 
 	if err := dao.session.Query(stmt, fb_id).Scan(&user_id); err != nil {
-		return 0
+		return 0, err
 	}
 
-	return user_id
+	return user_id, nil
 }
 
-// FIXME: There is no different between error and not found
-func (dao *UserDAO) Exists(user_id uint64) bool {
+func (dao *UserDAO) Exists(user_id uint64) (bool, error) {
 
 	stmt := `SELECT user_id FROM user_account WHERE user_id = ? LIMIT 1`
-	exists := false
 
-	if err := dao.session.Query(stmt, user_id).Scan(nil); err == nil {
-		exists = true
+	if err := dao.session.Query(stmt, user_id).Scan(nil); err != nil {
+		return false, err
 	}
 
-	return exists
+	return true, nil
 }
 
-func (dao *UserDAO) Load(user_id uint64) *core.UserAccount {
+func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
 						last_connection, created_date
@@ -167,19 +166,20 @@ func (dao *UserDAO) Load(user_id uint64) *core.UserAccount {
 		&user.Fbid, &user.Fbtoken, &user.LastConnection, &user.CreatedDate)
 
 	if err != nil {
-		log.Println("UserDAO: An error ocurred while loading user account", err)
-		return nil
+		log.Println("UserDAO.Load:", err)
+		return nil, err
 	}
 
 	user.AuthToken = uuid.New(auth_token.Bytes())
 
-	return user
+	return user, nil
 }
 
-func (dao *UserDAO) LoadByEmail(email string) *core.UserAccount {
-	user_id := dao.GetIDByEmail(email)
-	if user_id == 0 {
-		return nil
+func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
+
+	user_id, err := dao.GetIDByEmail(email)
+	if err != nil {
+		return nil, err
 	}
 	return dao.Load(user_id)
 }
@@ -379,7 +379,7 @@ func (dao *UserDAO) AddFriend(user_id uint64, friend *core.Friend, group_id int3
 	return dao.session.Query(stmt, user_id, group_id, "All Friends", friend.UserId, friend.Name).Exec()
 }
 
-func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) []*core.Friend {
+func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) ([]*core.Friend, error) {
 
 	stmt := `SELECT friend_id, name FROM user_friends
 						WHERE user_id = ? AND group_id = ? LIMIT ?`
@@ -397,12 +397,13 @@ func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) []*core.Friend {
 
 	if err := iter.Close(); err != nil {
 		log.Println("LoadFriends:", err)
+		return nil, err
 	}
 
-	return friend_list
+	return friend_list, nil
 }
 
-func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) bool {
+func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) (bool, error) {
 
 	stmt := `SELECT user_id FROM user_friends
 		WHERE user_id = ? AND group_id = ? AND friend_id = ?`
@@ -414,26 +415,36 @@ func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) bool {
 		one_way = true
 		if err := dao.session.Query(stmt, other_user_id, 0, user_id).Scan(nil); err == nil {
 			two_way = true
+		} else {
+			return false, err
 		}
+	} else {
+		return false, err
 	}
 
-	return one_way && two_way
+	return one_way && two_way, nil
 }
 
-func (dao *UserDAO) ExistWithSanity(user *core.UserAccount) bool {
+func (dao *UserDAO) ExistWithSanity(user *core.UserAccount) (bool, error) {
 
-	result := false
-
-	if user_id := dao.GetIDByEmail(user.Email); user_id != 0 {
-		if dao.Exists(user_id) {
-			result = true
-		} else {
-			if user.HasFacebookCredentials() && dao.GetIDByFacebookID(user.Fbid) == user_id {
-				dao.DeleteFacebookCredentials(user.Fbid)
-			}
-			dao.DeleteEmailCredentials(user.Email)
-		}
+	user_id, err := dao.GetIDByEmail(user.Email)
+	if err != nil {
+		return false, err
 	}
 
-	return result
+	exist, err := dao.Exists(user_id)
+	if err != nil {
+		return false, err
+	}
+
+	if !exist {
+		if user.HasFacebookCredentials() {
+			if user_id, _ := dao.GetIDByFacebookID(user.Fbid); user_id == user.Id { // FIXME: Non checked errors
+				dao.DeleteFacebookCredentials(user.Fbid)
+			}
+		}
+		dao.DeleteEmailCredentials(user.Email)
+	}
+
+	return exist, nil
 }

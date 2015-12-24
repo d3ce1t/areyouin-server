@@ -41,7 +41,7 @@ func (ds *DeliverySystem) Run() {
 			log.Println("Event", event.EventId, "has author", event.AuthorId, "and", event.NumGuests, "guests")
 
 			// Dispatch event to each participant
-			event_participants := dao.LoadAllParticipants(event.EventId)
+			event_participants, _ := dao.LoadAllParticipants(event.EventId)
 
 			if len(event_participants) > 0 {
 
@@ -128,7 +128,7 @@ func (ds *DeliverySystem) onParticipantChanged(event *core.Event, changed_partic
 	participant_list[0] = changed_participant
 	message := proto.NewMessage().AttendanceStatus(event.EventId, participant_list).Marshal()
 
-	event_participants := dao.LoadAllParticipants(event.EventId)
+	event_participants, _ := dao.LoadAllParticipants(event.EventId)
 
 	// Only notify to those participants that can see the changed_participant
 	for _, participant := range event_participants {

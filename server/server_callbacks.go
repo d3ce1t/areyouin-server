@@ -4,6 +4,7 @@ import (
 	"github.com/twinj/uuid"
 	"log"
 	core "peeple/areyouin/common"
+	"peeple/areyouin/dao"
 	proto "peeple/areyouin/protocol"
 	"time"
 )
@@ -39,7 +40,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// inserted into cassandra. So it's needed to check if the user related to this e-mail
 	// also exists. In case it doesn't exist, then delete it in order to avoid a collision
 	// when inserting later.
-	if dao.ExistWithSanity(user) {
+	if exists, _ := dao.ExistWithSanity(user); !exists {
 		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_EMAIL_EXISTS).Marshal())
 		return
 	}
@@ -78,41 +79,53 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 	msg := message.(*proto.NewAuthToken)
 	log.Println("> USER NEW AUTH TOKEN", msg)
 
-	dao := server.NewUserDAO()
+	userDAO := server.NewUserDAO()
 
 	var reply []byte
 
 	// Get new token by e-mail and password
 	if msg.Type == proto.AuthType_A_NATIVE {
-		if user_id := dao.CheckEmailCredentials(msg.Pass1, msg.Pass2); user_id != 0 {
+
+		if user_id, err := userDAO.CheckEmailCredentials(msg.Pass1, msg.Pass2); err == nil {
 			new_auth_token := uuid.NewV4()
-			if err := dao.SetAuthToken(user_id, new_auth_token); err != nil {
+			if err := userDAO.SetAuthToken(user_id, new_auth_token); err == nil {
+				reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token).Marshal()
+				log.Println("< ACCESS GRANTED")
+			} else {
+				reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
 				log.Println("onUserNewAuthToken:", err)
 			}
-			reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token).Marshal()
-			log.Println("< ACCESS GRANTED")
-		} else {
+		} else if err == dao.ErrNotFound {
 			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
 			log.Println("< INVALID USER OR PASSWORD")
+		} else {
+			reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+			log.Println("onUserNewAuthToken:", err)
 		}
+
 		// Get new token by Facebook User ID and Facebook Access Token
 	} else if msg.Type == proto.AuthType_A_FACEBOOK {
 
 		_, valid_token := checkFacebookAccess(msg.Pass1, msg.Pass2)
 
 		if !valid_token {
-			// FIXME: Give the E_INVALID_USER to no give attackers more information than needed
 			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_FB_INVALID_ACCESS).Marshal()
 			log.Println("< INVALID FBID OR ACCESS TOKEN")
-		} else if user_id := dao.GetIDByFacebookID(msg.Pass1); user_id != 0 {
+		} else if user_id, err := userDAO.GetIDByFacebookID(msg.Pass1); err == nil {
 			new_auth_token := uuid.NewV4()
-			dao.SetAuthTokenAndFBToken(user_id, new_auth_token, msg.Pass1, msg.Pass2)
-			reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token).Marshal()
-			log.Println("< ACCESS GRANTED")
-		} else {
-			// User do not exist
+			if err := userDAO.SetAuthTokenAndFBToken(user_id, new_auth_token, msg.Pass1, msg.Pass2); err == nil {
+				reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token).Marshal()
+				log.Println("< ACCESS GRANTED")
+			} else {
+				reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+				log.Println("onUserNewAuthToken:", err)
+			}
+		} else if err == dao.ErrNotFound {
 			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
-			log.Println("< INVALID USER")
+			log.Println("< INVALID USER OR PASSWORD")
+		} else {
+			reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+			log.Println("onUserNewAuthToken:", err)
 		}
 	} else {
 		log.Println("< USER NEW AUTH TOKEN malformed message")
@@ -130,22 +143,25 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	msg := message.(*proto.UserAuthentication)
 	log.Println("> USER AUTH", msg)
 
-	dao := server.NewUserDAO()
+	userDAO := server.NewUserDAO()
 
 	user_id := msg.UserId
 	auth_token, _ := uuid.Parse(msg.AuthToken)
 
-	if dao.CheckAuthToken(user_id, auth_token) {
-		session.WriteReply(proto.NewMessage().Ok(packet_type).Marshal())
+	if ok, err := userDAO.CheckAuthToken(user_id, auth_token); ok {
 		session.IsAuth = true
 		session.UserId = user_id
 		server.RegisterSession(session)
+		session.WriteReply(proto.NewMessage().Ok(packet_type).Marshal())
 		log.Println("< AUTH OK")
 		sendUserFriends(session)
 		// FIXME: Do not send all of the private events, but limit to a fixed number
 		sendPrivateEvents(session)
-	} else {
+	} else if err == nil || err == dao.ErrNotFound {
 		sendAuthError(session)
+	} else {
+		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal())
+		log.Println("onUserAuthentication:", err)
 	}
 }
 
@@ -157,12 +173,12 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	msg := message.(*proto.CreateEvent)
 	log.Println("> CREATE EVENT", msg)
 
-	dao := server.NewUserDAO()
+	userDAO := server.NewUserDAO()
 
-	author := dao.Load(session.UserId)
-	if author == nil {
-		log.Println("Author should exist but it seems it didn't, so an error ocurred")
+	author, err := userDAO.Load(session.UserId)
+	if err != nil {
 		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal())
+		log.Println("onCreateEvent", err)
 		return
 	}
 
