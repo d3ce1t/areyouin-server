@@ -59,7 +59,7 @@ func TestDispatchEvent(t *testing.T) {
 	// Prepare participants
 	participants_list := server.createParticipantsFromFriends(author.Id)
 	participant := author.AsParticipant()
-	participant.SetFields(proto.AttendanceResponse_ASSIST, proto.MessageStatus_NO_DELIVERED)
+	participant.SetFields(core.AttendanceResponse_ASSIST, core.MessageStatus_NO_DELIVERED)
 	participants_list = append(participants_list, participant)
 
 	// Insert event
@@ -113,7 +113,7 @@ func TestPublishEvent(t *testing.T) {
 	// Prepare participants
 	participants_list := server.createParticipantsFromFriends(author.Id)
 	participant := author.AsParticipant()
-	participant.SetFields(proto.AttendanceResponse_ASSIST, proto.MessageStatus_NO_DELIVERED)
+	participant.SetFields(core.AttendanceResponse_ASSIST, core.MessageStatus_NO_DELIVERED)
 	participants_list = append(participants_list, participant)
 
 	// Publish Event

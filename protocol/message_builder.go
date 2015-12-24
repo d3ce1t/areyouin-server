@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"github.com/twinj/uuid"
+	core "peeple/areyouin/common"
 	"time"
 )
 
@@ -34,7 +35,7 @@ func (mb *MessageBuilder) CancelUsersInvitation(event_id uint64, participants []
 	return mb.message
 }
 
-func (mb *MessageBuilder) ConfirmAttendance(event_id uint64, action_code AttendanceResponse) *AyiPacket {
+func (mb *MessageBuilder) ConfirmAttendance(event_id uint64, action_code core.AttendanceResponse) *AyiPacket {
 	mb.message.Header.Type = M_CONFIRM_ATTENDANCE
 	mb.message.SetMessage(&ConfirmAttendance{EventId: event_id, ActionCode: action_code})
 	return mb.message
@@ -66,7 +67,7 @@ func (mb *MessageBuilder) VoteChange(event_id uint64, change_id uint32, accept_c
 
 func (mb *MessageBuilder) UserPosition(latitude float32, longitude float32, estimation_error float32) *AyiPacket {
 	mb.message.Header.Type = M_USER_POSITION
-	mb.message.SetMessage(&UserPosition{GlobalCoordinates: &Location{latitude, longitude}, EstimationError: estimation_error})
+	mb.message.SetMessage(&UserPosition{GlobalCoordinates: &core.Location{Latitude: latitude, Longitude: longitude}, EstimationError: estimation_error})
 	return mb.message
 }
 
@@ -101,7 +102,7 @@ func (mb *MessageBuilder) UserAuthencation(user_id uint64, auth_token uuid.UUID)
 }
 
 // Notifications
-func (mb *MessageBuilder) EventCreated(event *Event) *AyiPacket {
+func (mb *MessageBuilder) EventCreated(event *core.Event) *AyiPacket {
 	mb.message.Header.Type = M_EVENT_CREATED
 	mb.message.SetMessage(event)
 	return mb.message
@@ -137,7 +138,7 @@ func (mb *MessageBuilder) EventModified(event_id uint64, message string, start_d
 	return mb.message
 }
 
-func (mb *MessageBuilder) InvitationReceived(event *Event) *AyiPacket {
+func (mb *MessageBuilder) InvitationReceived(event *core.Event) *AyiPacket {
 	mb.message.Header.Type = M_INVITATION_RECEIVED
 	mb.message.SetMessage(event)
 	return mb.message
@@ -149,7 +150,7 @@ func (mb *MessageBuilder) InvitationCancelled(event_id uint64) *AyiPacket {
 	return mb.message
 }
 
-func (mb *MessageBuilder) AttendanceStatus(event_id uint64, status []*EventParticipant) *AyiPacket {
+func (mb *MessageBuilder) AttendanceStatus(event_id uint64, status []*core.EventParticipant) *AyiPacket {
 	mb.message.Header.Type = M_ATTENDANCE_STATUS
 	mb.message.SetMessage(&AttendanceStatus{EventId: event_id, AttendanceStatus: status})
 	return mb.message
@@ -246,7 +247,7 @@ func (mb *MessageBuilder) ListPrivateEvents(cursor uint32) *AyiPacket {
 
 func (mb *MessageBuilder) ListPublicEvents(latitude float32, longitude float32, range_in_meters uint32, cursor uint32) *AyiPacket {
 	mb.message.Header.Type = M_LIST_PUBLIC_EVENTS
-	mb.message.SetMessage(&ListPublicEvents{UserCoordinates: &Location{latitude, longitude},
+	mb.message.SetMessage(&ListPublicEvents{UserCoordinates: &core.Location{Latitude: latitude, Longitude: longitude},
 		RangeInMeters: range_in_meters, Cursor: &ListCursor{cursor}})
 	return mb.message
 }
@@ -282,20 +283,20 @@ func (mb *MessageBuilder) Pong() *AyiPacket {
 }
 
 /* Create an Event message with all its information, including participants information */
-func (mb *MessageBuilder) EventInfo(event *Event) *AyiPacket {
+func (mb *MessageBuilder) EventInfo(event *core.Event) *AyiPacket {
 	mb.message.Header.Type = M_EVENT_INFO
 	mb.message.SetMessage(event)
 	return mb.message
 }
 
 /* Create a List of events */
-func (mb *MessageBuilder) EventsList(events_list []*Event) *AyiPacket {
+func (mb *MessageBuilder) EventsList(events_list []*core.Event) *AyiPacket {
 	mb.message.Header.Type = M_EVENTS_LIST
 	mb.message.SetMessage(&EventsList{Event: events_list})
 	return mb.message
 }
 
-func (mb *MessageBuilder) FriendsList(friends_list []*Friend) *AyiPacket {
+func (mb *MessageBuilder) FriendsList(friends_list []*core.Friend) *AyiPacket {
 	mb.message.Header.Type = M_FRIENDS_LIST
 	mb.message.SetMessage(&FriendsList{Friends: friends_list})
 	return mb.message

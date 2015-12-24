@@ -62,12 +62,7 @@ func (s *Server) init() {
 	s.cluster.Keyspace = s.Keyspace
 	s.cluster.Consistency = gocql.LocalQuorum
 
-	if session, err := s.cluster.CreateSession(); err == nil {
-		s.dbsession = session
-	} else {
-		log.Println("Error connection to cassandra", err)
-		return
-	}
+	s.connectToDB()
 
 	// Task Executor
 	s.task_executor = NewTaskExecutor(s)
@@ -76,6 +71,15 @@ func (s *Server) init() {
 	// Start Event Delivery
 	s.ds = NewDeliverySystem(s)
 	s.ds.Run()
+}
+
+func (s *Server) connectToDB() {
+	if session, err := s.cluster.CreateSession(); err == nil {
+		s.dbsession = session
+	} else {
+		log.Println("Error connection to cassandra", err)
+		return
+	}
 }
 
 func (s *Server) Run() {
@@ -134,7 +138,7 @@ func (s *Server) NewEventDAO() core.EventDAO {
 	return dao.NewEventDAO(s.dbsession)
 }
 
-func (s *Server) AddFriend(user_id uint64, friend *proto.Friend) error {
+func (s *Server) AddFriend(user_id uint64, friend *core.Friend) error {
 	return dao.NewUserDAO(s.dbsession).AddFriend(user_id, friend, ALL_CONTACTS_GROUP)
 }
 
@@ -268,7 +272,7 @@ func (s *Server) notifyUser(user_id uint64, message []byte, callback func()) {
 Insert an event into database, add participants to it and send it to users' inbox.
 NOTE: This function isn't thread-safe
 */
-func (s *Server) PublishEvent(event *proto.Event, participants []*proto.EventParticipant) bool {
+func (s *Server) PublishEvent(event *core.Event, participants []*core.EventParticipant) bool {
 
 	result := false
 	dao := s.NewEventDAO()
@@ -302,9 +306,9 @@ func (s *Server) PublishEvent(event *proto.Event, participants []*proto.EventPar
 	return result
 }
 
-func (s *Server) createParticipantsList(author_id uint64, participants_id []uint64) []*proto.EventParticipant {
+func (s *Server) createParticipantsList(author_id uint64, participants_id []uint64) []*core.EventParticipant {
 
-	result := make([]*proto.EventParticipant, 0, len(participants_id))
+	result := make([]*core.EventParticipant, 0, len(participants_id))
 
 	dao := s.NewUserDAO()
 
@@ -323,7 +327,7 @@ func (s *Server) createParticipantsList(author_id uint64, participants_id []uint
 	return result
 }
 
-func (s *Server) createParticipantsFromFriends(author_id uint64) []*proto.EventParticipant {
+func (s *Server) createParticipantsFromFriends(author_id uint64) []*core.EventParticipant {
 
 	dao := s.NewUserDAO()
 	friends := dao.LoadFriends(author_id, ALL_CONTACTS_GROUP)
@@ -375,13 +379,13 @@ func sendPrivateEvents(session *AyiSession) {
 			msg := proto.NewMessage().AttendanceStatus(event.EventId, event_participants).Marshal()
 			session.WriteReply(msg)
 			// FIXME: Probably could do so in only one operation
-			dao.SetParticipantStatus(session.UserId, event.EventId, proto.MessageStatus_CLIENT_DELIVERED)
+			dao.SetParticipantStatus(session.UserId, event.EventId, core.MessageStatus_CLIENT_DELIVERED)
 		}
 	}
 }
 
 func sendAuthError(session *AyiSession) {
-	session.WriteReply(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER).Marshal())
+	session.WriteReply(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD).Marshal())
 	log.Println("SEND INVALID USER")
 }
 
@@ -435,9 +439,9 @@ func checkUnauthenticated(session *AyiSession) {
 
 /* Returns a participant list where users that will not assist the event or aren't
    friends of the given user are removed */
-func (s *Server) filterParticipants(participant uint64, participants []*proto.EventParticipant) []*proto.EventParticipant {
+func (s *Server) filterParticipants(participant uint64, participants []*core.EventParticipant) []*core.EventParticipant {
 
-	result := make([]*proto.EventParticipant, 0, len(participants))
+	result := make([]*core.EventParticipant, 0, len(participants))
 
 	for _, p := range participants {
 		// If the participant is a confirmed user (yes or cannot assist answer has been given)
@@ -453,10 +457,10 @@ func (s *Server) filterParticipants(participant uint64, participants []*proto.Ev
  Tells if participant p1 can see changes of participant p2
 */
 // FIXME: Maybe is better to cache this
-func (s *Server) canSee(p1 uint64, p2 *proto.EventParticipant) bool {
+func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 	dao := s.NewUserDAO()
-	if p2.Response == proto.AttendanceResponse_ASSIST ||
-		p2.Response == proto.AttendanceResponse_CANNOT_ASSIST ||
+	if p2.Response == core.AttendanceResponse_ASSIST ||
+		p2.Response == core.AttendanceResponse_CANNOT_ASSIST ||
 		p1 == p2.UserId ||
 		dao.AreFriends(p1, p2.UserId) {
 		return true

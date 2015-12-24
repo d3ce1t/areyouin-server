@@ -2,7 +2,6 @@ package dao
 
 import (
 	core "peeple/areyouin/common"
-	proto "peeple/areyouin/protocol"
 	"testing"
 )
 
@@ -130,7 +129,7 @@ func TestAddEventToUserInbox(t *testing.T) {
 	}
 
 	if err := event_dao.AddEventToUserInbox(author.Id, event,
-		proto.AttendanceResponse_NO_ASSIST); err != nil {
+		core.AttendanceResponse_NO_ASSIST); err != nil {
 		t.Fatal(err)
 	}
 

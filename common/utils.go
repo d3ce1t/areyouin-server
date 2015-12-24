@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"github.com/gocql/gocql"
 	"log"
-	proto "peeple/areyouin/protocol"
 	"time"
 )
 
@@ -25,18 +24,18 @@ func ClearEvents(session *gocql.Session) {
 	session.Query(`TRUNCATE user_events`).Exec()
 }
 
-func CreateParticipantsFromFriends(author_id uint64, friends []*proto.Friend) []*proto.EventParticipant {
+func CreateParticipantsFromFriends(author_id uint64, friends []*Friend) []*EventParticipant {
 
-	result := make([]*proto.EventParticipant, 0, len(friends))
+	result := make([]*EventParticipant, 0, len(friends))
 
 	if len(friends) > 0 {
 
 		for _, f := range friends {
-			result = append(result, &proto.EventParticipant{
+			result = append(result, &EventParticipant{
 				UserId:    f.UserId,
 				Name:      f.Name,
-				Response:  proto.AttendanceResponse_NO_RESPONSE,
-				Delivered: proto.MessageStatus_NO_DELIVERED,
+				Response:  AttendanceResponse_NO_RESPONSE,
+				Delivered: MessageStatus_NO_DELIVERED,
 			})
 		}
 	}

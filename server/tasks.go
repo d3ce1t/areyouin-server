@@ -1,6 +1,7 @@
 package main
 
 import (
+	core "peeple/areyouin/common"
 	proto "peeple/areyouin/protocol"
 )
 
@@ -8,8 +9,8 @@ type NotifyParticipantChange struct {
 	EventId  uint64 // Event in which the participant info has changed
 	UserId   uint64 // User ID
 	Name     string
-	Response proto.AttendanceResponse
-	Status   proto.MessageStatus
+	Response core.AttendanceResponse
+	Status   core.MessageStatus
 }
 
 func (task *NotifyParticipantChange) Run(ex *TaskExecutor) {
@@ -22,8 +23,8 @@ func (task *NotifyParticipantChange) Run(ex *TaskExecutor) {
 		return
 	}
 
-	participant_list := make([]*proto.EventParticipant, 1)
-	participant_list[0] = &proto.EventParticipant{
+	participant_list := make([]*core.EventParticipant, 1)
+	participant_list[0] = &core.EventParticipant{
 		UserId:    task.UserId,
 		Name:      task.Name,
 		Response:  task.Response,

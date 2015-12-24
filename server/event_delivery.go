@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	core "peeple/areyouin/common"
 	proto "peeple/areyouin/protocol"
 )
 
@@ -9,19 +10,19 @@ const SIZE_QUEUE = 100
 
 func NewDeliverySystem(server *Server) *DeliverySystem {
 	ds := &DeliverySystem{}
-	ds.queue = make(chan *proto.Event, SIZE_QUEUE) // Buffered channel
+	ds.queue = make(chan *core.Event, SIZE_QUEUE) // Buffered channel
 	ds.server = server
 	return ds
 }
 
 type DeliverySystem struct {
-	queue  chan *proto.Event
+	queue  chan *core.Event
 	server *Server
 }
 
 // TODO: DeliverySystem Submit must be persistent in order to continue the job
 // in case of failure
-func (ds *DeliverySystem) Submit(event *proto.Event) {
+func (ds *DeliverySystem) Submit(event *core.Event) {
 	ds.queue <- event
 }
 
@@ -63,7 +64,7 @@ func (ds *DeliverySystem) Run() {
 	}() // Go func
 }
 
-func (ds *DeliverySystem) dispatchEvent(event *proto.Event, participant *proto.EventParticipant) error {
+func (ds *DeliverySystem) dispatchEvent(event *core.Event, participant *core.EventParticipant) error {
 
 	// FIXME: These two writes should be a batch
 	// Add event to participant inbox (author is also a participant)
@@ -72,7 +73,7 @@ func (ds *DeliverySystem) dispatchEvent(event *proto.Event, participant *proto.E
 		return err
 	}
 
-	participant.Delivered = proto.MessageStatus_SERVER_DELIVERED
+	participant.Delivered = core.MessageStatus_SERVER_DELIVERED
 	if err := dao.SetParticipantStatus(participant.UserId, event.EventId, participant.Delivered); err != nil {
 		return err
 	}
@@ -80,8 +81,8 @@ func (ds *DeliverySystem) dispatchEvent(event *proto.Event, participant *proto.E
 	return nil
 }
 
-func (ds *DeliverySystem) sendNotifications(event *proto.Event, event_participants []*proto.EventParticipant,
-	participant *proto.EventParticipant) {
+func (ds *DeliverySystem) sendNotifications(event *core.Event, event_participants []*core.EventParticipant,
+	participant *core.EventParticipant) {
 
 	var msg []byte
 
@@ -104,12 +105,12 @@ func (ds *DeliverySystem) sendNotifications(event *proto.Event, event_participan
 }
 
 // FIXME: Callback called from handleSession goroutine
-func (ds *DeliverySystem) callback(event *proto.Event, participant *proto.EventParticipant) func() {
+func (ds *DeliverySystem) callback(event *core.Event, participant *core.EventParticipant) func() {
 	e := event
 	p := participant
 	return func() {
 		dao := ds.server.NewEventDAO()
-		p.Delivered = proto.MessageStatus_CLIENT_DELIVERED
+		p.Delivered = core.MessageStatus_CLIENT_DELIVERED
 		if err := dao.SetParticipantStatus(p.UserId, event.EventId, p.Delivered); err != nil {
 			log.Println("DeliverySystem:Callback:", err)
 		}
@@ -118,12 +119,12 @@ func (ds *DeliverySystem) callback(event *proto.Event, participant *proto.EventP
 }
 
 // Notify all of the event's participants about a participant status changes
-func (ds *DeliverySystem) onParticipantChanged(event *proto.Event, changed_participant *proto.EventParticipant) {
+func (ds *DeliverySystem) onParticipantChanged(event *core.Event, changed_participant *core.EventParticipant) {
 
 	dao := ds.server.NewEventDAO()
 
 	// Prepare message with only one participant
-	participant_list := make([]*proto.EventParticipant, 1)
+	participant_list := make([]*core.EventParticipant, 1)
 	participant_list[0] = changed_participant
 	message := proto.NewMessage().AttendanceStatus(event.EventId, participant_list).Marshal()
 

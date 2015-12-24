@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	core "peeple/areyouin/common"
-	proto "peeple/areyouin/protocol"
 	"testing"
 )
 
@@ -34,9 +33,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func CreateParticipantsList(author_id uint64, participants_id []uint64) []*proto.EventParticipant {
+func CreateParticipantsList(author_id uint64, participants_id []uint64) []*core.EventParticipant {
 
-	result := make([]*proto.EventParticipant, 0, len(participants_id))
+	result := make([]*core.EventParticipant, 0, len(participants_id))
 
 	dao := NewUserDAO(session)
 

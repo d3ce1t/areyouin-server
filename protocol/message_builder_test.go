@@ -23,9 +23,9 @@ func TestOkMessage2(t *testing.T) {
 
 func TestOkMessage3(t *testing.T) {
 	// Check header
-	msg := &Ok{Type: OK_AUTH}
+	msg := &Ok{Type: int32(M_USER_AUTH)}
 
-	if msg.Type != OK_AUTH {
+	if msg.Type != int32(M_USER_AUTH) {
 		t.Fail()
 	}
 }
@@ -76,15 +76,15 @@ func TestOkMessage7(t *testing.T) {
 
 func TestOkMessage8(t *testing.T) {
 	// Check header
-	msg := NewMessage().Ok(OK_AUTH)
+	msg := NewMessage().Ok(M_USER_AUTH)
 	if msg.Header.Size != 6 {
 		t.Fail()
 	}
 }
 
 func TestErrorMessage1(t *testing.T) {
-	msg := &Error{Type: int32(M_USER_CREATE_ACCOUNT), Error: E_USER_EXISTS}
-	if msg.Type != int32(M_USER_CREATE_ACCOUNT) || msg.Error != E_USER_EXISTS {
+	msg := &Error{Type: int32(M_USER_CREATE_ACCOUNT), Error: E_EMAIL_EXISTS}
+	if msg.Type != int32(M_USER_CREATE_ACCOUNT) || msg.Error != E_EMAIL_EXISTS {
 		t.Fail()
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"github.com/gocql/gocql"
 	"log"
 	core "peeple/areyouin/common"
-	proto "peeple/areyouin/protocol"
 )
 
 const (
@@ -20,7 +19,7 @@ func NewEventDAO(session *gocql.Session) core.EventDAO {
 	return &EventDAO{session: session}
 }
 
-func (dao *EventDAO) Insert(event *proto.Event) (ok bool, err error) {
+func (dao *EventDAO) Insert(event *core.Event) (ok bool, err error) {
 
 	stmt := `INSERT INTO event (event_id, author_id, author_name, message, start_date,
 		end_date, public, num_attendees, num_guests, created_date)
@@ -51,7 +50,7 @@ func (dao *EventDAO) Insert(event *proto.Event) (ok bool, err error) {
 
 // Load the participant of an event and returns it. If not found returns a nil participant
 // and error. Whatever else returns (nil, error)
-func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*proto.EventParticipant, error) {
+func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*core.EventParticipant, error) {
 
 	stmt := `SELECT name, response, status FROM event_participants
 		WHERE event_id = ? AND user_id = ? LIMIT 1`
@@ -60,16 +59,16 @@ func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*proto.Ev
 
 	var name string
 	var response, status int32
-	var participant *proto.EventParticipant
+	var participant *core.EventParticipant
 
 	err := q.Scan(&name, &response, &status)
 
 	if err == nil {
-		participant = &proto.EventParticipant{
+		participant = &core.EventParticipant{
 			UserId:    user_id,
 			Name:      name,
-			Response:  proto.AttendanceResponse(response),
-			Delivered: proto.MessageStatus(status),
+			Response:  core.AttendanceResponse(response),
+			Delivered: core.MessageStatus(status),
 		}
 	} else if err != gocql.ErrNotFound {
 		log.Println("LoadParticipant:", err)
@@ -78,7 +77,7 @@ func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*proto.Ev
 	return participant, err
 }
 
-func (dao *EventDAO) LoadAllParticipants(event_id uint64) []*proto.EventParticipant {
+func (dao *EventDAO) LoadAllParticipants(event_id uint64) []*core.EventParticipant {
 
 	stmt := `SELECT user_id, name, response, status FROM event_participants
 		WHERE event_id = ? LIMIT ?`
@@ -90,7 +89,7 @@ func (dao *EventDAO) LoadAllParticipants(event_id uint64) []*proto.EventParticip
 		return nil
 	}
 
-	participants := make([]*proto.EventParticipant, 0, 10)
+	participants := make([]*core.EventParticipant, 0, 10)
 
 	var user_id uint64
 	var name string
@@ -98,11 +97,11 @@ func (dao *EventDAO) LoadAllParticipants(event_id uint64) []*proto.EventParticip
 	var status int32
 
 	for iter.Scan(&user_id, &name, &response, &status) {
-		participants = append(participants, &proto.EventParticipant{
+		participants = append(participants, &core.EventParticipant{
 			UserId:    user_id,
 			Name:      name,
-			Response:  proto.AttendanceResponse(response),
-			Delivered: proto.MessageStatus(status),
+			Response:  core.AttendanceResponse(response),
+			Delivered: core.MessageStatus(status),
 		})
 	}
 
@@ -113,7 +112,7 @@ func (dao *EventDAO) LoadAllParticipants(event_id uint64) []*proto.EventParticip
 	return participants
 }
 
-func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *proto.EventParticipant) error {
+func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *core.EventParticipant) error {
 
 	stmt := `INSERT INTO event_participants (event_id, user_id, name, response, status)
 		VALUES (?, ?, ?, ?, ?)`
@@ -124,7 +123,7 @@ func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *proto.
 	return q.Exec()
 }
 
-func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []*proto.EventParticipant) error {
+func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []*core.EventParticipant) error {
 
 	stmt := `INSERT INTO event_participants (event_id, user_id, name, response, status)
 		VALUES (?, ?, ?, ?, ?)`
@@ -139,7 +138,7 @@ func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *proto.Event, response proto.AttendanceResponse) error {
+func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event, response core.AttendanceResponse) error {
 
 	stmt := `INSERT INTO user_events (user_id, event_id, end_date, response)
 		VALUES (?, ?, ?, ?)`
@@ -152,7 +151,7 @@ func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *proto.Event, res
 // FIXME: Each event of event table is in its own partition, classify events by date
 // or something in order to improve read performance.
 // TODO: Split in two functions
-func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*proto.Event, err error) {
+func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*core.Event, err error) {
 
 	// First read events from user_events to get the IDs
 	stmt := `SELECT event_id FROM user_events
@@ -171,7 +170,7 @@ func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*p
 	}
 
 	// Read from event table to get the actual info
-	events = make([]*proto.Event, 0, len(event_id_list))
+	events = make([]*core.Event, 0, len(event_id_list))
 
 	if len(event_id_list) > 0 {
 
@@ -192,7 +191,7 @@ func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*p
 		for iter.Scan(&event_id, &author_id, &author_name, &message, &start_date, &end_date,
 			&num_attendees, &num_guests, &created_date) {
 
-			events = append(events, &proto.Event{
+			events = append(events, &core.Event{
 				EventId:      event_id,
 				AuthorId:     author_id,
 				AuthorName:   author_name,
@@ -267,13 +266,13 @@ func (dao *EventDAO) SetNumAttendees(event_id uint64, num_attendees int) error {
 	return q.Exec()
 }
 
-func (dao *EventDAO) SetParticipantStatus(user_id uint64, event_id uint64, status proto.MessageStatus) error {
+func (dao *EventDAO) SetParticipantStatus(user_id uint64, event_id uint64, status core.MessageStatus) error {
 	stmt := `UPDATE event_participants SET status = ? WHERE event_id = ? AND user_id = ?`
 	q := dao.session.Query(stmt, status, event_id, user_id)
 	return q.Exec()
 }
 
-func (dao *EventDAO) SetParticipantResponse(user_id uint64, event_id uint64, response proto.AttendanceResponse) error {
+func (dao *EventDAO) SetParticipantResponse(user_id uint64, event_id uint64, response core.AttendanceResponse) error {
 	stmt := `UPDATE event_participants SET response = ? WHERE event_id = ? AND user_id = ?`
 	q := dao.session.Query(stmt, response, event_id, user_id)
 	return q.Exec()

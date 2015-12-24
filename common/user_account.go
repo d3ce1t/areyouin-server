@@ -2,7 +2,6 @@ package common
 
 import (
 	"github.com/twinj/uuid"
-	proto "peeple/areyouin/protocol"
 	"regexp"
 )
 
@@ -30,7 +29,7 @@ func NewUserAccount(id uint64, name string, email string, password string, phone
 	return user
 }
 
-func CheckUserAccount(user *UserAccount) bool {
+func (user *UserAccount) IsValid() bool {
 
 	// A valid user account always has an id, name and email
 	if user.Id == 0 || len(user.Name) < 3 || user.Email == "" || !IsValidEmail(user.Email) {
@@ -88,16 +87,16 @@ func (ua *UserAccount) HasEmailCredentials() bool {
 	return result
 }
 
-func (ua *UserAccount) AsFriend() *proto.Friend {
-	return &proto.Friend{UserId: ua.Id, Name: ua.Name}
+func (ua *UserAccount) AsFriend() *Friend {
+	return &Friend{UserId: ua.Id, Name: ua.Name}
 }
 
-func (ua *UserAccount) AsParticipant() *proto.EventParticipant {
-	participant := &proto.EventParticipant{
+func (ua *UserAccount) AsParticipant() *EventParticipant {
+	participant := &EventParticipant{
 		UserId:    ua.Id,
 		Name:      ua.Name,
-		Response:  proto.AttendanceResponse_NO_RESPONSE,
-		Delivered: proto.MessageStatus_NO_DELIVERED,
+		Response:  AttendanceResponse_NO_RESPONSE,
+		Delivered: MessageStatus_NO_DELIVERED,
 	}
 	return participant
 }
