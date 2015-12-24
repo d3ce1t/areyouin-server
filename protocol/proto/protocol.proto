@@ -39,7 +39,7 @@ message CancelUsersInvitation {
 // CONFIRM ATTENDANCE
 message ConfirmAttendance {
   uint64 event_id = 1;
-  AttendanceResponse action_code = 2;
+  common.AttendanceResponse action_code = 2;
 }
 
 // MODIFY EVENT DATE
@@ -61,7 +61,7 @@ message VoteChange {
 
 // USER POSITION
 message UserPosition {
-  Location global_coordinates = 1;
+  common.Location global_coordinates = 1;
   float estimation_error = 2;
 }
 
@@ -141,7 +141,7 @@ message InvitationCancelled {
 // ATTENDANCE STATUS
 message AttendanceStatus {
   uint64 event_id = 1;
-  repeated EventParticipant attendance_status = 2;
+  repeated common.EventParticipant attendance_status = 2;
 }
 
 // EVENT CHANGE DATE PROPOSED
@@ -222,7 +222,7 @@ message ListCursor {
 }
 
 message ListPublicEvents {
-  Location user_coordinates = 1;
+  common.Location user_coordinates = 1;
   uint32 range_in_meters = 2;
   ListCursor cursor = 3;
 }
@@ -249,11 +249,11 @@ message Pong {
 
 // EVENTS LIST
 message EventsList {
-  repeated Event event = 1;
+  repeated common.Event event = 1;
   // Optionally add cursor field
 }
 
 // FRIENDS LIST
 message FriendsList {
-  repeated Friend friends = 1;
+  repeated common.Friend friends = 1;
 }
