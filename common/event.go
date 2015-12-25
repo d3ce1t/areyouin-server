@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	MIN_DIF_IN_END_DATE   = 60 * time.Minute   // 1 hour in minutes
+	MIN_DIF_IN_END_DATE   = 59 * time.Minute   // 1 hour in minutes
 	MAX_DIF_IN_END_DATE   = 24 * time.Hour     // 1 day in minutes
 	MIN_DIF_IN_START_DATE = 30 * time.Minute   // 30 minutes
 	MAX_DIF_IN_START_DATE = 24 * 7 * time.Hour // 1 week
@@ -37,6 +37,9 @@ func (event *Event) IsValid() bool {
 	}
 
 	if !event.isValidStartDate() || !event.isValidEndDate() {
+		/*log.Printf("Event invalid (2): create date: %v, start date: %v, end date: %v\n",
+			UnixMillisToTime(event.CreatedDate), UnixMillisToTime(event.StartDate), UnixMillisToTime(event.EndDate))
+		log.Printf("%v %v\n", event.isValidStartDate(), event.isValidEndDate())*/
 		return false
 	}
 

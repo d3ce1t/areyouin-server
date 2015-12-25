@@ -161,7 +161,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 		sendAuthError(session)
 	} else {
 		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal())
-		log.Println("onUserAuthentication:", err)
+		log.Println("onUserAuthentication Failed:", err)
 	}
 }
 
@@ -178,7 +178,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	author, err := userDAO.Load(session.UserId)
 	if err != nil {
 		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal())
-		log.Println("onCreateEvent", err)
+		log.Println("onCreateEvent Failed", err)
 		return
 	}
 
@@ -187,6 +187,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 
 	if !event.IsValid() {
 		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_INVALID_INPUT).Marshal())
+		log.Println("onCreateEvent Failed: Event isn't valid")
 		return
 	}
 
