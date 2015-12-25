@@ -118,9 +118,18 @@ func (shell *Shell) pingClient(args []string) {
 	user_id, err := strconv.ParseUint(args[1], 10, 64)
 	manageShellError(err)
 
+	var repeat_times uint64 = 1
+
+	if len(args) >= 3 {
+		repeat_times, err = strconv.ParseUint(args[2], 10, 32)
+		manageShellError(err)
+	}
+
 	server := shell.Server
 	if session, ok := server.sessions[user_id]; ok {
-		ping_msg := proto.NewMessage().Ping().Marshal()
-		session.WriteReply(ping_msg)
+		for i := uint64(0); i < repeat_times; i++ {
+			ping_msg := proto.NewMessage().Ping().Marshal()
+			session.WriteReply(ping_msg)
+		}
 	}
 }

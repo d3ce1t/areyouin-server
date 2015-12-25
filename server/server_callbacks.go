@@ -388,3 +388,9 @@ func onPing(packet_type proto.PacketType, message proto.Message, session *AyiSes
 	reply := proto.NewMessage().Pong().Marshal()
 	session.WriteReply(reply)
 }
+
+func onPong(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+	checkAuthenticated(session)
+	msg := message.(*proto.Pong)
+	log.Println("> PONG", msg.CurrentTime, session)
+}

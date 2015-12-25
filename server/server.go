@@ -474,6 +474,7 @@ func main() {
 	server := NewServer() // Server is global
 	core.CreateFakeUsers(server.NewUserDAO())
 	server.RegisterCallback(proto.M_PING, onPing)
+	server.RegisterCallback(proto.M_PONG, onPong)
 	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
 	server.RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
 	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
