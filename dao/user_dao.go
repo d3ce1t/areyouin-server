@@ -17,6 +17,9 @@ type UserDAO struct {
 }
 
 func NewUserDAO(session *gocql.Session) core.UserDAO {
+	if session == nil {
+		return nil
+	}
 	return &UserDAO{session: session}
 }
 

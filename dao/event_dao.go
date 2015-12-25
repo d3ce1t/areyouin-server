@@ -17,6 +17,9 @@ type EventDAO struct {
 }
 
 func NewEventDAO(session *gocql.Session) core.EventDAO {
+	if session == nil {
+		return nil
+	}
 	return &EventDAO{session: session}
 }
 

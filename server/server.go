@@ -77,7 +77,7 @@ func (s *Server) connectToDB() {
 	if session, err := s.cluster.CreateSession(); err == nil {
 		s.dbsession = session
 	} else {
-		log.Println("Error connection to cassandra", err)
+		log.Println("Error connection to cassandra:", err)
 		return
 	}
 }
@@ -200,7 +200,7 @@ func (s *Server) handleSession(session *AyiSession) {
 					exit = true
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(250 * time.Millisecond)
 
 		} // End select
 
