@@ -255,9 +255,15 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	var reply []byte
 
 	if err != nil {
-		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_INVALID_EVENT_OR_PARTICIPANT).Marshal()
+		if err == dao.ErrNotFound {
+			reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_INVALID_EVENT_OR_PARTICIPANT).Marshal()
+			log.Println("< CONFIRM ATTENDANCE INVALID_EVENT_OR_PARTICIPANT")
+		} else {
+			reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED).Marshal()
+			log.Println("< CONFIRM ATTENDANCE OPERATION FAILED")
+		}
 		session.WriteReply(reply)
-		log.Println("< ConfirmAttendance:", err)
+		log.Println("ConfirmAttendance:", err)
 		return
 	}
 
