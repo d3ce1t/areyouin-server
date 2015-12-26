@@ -17,8 +17,9 @@ const (
 	ALL_CONTACTS_GROUP = 0 // Id for the main friend group of a user
 	MAX_WRITE_TIMEOUT  = 15 * time.Second
 	//MAX_READ_TIMEOUT   = 1 * time.Second
-	MAX_IDLE_TIME  = 30 * 60 * time.Second // 30m
-	MAX_LOGIN_TIME = 30 * time.Second      // 30s
+	MAX_IDLE_TIME    = 30 * time.Minute // 30m
+	MAX_LOGIN_TIME   = 30 * time.Second // 30s
+	PING_INTERVAL_MS = 28 * time.Minute // 28m
 )
 
 func NewServer() *Server {
@@ -208,12 +209,16 @@ func (s *Server) handleSession(session *AyiSession) {
 					exit = true
 				}
 			} else {
-				if session.IsAuth && current_time.After(session.lastRecvMsg.Add(MAX_IDLE_TIME)) {
+				if current_time.After(session.lastRecvMsg.Add(MAX_IDLE_TIME)) {
 					session.lastRecvMsg = time.Now().UTC()
 					log.Println("Connection IDLE", session)
 					exit = true
+				} else if current_time.After(session.lastRecvMsg.Add(PING_INTERVAL_MS)) {
+					session.SendPing()
+					log.Println("< PING to", session)
 				}
 			}
+
 			time.Sleep(250 * time.Millisecond)
 
 		} // End select

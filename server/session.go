@@ -80,6 +80,11 @@ func (s *AyiSession) doRead() {
 	}
 }
 
+func (s *AyiSession) SendPing() {
+	ping_msg := proto.NewMessage().Ping().Marshal()
+	s.WriteReply(ping_msg)
+}
+
 func (s *AyiSession) WriteReply(reply []byte) error {
 	client := s.Conn
 	client.SetWriteDeadline(time.Now().Add(MAX_WRITE_TIMEOUT))
