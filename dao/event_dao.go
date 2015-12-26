@@ -17,13 +17,12 @@ type EventDAO struct {
 }
 
 func NewEventDAO(session *gocql.Session) core.EventDAO {
-	if session == nil {
-		return nil
-	}
 	return &EventDAO{session: session}
 }
 
 func (dao *EventDAO) Insert(event *core.Event) (ok bool, err error) {
+
+	dao.checkSession()
 
 	stmt := `INSERT INTO event (event_id, author_id, author_name, message, start_date,
 		end_date, public, num_attendees, num_guests, created_date)
@@ -56,6 +55,8 @@ func (dao *EventDAO) Insert(event *core.Event) (ok bool, err error) {
 // and error. Whatever else returns (nil, error)
 func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*core.EventParticipant, error) {
 
+	dao.checkSession()
+
 	stmt := `SELECT name, response, status FROM event_participants
 		WHERE event_id = ? AND user_id = ? LIMIT 1`
 
@@ -82,6 +83,8 @@ func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*core.Eve
 }
 
 func (dao *EventDAO) LoadAllParticipants(event_id uint64) ([]*core.EventParticipant, error) {
+
+	dao.checkSession()
 
 	stmt := `SELECT user_id, name, response, status FROM event_participants
 		WHERE event_id = ? LIMIT ?`
@@ -119,6 +122,8 @@ func (dao *EventDAO) LoadAllParticipants(event_id uint64) ([]*core.EventParticip
 
 func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *core.EventParticipant) error {
 
+	dao.checkSession()
+
 	stmt := `INSERT INTO event_participants (event_id, user_id, name, response, status)
 		VALUES (?, ?, ?, ?, ?)`
 
@@ -129,6 +134,8 @@ func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *core.E
 }
 
 func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []*core.EventParticipant) error {
+
+	dao.checkSession()
 
 	stmt := `INSERT INTO event_participants (event_id, user_id, name, response, status)
 		VALUES (?, ?, ?, ?, ?)`
@@ -145,6 +152,8 @@ func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []
 
 func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event, response core.AttendanceResponse) error {
 
+	dao.checkSession()
+
 	stmt := `INSERT INTO user_events (user_id, event_id, end_date, response)
 		VALUES (?, ?, ?, ?)`
 
@@ -157,6 +166,8 @@ func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event, resp
 // or something in order to improve read performance.
 // TODO: Split in two functions
 func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*core.Event, err error) {
+
+	dao.checkSession()
 
 	// First read events from user_events to get the IDs
 	stmt := `SELECT event_id FROM user_events
@@ -222,6 +233,8 @@ func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*c
 // Compare-and-set (read-before) update operation
 func (dao *EventDAO) CompareAndSetNumGuests(event_id uint64, num_guests int32) (ok bool, err error) {
 
+	dao.checkSession()
+
 	read_stmt := `SELECT num_guests FROM event WHERE event_id = ?`
 	q := dao.session.Query(read_stmt, event_id)
 
@@ -240,6 +253,9 @@ func (dao *EventDAO) CompareAndSetNumGuests(event_id uint64, num_guests int32) (
 }
 
 func (dao *EventDAO) SetNumGuests(event_id uint64, num_guests int32) error {
+
+	dao.checkSession()
+
 	stmt := `UPDATE event SET num_guests = ? WHERE event_id = ?`
 	q := dao.session.Query(stmt, num_guests, event_id)
 	return q.Exec()
@@ -247,6 +263,8 @@ func (dao *EventDAO) SetNumGuests(event_id uint64, num_guests int32) error {
 
 // Compare-and-set (read-before) update operation
 func (dao *EventDAO) CompareAndSetNumAttendees(event_id uint64, num_attendees int) (ok bool, err error) {
+
+	dao.checkSession()
 
 	read_stmt := `SELECT num_attendees FROM event WHERE event_id = ?`
 	q := dao.session.Query(read_stmt, event_id)
@@ -266,18 +284,27 @@ func (dao *EventDAO) CompareAndSetNumAttendees(event_id uint64, num_attendees in
 }
 
 func (dao *EventDAO) SetNumAttendees(event_id uint64, num_attendees int) error {
+
+	dao.checkSession()
+
 	stmt := `UPDATE event SET num_attendees = ? WHERE event_id = ?`
 	q := dao.session.Query(stmt, num_attendees, event_id)
 	return q.Exec()
 }
 
 func (dao *EventDAO) SetParticipantStatus(user_id uint64, event_id uint64, status core.MessageStatus) error {
+
+	dao.checkSession()
+
 	stmt := `UPDATE event_participants SET status = ? WHERE event_id = ? AND user_id = ?`
 	q := dao.session.Query(stmt, status, event_id, user_id)
 	return q.Exec()
 }
 
 func (dao *EventDAO) SetParticipantResponse(user_id uint64, event_id uint64, response core.AttendanceResponse) error {
+
+	dao.checkSession()
+
 	stmt := `UPDATE event_participants SET response = ? WHERE event_id = ? AND user_id = ?`
 	q := dao.session.Query(stmt, response, event_id, user_id)
 	return q.Exec()
@@ -289,4 +316,10 @@ func GenParams(size int) string {
 		result += ", ?"
 	}
 	return result
+}
+
+func (dao *EventDAO) checkSession() {
+	if dao.session == nil {
+		panic(ErrNoSession)
+	}
 }

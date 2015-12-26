@@ -17,9 +17,6 @@ type UserDAO struct {
 }
 
 func NewUserDAO(session *gocql.Session) core.UserDAO {
-	if session == nil {
-		return nil
-	}
 	return &UserDAO{session: session}
 }
 
@@ -28,6 +25,8 @@ func NewUserDAO(session *gocql.Session) core.UserDAO {
 	exists or 0 if doesn't exist.
 */
 func (dao *UserDAO) CheckEmailCredentials(email string, password string) (user_id uint64, err error) {
+
+	dao.checkSession()
 
 	stmt := `SELECT password, salt, user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
 	q := dao.session.Query(stmt, email)
@@ -58,6 +57,8 @@ func (dao *UserDAO) CheckEmailCredentials(email string, password string) (user_i
 
 func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token uuid.UUID) (bool, error) {
 
+	dao.checkSession()
+
 	stmt := `SELECT auth_token FROM user_account WHERE user_id = ? LIMIT 1`
 	q := dao.session.Query(stmt, user_id)
 
@@ -76,6 +77,8 @@ func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token uuid.UUID) (bool, 
 
 func (dao *UserDAO) SetAuthToken(user_id uint64, auth_token uuid.UUID) error {
 
+	dao.checkSession()
+
 	stmt := `UPDATE user_account SET auth_token = ?
 						WHERE user_id = ?`
 
@@ -83,6 +86,9 @@ func (dao *UserDAO) SetAuthToken(user_id uint64, auth_token uuid.UUID) error {
 }
 
 func (dao *UserDAO) SetLastConnection(user_id uint64, time int64) error {
+
+	dao.checkSession()
+
 	stmt := `UPDATE user_account SET last_connection = ?
 						WHERE user_id = ?`
 
@@ -90,6 +96,8 @@ func (dao *UserDAO) SetLastConnection(user_id uint64, time int64) error {
 }
 
 func (dao *UserDAO) SetFacebookAccessToken(user_id uint64, fb_id string, fb_token string) error {
+
+	dao.checkSession()
 
 	batch := dao.session.NewBatch(gocql.LoggedBatch) // the primary use case of a logged batch is when you need to keep tables in sync with one another, and NOT performance.
 
@@ -104,6 +112,8 @@ func (dao *UserDAO) SetFacebookAccessToken(user_id uint64, fb_id string, fb_toke
 
 func (dao *UserDAO) SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID, fb_id string, fb_token string) error {
 
+	dao.checkSession()
+
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
 	batch.Query(`UPDATE user_facebook_credentials SET fb_token = ? WHERE fb_id = ?`,
@@ -117,6 +127,8 @@ func (dao *UserDAO) SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID,
 
 func (dao *UserDAO) GetIDByEmail(email string) (uint64, error) {
 
+	dao.checkSession()
+
 	stmt := `SELECT user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
 	var user_id uint64
 
@@ -128,6 +140,8 @@ func (dao *UserDAO) GetIDByEmail(email string) (uint64, error) {
 }
 
 func (dao *UserDAO) GetIDByFacebookID(fb_id string) (uint64, error) {
+
+	dao.checkSession()
 
 	stmt := `SELECT user_id FROM user_facebook_credentials WHERE fb_id = ? LIMIT 1`
 	var user_id uint64
@@ -141,6 +155,8 @@ func (dao *UserDAO) GetIDByFacebookID(fb_id string) (uint64, error) {
 
 func (dao *UserDAO) Exists(user_id uint64) (bool, error) {
 
+	dao.checkSession()
+
 	stmt := `SELECT user_id FROM user_account WHERE user_id = ? LIMIT 1`
 
 	if err := dao.session.Query(stmt, user_id).Scan(nil); err != nil {
@@ -151,6 +167,8 @@ func (dao *UserDAO) Exists(user_id uint64) (bool, error) {
 }
 
 func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
+
+	dao.checkSession()
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
 						last_connection, created_date
@@ -177,6 +195,8 @@ func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 
 func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
 
+	dao.checkSession()
+
 	user_id, err := dao.GetIDByEmail(email)
 	if err != nil {
 		return nil, err
@@ -189,6 +209,8 @@ func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
 	user_email_credentials and user_facebook_credentials.
 */
 func (dao *UserDAO) Insert(user *core.UserAccount) (ok bool, err error) {
+
+	dao.checkSession()
 
 	// Check if user account has a valid ID and email or fb credentials
 	if !user.IsValid() {
@@ -237,6 +259,8 @@ func (dao *UserDAO) Insert(user *core.UserAccount) (ok bool, err error) {
 
 func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err error) {
 
+	dao.checkSession()
+
 	var query *gocql.Query
 
 	if user.HasFacebookCredentials() {
@@ -276,6 +300,8 @@ func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err erro
 
 func (dao *UserDAO) insertEmailCredentials(user_id uint64, email string, password string) (ok bool, err error) {
 
+	dao.checkSession()
+
 	if email == "" || password == "" || user_id == 0 {
 		return false, errors.New("Invalid arguments")
 	}
@@ -299,6 +325,8 @@ func (dao *UserDAO) insertEmailCredentials(user_id uint64, email string, passwor
 
 func (dao *UserDAO) insertEmail(user_id uint64, email string) (ok bool, err error) {
 
+	dao.checkSession()
+
 	if email == "" || user_id == 0 {
 		return false, errors.New("Invalid arguments")
 	}
@@ -312,6 +340,8 @@ func (dao *UserDAO) insertEmail(user_id uint64, email string) (ok bool, err erro
 }
 
 func (dao *UserDAO) insertFacebookCredentials(user_id uint64, fb_id string, fb_token string) (ok bool, err error) {
+
+	dao.checkSession()
 
 	if fb_id == "" || fb_token == "" || user_id == 0 {
 		return false, errors.New("Invalid arguments")
@@ -332,6 +362,8 @@ func (dao *UserDAO) insertFacebookCredentials(user_id uint64, fb_id string, fb_t
 */
 func (dao *UserDAO) Delete(user *core.UserAccount) error {
 
+	dao.checkSession()
+
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
 	batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email)
@@ -346,6 +378,8 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 
 func (dao *UserDAO) deleteUserAccount(user_id uint64) error {
 
+	dao.checkSession()
+
 	if user_id == 0 {
 		return errors.New("Invalid arguments")
 	}
@@ -354,6 +388,8 @@ func (dao *UserDAO) deleteUserAccount(user_id uint64) error {
 }
 
 func (dao *UserDAO) DeleteEmailCredentials(email string) error {
+
+	dao.checkSession()
 
 	if email == "" {
 		return errors.New("Invalid arguments")
@@ -364,6 +400,8 @@ func (dao *UserDAO) DeleteEmailCredentials(email string) error {
 
 func (dao *UserDAO) DeleteFacebookCredentials(fb_id string) error {
 
+	dao.checkSession()
+
 	if fb_id == "" {
 		return errors.New("Invalid arguments")
 	}
@@ -373,6 +411,8 @@ func (dao *UserDAO) DeleteFacebookCredentials(fb_id string) error {
 
 func (dao *UserDAO) AddFriend(user_id uint64, friend *core.Friend, group_id int32) error {
 
+	dao.checkSession()
+
 	stmt := `INSERT INTO user_friends (user_id, group_id, group_name, friend_id, name)
 							VALUES (?, ?, ?, ?, ?)`
 
@@ -380,6 +420,8 @@ func (dao *UserDAO) AddFriend(user_id uint64, friend *core.Friend, group_id int3
 }
 
 func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) ([]*core.Friend, error) {
+
+	dao.checkSession()
 
 	stmt := `SELECT friend_id, name FROM user_friends
 						WHERE user_id = ? AND group_id = ? LIMIT ?`
@@ -405,6 +447,8 @@ func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) ([]*core.Friend,
 
 func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) (bool, error) {
 
+	dao.checkSession()
+
 	stmt := `SELECT user_id FROM user_friends
 		WHERE user_id = ? AND group_id = ? AND friend_id = ?`
 
@@ -427,6 +471,8 @@ func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) (bool, erro
 
 func (dao *UserDAO) ExistWithSanity(user *core.UserAccount) (bool, error) {
 
+	dao.checkSession()
+
 	user_id, err := dao.GetIDByEmail(user.Email)
 	if err != nil {
 		return false, err
@@ -447,4 +493,10 @@ func (dao *UserDAO) ExistWithSanity(user *core.UserAccount) (bool, error) {
 	}
 
 	return exist, nil
+}
+
+func (dao *UserDAO) checkSession() {
+	if dao.session == nil {
+		panic(ErrNoSession)
+	}
 }
