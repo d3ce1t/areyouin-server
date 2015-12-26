@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gocql/gocql"
 	fb "github.com/huandu/facebook"
@@ -46,6 +47,10 @@ type Server struct {
 	Keyspace      string
 }
 
+func (s *Server) DbSession() *gocql.Session {
+	return s.dbsession
+}
+
 // Setup server components
 func (s *Server) init() {
 
@@ -61,7 +66,6 @@ func (s *Server) init() {
 	s.cluster = gocql.NewCluster("192.168.1.2" /*"192.168.1.3"*/)
 	s.cluster.Keyspace = s.Keyspace
 	s.cluster.Consistency = gocql.LocalQuorum
-
 	s.connectToDB()
 
 	// Task Executor
@@ -77,7 +81,7 @@ func (s *Server) connectToDB() {
 	if session, err := s.cluster.CreateSession(); err == nil {
 		s.dbsession = session
 	} else {
-		log.Println("Error connection to cassandra:", err)
+		log.Println("Error connecting to cassandra:", err)
 		return
 	}
 }
@@ -95,7 +99,7 @@ func (s *Server) Run() {
 		client, err := listener.Accept()
 
 		if err != nil {
-			fmt.Println("Couldn't accept:", err.Error())
+			log.Println("Couldn't accept:", err.Error())
 			continue
 		}
 
@@ -147,10 +151,20 @@ func (s *Server) handleSession(session *AyiSession) {
 
 	// Defer session close
 	defer func() {
+
+		defer func() { // SetLastConnection may also panic
+			if r := recover(); r != nil {
+				log.Printf("Session %v Defer Panic: %v\n", session, r)
+			}
+			s.UnregisterSession(session)
+			log.Println("Session closed:", session)
+		}()
+
+		if r := recover(); r != nil {
+			log.Printf("Session %v Panic: %v\n", session, r)
+		}
 		last_connection := core.GetCurrentTimeMillis()
-		s.UnregisterSession(session)
 		session.Server.NewUserDAO().SetLastConnection(session.UserId, last_connection)
-		log.Println("Session closed:", session)
 	}()
 
 	log.Println("New connection from", session)
@@ -170,7 +184,7 @@ func (s *Server) handleSession(session *AyiSession) {
 			session.lastRecvMsg = time.Now().UTC()
 			if err := s.serveMessage(packet, session); err != nil { // may block until writes are performed
 				log.Println("Error:", err)
-				log.Println(packet)
+				log.Println("Involved packet:", packet)
 			}
 
 		// Manage errors
@@ -238,10 +252,12 @@ func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err
 
 		// Defer recovery
 		defer func() {
-			if r := recover(); r == ErrAuthRequired {
-				err = r.(error)
-			} else if r != nil {
-				panic(r)
+			if r := recover(); r != nil {
+				if err_tmp, ok := r.(error); ok {
+					err = err_tmp
+				} else {
+					err = errors.New(fmt.Sprintf("%v", r))
+				}
 			}
 		}()
 
@@ -471,8 +487,12 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 }
 
 func main() {
+
 	server := NewServer() // Server is global
-	core.CreateFakeUsers(server.NewUserDAO())
+
+	if server.DbSession() != nil {
+		core.CreateFakeUsers(server.NewUserDAO())
+	}
 	server.RegisterCallback(proto.M_PING, onPing)
 	server.RegisterCallback(proto.M_PONG, onPong)
 	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
@@ -481,7 +501,9 @@ func main() {
 	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
 	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
+
 	shell := &Shell{Server: server}
 	go shell.Execute()
+
 	server.Run() // start server loop
 }
