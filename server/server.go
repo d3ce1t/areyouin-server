@@ -171,6 +171,7 @@ func (s *Server) handleSession(session *AyiSession) {
 	log.Println("New connection from", session)
 
 	exit := false
+	pingTime := time.Now().Add(PING_INTERVAL_MS)
 
 	for !exit {
 
@@ -182,7 +183,8 @@ func (s *Server) handleSession(session *AyiSession) {
 
 		// Read messages
 		case packet := <-session.SocketChannel:
-			session.lastRecvMsg = time.Now().UTC()
+			session.lastRecvMsg = time.Now()
+			pingTime = session.lastRecvMsg.Add(PING_INTERVAL_MS)
 			if err := s.serveMessage(packet, session); err != nil { // may block until writes are performed
 				log.Println("Error:", err)
 				log.Println("Involved packet:", packet)
@@ -201,20 +203,21 @@ func (s *Server) handleSession(session *AyiSession) {
 			}
 
 		default:
-			current_time := time.Now().UTC()
+			current_time := time.Now()
 			if !session.IsAuth {
 				if current_time.After(session.lastRecvMsg.Add(MAX_LOGIN_TIME)) {
-					session.lastRecvMsg = time.Now().UTC()
+					session.lastRecvMsg = time.Now()
 					log.Println("Connection IDLE", session)
 					exit = true
 				}
 			} else {
 				if current_time.After(session.lastRecvMsg.Add(MAX_IDLE_TIME)) {
-					session.lastRecvMsg = time.Now().UTC()
+					session.lastRecvMsg = time.Now()
 					log.Println("Connection IDLE", session)
 					exit = true
-				} else if current_time.After(session.lastRecvMsg.Add(PING_INTERVAL_MS)) {
+				} else if current_time.After(pingTime) {
 					session.SendPing()
+					pingTime = time.Now().Add(15 * time.Second)
 					log.Println("< PING to", session)
 				}
 			}
