@@ -102,11 +102,6 @@ message UserAuthentication {
 // Notifications
 //
 
-// EVENT CREATED
-/*message EventCreated {
-  Event event = 1;
-}*/
-
 // EVENT CANCELLED
 message EventCancelled {
   uint64 event_id = 1;
@@ -240,12 +235,6 @@ message ListPublicEvents {
 message Pong {
   int64 current_time = 1;
 }
-
-// EVENT INFO
-/*message EventInfo {
-  Event event = 1;
-  repeated EventParticipant attendance_status = 2;
-}*/
 
 // EVENTS LIST
 message EventsList {
