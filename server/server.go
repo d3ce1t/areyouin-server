@@ -19,7 +19,7 @@ const (
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 	MAX_IDLE_TIME    = 30 * time.Minute // 30m
 	MAX_LOGIN_TIME   = 30 * time.Second // 30s
-	PING_INTERVAL_MS = 28 * time.Minute // 28m
+	PING_INTERVAL_MS = 29 * time.Minute // 29m
 )
 
 func NewServer() *Server {
@@ -124,6 +124,7 @@ func (s *Server) RegisterSession(session *AyiSession) {
 
 	if oldSession, ok := s.sessions[session.UserId]; ok {
 		s.UnregisterSession(oldSession)
+		oldSession.Close()
 	}
 
 	s.sessions[session.UserId] = session
@@ -131,7 +132,9 @@ func (s *Server) RegisterSession(session *AyiSession) {
 
 func (s *Server) UnregisterSession(session *AyiSession) {
 	user_id := session.UserId
-	session.Close()
+	if !session.IsClosed {
+		session.Close()
+	}
 	delete(s.sessions, user_id)
 }
 
@@ -170,10 +173,11 @@ func (s *Server) handleSession(session *AyiSession) {
 
 	log.Println("New connection from", session)
 
-	exit := false
 	pingTime := time.Now().Add(PING_INTERVAL_MS)
 
-	for !exit {
+	exit := false
+
+	for !session.IsClosed && !exit {
 
 		select {
 		// Send Notifications
@@ -186,8 +190,9 @@ func (s *Server) handleSession(session *AyiSession) {
 			session.lastRecvMsg = time.Now()
 			pingTime = session.lastRecvMsg.Add(PING_INTERVAL_MS)
 			if err := s.serveMessage(packet, session); err != nil { // may block until writes are performed
-				log.Println("Error:", err)
+				log.Println("ServeMessage Panic:", err)
 				log.Println("Involved packet:", packet)
+				session.WriteReply(proto.NewMessage().Error(packet.Type(), proto.E_OPERATION_FAILED).Marshal())
 			}
 
 		// Manage errors
@@ -196,9 +201,6 @@ func (s *Server) handleSession(session *AyiSession) {
 				log.Println("Connection closed by client:", session)
 				exit = true
 			} else if err != proto.ErrTimeout {
-				if session.isClosed {
-					exit = true
-				}
 				log.Println("Error:", err)
 			}
 
@@ -217,7 +219,7 @@ func (s *Server) handleSession(session *AyiSession) {
 					exit = true
 				} else if current_time.After(pingTime) {
 					session.SendPing()
-					pingTime = time.Now().Add(15 * time.Second)
+					pingTime = time.Now().Add(18 * time.Second)
 					log.Println("< PING to", session)
 				}
 			}
@@ -397,14 +399,34 @@ func sendPrivateEvents(session *AyiSession) {
 		log.Println("SEND PRIVATE EVENTS to", session)
 		session.WriteReply(proto.NewMessage().EventsList(events).Marshal())
 
-		// Send participants info of each event and update participant status as delivered
+		// Send participants info of each event, update participant status as delivered and notify
 		for _, event := range events {
+
+			participant, _ := dao.LoadParticipant(event.EventId, session.UserId)
 			event_participants, _ := dao.LoadAllParticipants(event.EventId)
-			event_participants = session.Server.filterParticipants(session.UserId, event_participants)
-			msg := proto.NewMessage().AttendanceStatus(event.EventId, event_participants).Marshal()
+			participants_filtered := session.Server.filterParticipants(session.UserId, event_participants)
+
+			// Send attendance info
+			msg := proto.NewMessage().AttendanceStatus(event.EventId, participants_filtered).Marshal()
 			session.WriteReply(msg)
-			// FIXME: Probably could do so in only one operation
-			dao.SetParticipantStatus(session.UserId, event.EventId, core.MessageStatus_CLIENT_DELIVERED)
+
+			// Update participant status
+			if participant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
+
+				dao.SetParticipantStatus(session.UserId, event.EventId, core.MessageStatus_CLIENT_DELIVERED) //FIXME: Probably could do so in only one operation
+
+				// Notify change in participant status to the other participants
+				task := &NotifyParticipantChange{
+					EventId:  event.EventId,
+					UserId:   session.UserId,
+					Name:     participant.Name,
+					Response: participant.Response,
+					Status:   core.MessageStatus_CLIENT_DELIVERED,
+				}
+
+				task.AddParticipantsDst(event_participants) // I'm also sending notification to the author. Could avoid this because author already knows
+				server.task_executor.Submit(task)           // that the event has been send to him
+			}
 		}
 	}
 }
@@ -472,6 +494,8 @@ func (s *Server) filterParticipants(participant uint64, participants []*core.Eve
 		// If the participant is a confirmed user (yes or cannot assist answer has been given)
 		if s.canSee(participant, p) {
 			result = append(result, p)
+		} else {
+			result = append(result, p.AsAnonym())
 		}
 	}
 
@@ -485,7 +509,7 @@ func (s *Server) filterParticipants(participant uint64, participants []*core.Eve
 func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 	dao := s.NewUserDAO()
 	if p2.Response == core.AttendanceResponse_ASSIST ||
-		p2.Response == core.AttendanceResponse_CANNOT_ASSIST ||
+		/*p2.Response == core.AttendanceResponse_CANNOT_ASSIST ||*/
 		p1 == p2.UserId {
 		return true
 	} else if ok, _ := dao.AreFriends(p1, p2.UserId); ok {

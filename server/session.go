@@ -24,7 +24,7 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 	// Read socket in background and send result through channels SocketChannel
 	// and SocketError
 	go func() {
-		for !session.isClosed {
+		for !session.IsClosed {
 			session.doRead()
 		}
 	}()
@@ -45,7 +45,7 @@ type AyiSession struct {
 	SocketChannel       chan *proto.AyiPacket
 	SocketError         chan error
 	Server              *Server
-	isClosed            bool
+	IsClosed            bool
 	lastRecvMsg         time.Time
 }
 
@@ -72,7 +72,7 @@ func (s *AyiSession) ProcessNotification(notification *Notification) {
 
 // Do a read and blocks until its done or an error happens
 func (s *AyiSession) doRead() {
-	packet, err := proto.ReadPacket(s.Conn)
+	packet, err := proto.ReadPacket(s.Conn) // Blocked here
 	if err != nil {
 		s.SocketError <- err
 	} else {
@@ -96,8 +96,8 @@ func (s *AyiSession) WriteReply(reply []byte) error {
 }
 
 func (s *AyiSession) Close() {
-	s.isClosed = true
-	s.Conn.Close()
+	s.IsClosed = true
 	s.IsAuth = false
 	s.UserId = 0
+	s.Conn.Close()
 }

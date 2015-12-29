@@ -294,7 +294,13 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 		Status:   participant.Delivered,
 	}
 
-	server.task_executor.Submit(task)
+	if participants, err := event_dao.LoadAllParticipants(task.EventId); err == nil {
+		log.Println("Num.Participants:", len(participants))
+		task.AddParticipantsDst(participants)
+		server.task_executor.Submit(task)
+	} else {
+		log.Println("onConfirmAttendance:", err)
+	}
 }
 
 func onModifyEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
