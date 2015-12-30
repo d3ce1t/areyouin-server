@@ -469,23 +469,29 @@ func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) (bool, erro
 	return one_way && two_way, nil
 }
 
+// Check if user exists. If user e-mail exists may be orphan due to the way users are
+// inserted into cassandra. So it's needed to check if the user related to this e-mail
+// also exists. In case it doesn't exist, then delete the e-mail in order to avoid a collision
+// when inserting later. Exist
 func (dao *UserDAO) ExistWithSanity(user *core.UserAccount) (bool, error) {
 
 	dao.checkSession()
 
+	// Check if e-mail exists
 	user_id, err := dao.GetIDByEmail(user.Email)
 	if err != nil {
 		return false, err
 	}
 
+	// If exists, check also if the related user_id also exists
 	exist, err := dao.Exists(user_id)
-	if err != nil {
+	if err != nil && err != gocql.ErrNotFound {
 		return false, err
 	}
 
 	if !exist {
 		if user.HasFacebookCredentials() {
-			if user_id, _ := dao.GetIDByFacebookID(user.Fbid); user_id == user.Id { // FIXME: Non checked errors
+			if user_id, _ := dao.GetIDByFacebookID(user.Fbid); user_id == user.Id { // FIXME: Errors aren't checked
 				dao.DeleteFacebookCredentials(user.Fbid)
 			}
 		}

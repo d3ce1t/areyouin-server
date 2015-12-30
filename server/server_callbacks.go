@@ -36,11 +36,8 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 
 	dao := server.NewUserDAO()
 
-	// Check if user exists. If user e-mail exists may be orphan due to the way users are
-	// inserted into cassandra. So it's needed to check if the user related to this e-mail
-	// also exists. In case it doesn't exist, then delete it in order to avoid a collision
-	// when inserting later.
-	if exists, _ := dao.ExistWithSanity(user); !exists {
+	// Check if user exists and performs some sanity of data if needed
+	if exists, _ := dao.ExistWithSanity(user); exists {
 		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_EMAIL_EXISTS).Marshal())
 		return
 	}
