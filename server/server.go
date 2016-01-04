@@ -10,6 +10,7 @@ import (
 	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
 	proto "peeple/areyouin/protocol"
+	wh "peeple/areyouin/webhook"
 	"time"
 )
 
@@ -46,6 +47,7 @@ type Server struct {
 	cluster       *gocql.ClusterConfig
 	dbsession     *gocql.Session
 	Keyspace      string
+	webhook       *wh.WebHookServer
 }
 
 func (s *Server) DbSession() *gocql.Session {
@@ -76,6 +78,11 @@ func (s *Server) init() {
 	// Start Event Delivery
 	s.ds = NewDeliverySystem(s)
 	s.ds.Run()
+
+	// Start webhook
+	s.webhook = wh.New()
+	s.webhook.RegisterCallback(s.onFacebookUpdate)
+	s.webhook.Run()
 }
 
 func (s *Server) connectToDB() {
@@ -88,6 +95,7 @@ func (s *Server) connectToDB() {
 }
 
 func (s *Server) Run() {
+
 	// Start up server listener
 	listener, err := net.Listen("tcp", ":1822")
 
@@ -283,6 +291,24 @@ func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err
 	}
 
 	return
+}
+
+/*map[
+	object:user
+	entry:[
+				map[uid:100212827024403
+						id:100212827024403
+						time:1.451828949e+09
+						changed_fields:[friends]]
+				map[uid:101253640253369
+						id:101253640253369
+						time:1.451828949e+09
+						changed_fields:[friends]]
+	 ]
+]*/
+
+func (s *Server) onFacebookUpdate(updateInfo map[string]interface{}) {
+	//log.Println("Update:", updateInfo)
 }
 
 func (s *Server) notifyUser(user_id uint64, message []byte, callback func()) {
