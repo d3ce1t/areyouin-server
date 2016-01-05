@@ -38,6 +38,10 @@ func getError(err error) (protoerror error) {
 // Reads a message from an io.Reader
 func ReadPacket(conn net.Conn) (*AyiPacket, error) {
 
+	if conn == nil {
+		return nil, ErrInvalidSocket
+	}
+
 	packet := &AyiPacket{}
 
 	// Read header

@@ -20,4 +20,5 @@ const (
 var (
 	ErrConnectionClosed = errors.New("connection closed")
 	ErrTimeout          = errors.New("input/output timeout")
+	ErrInvalidSocket    = errors.New("invalid connection socket")
 )
