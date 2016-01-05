@@ -12,7 +12,7 @@ var server *Server
 
 func TestMain(m *testing.M) {
 	server = NewTestServer()
-	core.ClearUserAccounts(server.dbsession)
+	core.DeleteFakeusers(server.NewUserDAO())
 	core.ClearEvents(server.dbsession)
 	core.CreateFakeUsers(server.NewUserDAO())
 	flag.Parse()
@@ -50,7 +50,11 @@ func TestDispatchEvent(t *testing.T) {
 
 	user_dao := server.NewUserDAO()
 	event_dao := server.NewEventDAO()
-	author := user_dao.LoadByEmail("user1@foo.com")
+	author, err := user_dao.LoadByEmail("user1@foo.com")
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create event
 	event_id := server.GetNewID()
@@ -104,7 +108,7 @@ func TestDispatchEvent(t *testing.T) {
 func TestPublishEvent(t *testing.T) {
 
 	user_dao := server.NewUserDAO()
-	author := user_dao.LoadByEmail("user1@foo.com")
+	author, _ := user_dao.LoadByEmail("user1@foo.com")
 
 	// Create event
 	event_id := server.GetNewID()
