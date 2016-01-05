@@ -33,10 +33,11 @@ type UserDAO interface {
 	Exists(user_id uint64) (bool, error)
 	Load(user_id uint64) (*UserAccount, error)
 	LoadByEmail(email string) (*UserAccount, error)
-	Insert(user *UserAccount) (ok bool, err error)
+	Insert(user *UserAccount) error
 	Delete(user *UserAccount) error
 	DeleteEmailCredentials(email string) error
 	DeleteFacebookCredentials(fb_id string) error
+	MakeFriends(user1 *Friend, user2 *Friend) error
 	AddFriend(user_id uint64, friend *Friend, group_id int32) error
 	DeleteFriendsGroup(user_id uint64, group_id int32) error
 	LoadFriends(user_id uint64, group_id int32) ([]*Friend, error)

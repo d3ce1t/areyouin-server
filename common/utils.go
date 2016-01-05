@@ -26,6 +26,7 @@ func ClearUserAccounts(session *gocql.Session) {
 	session.Query(`TRUNCATE user_facebook_credentials`).Exec()
 	session.Query(`TRUNCATE user_email_credentials`).Exec()
 	session.Query(`TRUNCATE user_account`).Exec()
+	session.Query(`TRUNCATE user_friends`).Exec()
 }
 
 func ClearEvents(session *gocql.Session) {

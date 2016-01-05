@@ -31,7 +31,7 @@ func TestInsert1(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		if applied, err := dao.Insert(test.user); applied != test.want {
+		if err := dao.Insert(test.user); (err == nil) != test.want {
 			t.Fatal("Failed at test", i, test.user.Id, "with error", err)
 		}
 	}
@@ -60,7 +60,7 @@ func TestInsert2(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		if applied, err := dao.Insert(test.user); applied != test.want {
+		if err := dao.Insert(test.user); (err == nil) != test.want {
 			t.Fatal("Failed at test", i, "with error", err)
 		}
 	}
@@ -81,7 +81,7 @@ func TestInsert3(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		if applied, err := dao.Insert(test.user); applied != test.want {
+		if err := dao.Insert(test.user); (err == nil) != test.want {
 			t.Fatal("Failed at test", i, "with error", err)
 		}
 	}
@@ -102,7 +102,7 @@ func TestInsert4(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		if applied, err := dao.Insert(test.user); applied != test.want {
+		if err := dao.Insert(test.user); (err == nil) != test.want {
 			t.Fatal("Failed at test", i, "with error", err)
 		}
 	}
@@ -191,7 +191,7 @@ func TestUUID(t *testing.T) {
 	dao := NewUserDAO(session)
 	user := core.NewUserAccount(15918606474806281, "User 1", "user1@foo.com", "12345", "", "", "")
 
-	if ok, err := dao.Insert(user); !ok {
+	if err := dao.Insert(user); err != nil {
 		t.Fatal(err)
 	}
 

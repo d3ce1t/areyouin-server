@@ -207,13 +207,13 @@ func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
 	Insert a new user into Cassandra involving tables user_account,
 	user_email_credentials and user_facebook_credentials.
 */
-func (dao *UserDAO) Insert(user *core.UserAccount) (ok bool, err error) {
+func (dao *UserDAO) Insert(user *core.UserAccount) error {
 
 	dao.checkSession()
 
 	// Check if user account has a valid ID and email or fb credentials
 	if !user.IsValid() {
-		return false, ErrInvalidUser
+		return ErrInvalidUser
 	}
 
 	// First insert into E-mail credentials to ensure there is no one using the same
@@ -221,23 +221,18 @@ func (dao *UserDAO) Insert(user *core.UserAccount) (ok bool, err error) {
 	// a valid email address. So try to insert email anyway to check there is no one
 	// using it.
 	if user.HasEmailCredentials() {
-		ok, err = dao.insertEmailCredentials(user.Id, user.Email, user.Password)
-		if !ok {
-			return
+		if _, err := dao.insertEmailCredentials(user.Id, user.Email, user.Password); err != nil {
+			return err
 		}
-	} else {
-		ok, err = dao.insertEmail(user.Id, user.Email)
-		if !ok {
-			return
-		}
+	} else if _, err := dao.insertEmail(user.Id, user.Email); err != nil {
+		return err
 	}
 
 	// May also (or only) have Facebook credentials
 	if user.HasFacebookCredentials() {
-		ok, err = dao.insertFacebookCredentials(user.Id, user.Fbid, user.Fbtoken)
-		if !ok {
+		if _, err := dao.insertFacebookCredentials(user.Id, user.Fbid, user.Fbtoken); err != nil {
 			dao.DeleteEmailCredentials(user.Email)
-			return
+			return err
 		}
 	}
 
@@ -247,13 +242,13 @@ func (dao *UserDAO) Insert(user *core.UserAccount) (ok bool, err error) {
 	// However, if for any reason the same UserID is generated, the already stored
 	// user account does not have to be replaced. In this case, it's needed to
 	// manually rollback previously inserted EmailCredentials and/or FacebookCredentials
-	ok, err = dao.insertUserAccount(user)
-	if err != nil {
+	if _, err := dao.insertUserAccount(user); err != nil {
 		dao.DeleteFacebookCredentials(user.Fbid)
 		dao.DeleteEmailCredentials(user.Email)
+		return err
 	}
 
-	return
+	return nil
 }
 
 func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err error) {
@@ -407,6 +402,21 @@ func (dao *UserDAO) DeleteFacebookCredentials(fb_id string) error {
 	}
 
 	return dao.session.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, fb_id).Exec()
+}
+
+func (dao *UserDAO) MakeFriends(user1 *core.Friend, user2 *core.Friend) error {
+
+	dao.checkSession()
+
+	batch := dao.session.NewBatch(gocql.LoggedBatch)
+
+	batch.Query(`INSERT INTO user_friends (user_id, group_id, group_name, friend_id, name)
+							VALUES (?, ?, ?, ?, ?)`, user1.UserId, 0, "All Friends", user2.UserId, user2.Name)
+
+	batch.Query(`INSERT INTO user_friends (user_id, group_id, group_name, friend_id, name)
+							VALUES (?, ?, ?, ?, ?)`, user2.UserId, 0, "All Friends", user1.UserId, user1.Name)
+
+	return dao.session.ExecuteBatch(batch)
 }
 
 func (dao *UserDAO) AddFriend(user_id uint64, friend *core.Friend, group_id int32) error {
