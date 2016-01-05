@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gocql/gocql"
-	fb "github.com/huandu/facebook"
 	"log"
 	"net"
 	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
+	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
 	wh "peeple/areyouin/webhook"
 	"time"
@@ -78,11 +78,6 @@ func (s *Server) init() {
 	// Start Event Delivery
 	s.ds = NewDeliverySystem(s)
 	s.ds.Run()
-
-	// Start webhook
-	s.webhook = wh.New()
-	s.webhook.RegisterCallback(s.onFacebookUpdate)
-	s.webhook.Run()
 }
 
 func (s *Server) connectToDB() {
@@ -95,6 +90,11 @@ func (s *Server) connectToDB() {
 }
 
 func (s *Server) Run() {
+
+	// Start webhook
+	s.webhook = wh.New(fb.FB_APP_SECRET)
+	s.webhook.RegisterCallback(s.onFacebookUpdate)
+	s.webhook.Run()
 
 	// Start up server listener
 	listener, err := net.Listen("tcp", ":1822")
@@ -307,8 +307,40 @@ func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err
 	 ]
 ]*/
 
-func (s *Server) onFacebookUpdate(updateInfo map[string]interface{}) {
-	//log.Println("Update:", updateInfo)
+func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
+
+	if updateInfo.Object != "user" {
+		log.Println("onFacebookUpdate: Invalid update type")
+		return
+	}
+
+	userDao := s.NewUserDAO()
+
+	for _, entry := range updateInfo.Entries {
+
+		user_id, err := userDao.GetIDByFacebookID(entry.Id)
+		if err != nil {
+			log.Printf("onFacebookUpdate Error 1 (%v): %v\n", user_id, err)
+			continue
+		}
+
+		user, err := userDao.Load(user_id)
+		if err != nil {
+			log.Printf("onFacebookUpdate Error 2 (%v): %v\n", user_id, err)
+			continue
+		}
+
+		for _, changedField := range entry.ChangedFields {
+			if changedField == "friends" {
+				s.task_executor.Submit(&SyncFacebookFriends{
+					UserId: user.Id,
+					Name:   user.Name,
+					//Fbid:    user.Fbid,
+					Fbtoken: user.Fbtoken,
+				})
+			}
+		} // End inner loop
+	} // End outter loop
 }
 
 func (s *Server) notifyUser(user_id uint64, message []byte, callback func()) {
@@ -393,20 +425,6 @@ func (s *Server) createParticipantsFromFriends(author_id uint64) []*core.EventPa
 	}
 }
 
-func sendUserFriends(session *AyiSession) {
-
-	server := session.Server
-	dao := server.NewUserDAO()
-
-	friends, err := dao.LoadFriends(session.UserId, ALL_CONTACTS_GROUP)
-
-	if err == nil {
-		reply := proto.NewMessage().FriendsList(friends).Marshal()
-		log.Println("SEND USER FRIENDS to", session)
-		session.WriteReply(reply)
-	}
-}
-
 // Called from multiple threads
 func sendPrivateEvents(session *AyiSession) {
 
@@ -462,42 +480,6 @@ func sendAuthError(session *AyiSession) {
 	log.Println("SEND INVALID USER OR PASSWORD")
 }
 
-func checkFacebookAccess(id string, access_token string) (fbaccount *FacebookAccount, ok bool) {
-
-	// Contact Facebook
-	res, err := fb.Get("/me", fb.Params{
-		"fields":       "id,name,email",
-		"access_token": access_token,
-	})
-
-	if err != nil {
-		log.Println("Server error when connecting to Facebook", err)
-		return nil, false
-	}
-
-	// Get info
-	account := &FacebookAccount{}
-
-	if fbid, ok := res["id"]; ok {
-		account.id = fbid.(string)
-	}
-
-	if name, ok := res["name"]; ok {
-		account.name = name.(string)
-	}
-
-	if email, ok := res["email"]; ok {
-		account.email = email.(string)
-	}
-
-	if account.id != id {
-		log.Println("Fbid does not match provided User ID")
-		return account, false
-	} else {
-		return account, true
-	}
-}
-
 func checkAuthenticated(session *AyiSession) {
 	if !session.IsAuth {
 		panic(ErrAuthRequired)
@@ -544,13 +526,22 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 	return false
 }
 
+/*func createFbTestUsers() {
+	fb.CreateTestUser("Test User One", true)
+	fb.CreateTestUser("Test User Two", true)
+	fb.CreateTestUser("Test User Three", true)
+	fb.CreateTestUser("Test User Four", true)
+}*/
+
 func main() {
 
 	server := NewServer() // Server is global
 
-	if server.DbSession() != nil {
+	/*if server.DbSession() != nil {
+		core.ClearUserAccounts(server.DbSession())
 		core.CreateFakeUsers(server.NewUserDAO())
-	}
+		//createFbTestUsers()
+	}*/
 	server.RegisterCallback(proto.M_PING, onPing)
 	server.RegisterCallback(proto.M_PONG, onPong)
 	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)

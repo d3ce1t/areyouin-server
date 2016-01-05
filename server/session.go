@@ -23,11 +23,15 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 
 	// Read socket in background and send result through channels SocketChannel
 	// and SocketError
-	go func() {
-		for !session.IsClosed {
-			session.doRead()
-		}
-	}()
+	if conn != nil {
+		go func() {
+			for !session.IsClosed {
+				session.doRead()
+			}
+		}()
+	} else {
+		log.Println("WARNING: NewSession connection is nil")
+	}
 
 	return session
 }
