@@ -38,6 +38,7 @@ type UserDAO interface {
 	DeleteEmailCredentials(email string) error
 	DeleteFacebookCredentials(fb_id string) error
 	AddFriend(user_id uint64, friend *Friend, group_id int32) error
+	DeleteFriendsGroup(user_id uint64, group_id int32) error
 	LoadFriends(user_id uint64, group_id int32) ([]*Friend, error)
 	AreFriends(user_id uint64, other_user_id uint64) (bool, error)
 }
