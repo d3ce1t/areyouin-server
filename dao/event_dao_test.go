@@ -9,11 +9,11 @@ func TestCreateEvent(t *testing.T) {
 
 	user_dao := NewUserDAO(session)
 
-	core.ClearUserAccounts(session)
+	core.DeleteFakeusers(user_dao)
 	core.ClearEvents(session)
 	core.CreateFakeUsers(user_dao)
 
-	author := user_dao.LoadByEmail("user1@foo.com")
+	author, _ := user_dao.LoadByEmail("user1@foo.com")
 
 	if author == nil {
 		t.Fail()
@@ -34,7 +34,7 @@ func TestEventInsert1(t *testing.T) {
 
 	event_dao := NewEventDAO(session)
 	user_dao := NewUserDAO(session)
-	author := user_dao.LoadByEmail("user1@foo.com")
+	author, _ := user_dao.LoadByEmail("user1@foo.com")
 
 	if author == nil {
 		t.Fail()
@@ -54,7 +54,7 @@ func TestEventInsert2(t *testing.T) {
 
 	event_dao := NewEventDAO(session)
 	user_dao := NewUserDAO(session)
-	author := user_dao.LoadByEmail("user1@foo.com")
+	author, _ := user_dao.LoadByEmail("user1@foo.com")
 
 	if author == nil {
 		t.Fail()
@@ -78,7 +78,7 @@ func TestEventAddOrUpdateParticipants(t *testing.T) {
 
 	event_dao := NewEventDAO(session)
 	user_dao := NewUserDAO(session)
-	author := user_dao.LoadByEmail("user1@foo.com")
+	author, _ := user_dao.LoadByEmail("user1@foo.com")
 
 	if author == nil {
 		t.Fail()
@@ -93,7 +93,7 @@ func TestEventAddOrUpdateParticipants(t *testing.T) {
 	}
 
 	// Create participants
-	friends := user_dao.LoadFriends(author.Id, 0)
+	friends, _ := user_dao.LoadFriends(author.Id, 0)
 
 	if friends != nil {
 		participants := core.CreateParticipantsFromFriends(author.Id, friends)
@@ -107,7 +107,7 @@ func TestEventAddOrUpdateParticipants(t *testing.T) {
 
 func TestLoadParticipants(t *testing.T) {
 	dao := NewEventDAO(session)
-	event_participants := dao.LoadAllParticipants(uint64(16364452597203970))
+	event_participants, _ := dao.LoadAllParticipants(uint64(16364452597203970))
 	if len(event_participants) != 7 {
 		t.FailNow()
 	}
@@ -118,7 +118,7 @@ func TestAddEventToUserInbox(t *testing.T) {
 
 	event_dao := NewEventDAO(session)
 	user_dao := NewUserDAO(session)
-	author := user_dao.LoadByEmail("user1@foo.com")
+	author, _ := user_dao.LoadByEmail("user1@foo.com")
 
 	// Create event
 	event_id := idgen.GenerateID()

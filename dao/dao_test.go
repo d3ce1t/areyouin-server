@@ -40,8 +40,8 @@ func CreateParticipantsList(author_id uint64, participants_id []uint64) []*core.
 	dao := NewUserDAO(session)
 
 	for _, user_id := range participants_id {
-		if dao.AreFriends(author_id, user_id) {
-			if uac := dao.Load(user_id); uac != nil {
+		if ok, _ := dao.AreFriends(author_id, user_id); ok {
+			if uac, _ := dao.Load(user_id); uac != nil {
 				result = append(result, uac.AsParticipant())
 			} else {
 				log.Println("createParticipantList() participant", user_id, "does not exist")

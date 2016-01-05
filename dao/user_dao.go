@@ -1,7 +1,6 @@
 package dao
 
 import (
-	"errors"
 	"github.com/gocql/gocql"
 	"github.com/twinj/uuid"
 	"log"
@@ -214,7 +213,7 @@ func (dao *UserDAO) Insert(user *core.UserAccount) (ok bool, err error) {
 
 	// Check if user account has a valid ID and email or fb credentials
 	if !user.IsValid() {
-		return false, errors.New("UserDAO: Trying to insert an invalid user account")
+		return false, ErrInvalidUser
 	}
 
 	// First insert into E-mail credentials to ensure there is no one using the same
@@ -303,13 +302,13 @@ func (dao *UserDAO) insertEmailCredentials(user_id uint64, email string, passwor
 	dao.checkSession()
 
 	if email == "" || password == "" || user_id == 0 {
-		return false, errors.New("Invalid arguments")
+		return false, ErrInvalidArg
 	}
 
 	// Hash Password
 	salt, err := core.NewRandomSalt32()
 	if err != nil {
-		return false, errors.New("insertEmailCredentials error when hashing password")
+		return false, ErrUnexpected
 	}
 
 	hashedPassword := core.HashPasswordWithSalt(password, salt)
@@ -328,7 +327,7 @@ func (dao *UserDAO) insertEmail(user_id uint64, email string) (ok bool, err erro
 	dao.checkSession()
 
 	if email == "" || user_id == 0 {
-		return false, errors.New("Invalid arguments")
+		return false, ErrInvalidArg
 	}
 
 	insertUserEmail := `INSERT INTO user_email_credentials
@@ -344,7 +343,7 @@ func (dao *UserDAO) insertFacebookCredentials(user_id uint64, fb_id string, fb_t
 	dao.checkSession()
 
 	if fb_id == "" || fb_token == "" || user_id == 0 {
-		return false, errors.New("Invalid arguments")
+		return false, ErrInvalidArg
 	}
 
 	insertFacebookCredentials := `INSERT INTO user_facebook_credentials
@@ -368,9 +367,10 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 
 	batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email)
 	batch.Query(`DELETE FROM user_account WHERE user_id = ?`, user.Id)
+	batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`, user.Id, 0)
 
 	if user.HasFacebookCredentials() {
-		batch.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, user.Fbid)
+		batch.Query(`DELETE FROM user_facebook_credentials WHERE fb_id = ?`, user.Fbid)
 	}
 
 	return dao.session.ExecuteBatch(batch)
@@ -381,7 +381,7 @@ func (dao *UserDAO) deleteUserAccount(user_id uint64) error {
 	dao.checkSession()
 
 	if user_id == 0 {
-		return errors.New("Invalid arguments")
+		return ErrInvalidArg
 	}
 
 	return dao.session.Query(`DELETE FROM user_account WHERE user_id = ?`, user_id).Exec()
@@ -392,7 +392,7 @@ func (dao *UserDAO) DeleteEmailCredentials(email string) error {
 	dao.checkSession()
 
 	if email == "" {
-		return errors.New("Invalid arguments")
+		return ErrInvalidArg
 	}
 
 	return dao.session.Query(`DELETE FROM user_email_credentials WHERE email = ?`, email).Exec()
@@ -403,7 +403,7 @@ func (dao *UserDAO) DeleteFacebookCredentials(fb_id string) error {
 	dao.checkSession()
 
 	if fb_id == "" {
-		return errors.New("Invalid arguments")
+		return ErrInvalidArg
 	}
 
 	return dao.session.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, fb_id).Exec()
@@ -417,6 +417,18 @@ func (dao *UserDAO) AddFriend(user_id uint64, friend *core.Friend, group_id int3
 							VALUES (?, ?, ?, ?, ?)`
 
 	return dao.session.Query(stmt, user_id, group_id, "All Friends", friend.UserId, friend.Name).Exec()
+}
+
+func (dao *UserDAO) DeleteFriendsGroup(user_id uint64, group_id int32) error {
+
+	dao.checkSession()
+
+	if user_id == 0 {
+		return ErrInvalidArg
+	}
+
+	return dao.session.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`,
+		user_id, group_id).Exec()
 }
 
 func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) ([]*core.Friend, error) {
