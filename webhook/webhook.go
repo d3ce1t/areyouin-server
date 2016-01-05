@@ -12,14 +12,14 @@ import (
 )
 
 const VERIFY_TOKEN = "HK377WB7LPBWN87HMZ7X"
-const APP_SECRET = "eac8e246b9e8a8f5a80d722a556f2cec"
 
 type WebHookServer struct {
-	callback func(map[string]interface{})
+	callback   func(map[string]interface{})
+	app_secret string
 }
 
-func New() *WebHookServer {
-	return &WebHookServer{}
+func New(secret string) *WebHookServer {
+	return &WebHookServer{app_secret: secret}
 }
 
 func computeSignature(payload []byte, key string) string {
@@ -104,7 +104,7 @@ func (wh *WebHookServer) handler(w http.ResponseWriter, r *http.Request) {
 		//http.Error(w, "Invalid request received", http.StatusBadRequest)
 	}
 
-	computed_signature := computeSignature(data, APP_SECRET)
+	computed_signature := computeSignature(data, wh.app_secret)
 	if x_hub_signature != computed_signature {
 		log.Println("Webhook: Signature mismatch")
 		return
