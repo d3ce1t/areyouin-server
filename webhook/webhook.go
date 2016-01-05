@@ -13,8 +13,18 @@ import (
 
 const VERIFY_TOKEN = "HK377WB7LPBWN87HMZ7X"
 
+type FacebookUpdate struct {
+	Object  string
+	Entries []struct {
+		Uid           string
+		Id            string
+		Time          uint64
+		ChangedFields []string `json:"changed_fields"`
+	} `json:"entry"`
+}
+
 type WebHookServer struct {
-	callback   func(map[string]interface{})
+	callback   func(*FacebookUpdate)
 	app_secret string
 }
 
@@ -29,7 +39,7 @@ func computeSignature(payload []byte, key string) string {
 	return "sha1=" + fmt.Sprintf("%x", mac.Sum(nil))
 }
 
-func (wh *WebHookServer) RegisterCallback(f func(map[string]interface{})) {
+func (wh *WebHookServer) RegisterCallback(f func(*FacebookUpdate)) {
 	wh.callback = f
 }
 
@@ -114,14 +124,14 @@ func (wh *WebHookServer) handler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Webhook: Received Update from %v: %s\n", remote_host, data)
 
 	// Decode JSON message
-	var v interface{}
+	v := &FacebookUpdate{}
 
-	if err := json.Unmarshal(data, &v); err != nil {
+	if err := json.Unmarshal(data, v); err != nil {
 		log.Println("Webhook error:", err)
 		return
 	}
 
-	wh.callback(v.(map[string]interface{}))
+	wh.callback(v)
 }
 
 func (wh *WebHookServer) Run() {
