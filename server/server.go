@@ -147,10 +147,16 @@ func (s *Server) UnregisterSession(session *AyiSession) {
 }
 
 func (s *Server) NewUserDAO() core.UserDAO {
+	if s.dbsession == nil {
+		s.connectToDB()
+	}
 	return dao.NewUserDAO(s.dbsession)
 }
 
 func (s *Server) NewEventDAO() core.EventDAO {
+	if s.dbsession == nil {
+		s.connectToDB()
+	}
 	return dao.NewEventDAO(s.dbsession)
 }
 

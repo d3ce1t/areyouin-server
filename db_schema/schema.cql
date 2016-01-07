@@ -1,6 +1,6 @@
 // Drop and recreate the keyspace
 DROP KEYSPACE IF EXISTS areyouin;
-CREATE KEYSPACE areyouin WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };
+CREATE KEYSPACE areyouin WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
 
 // Create the schema
 USE areyouin;
