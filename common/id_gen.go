@@ -47,7 +47,7 @@ func (uid *IDGen) GenerateID() uint64 {
 	curr_time_ms := curr_time.UnixNano() / int64(time.Millisecond)
 	curr_time_ms -= epoch
 
-	newId := uint64(curr_time_ms) << (64 - 42)
+	newId := uint64(curr_time_ms) << (64 - 42) // 139 years of IDs
 	newId |= uint64(uid.id) << (64 - 42 - 12)
 
 	auto_inc := uid.auto_increment

@@ -76,7 +76,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 
 	// Import Facebook friends that uses AreYouIN if needed
 	if user.HasFacebookCredentials() {
-		task := &SyncFacebookFriends{
+		task := &ImportFacebookFriends{
 			UserId: user.Id,
 			Name:   user.Name,
 			//Fbid:    user.Fbid,

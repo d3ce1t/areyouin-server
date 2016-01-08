@@ -338,7 +338,7 @@ func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 
 		for _, changedField := range entry.ChangedFields {
 			if changedField == "friends" {
-				s.task_executor.Submit(&SyncFacebookFriends{
+				s.task_executor.Submit(&ImportFacebookFriends{
 					UserId: user.Id,
 					Name:   user.Name,
 					//Fbid:    user.Fbid,

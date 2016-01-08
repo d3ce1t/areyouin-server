@@ -441,6 +441,32 @@ func (dao *UserDAO) DeleteFriendsGroup(user_id uint64, group_id int32) error {
 		user_id, group_id).Exec()
 }
 
+func (dao *UserDAO) LoadFriendsIndex(user_id uint64, group_id int32) (map[uint64]*core.Friend, error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT friend_id, name FROM user_friends
+						WHERE user_id = ? AND group_id = ? LIMIT ?`
+
+	iter := dao.session.Query(stmt, user_id, group_id, MAX_NUM_FRIENDS).Iter()
+
+	friend_map := make(map[uint64]*core.Friend)
+
+	var friend_id uint64
+	var friend_name string
+
+	for iter.Scan(&friend_id, &friend_name) {
+		friend_map[friend_id] = &core.Friend{UserId: friend_id, Name: friend_name}
+	}
+
+	if err := iter.Close(); err != nil {
+		log.Println("LoadFriendsIndex:", err)
+		return nil, err
+	}
+
+	return friend_map, nil
+}
+
 func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) ([]*core.Friend, error) {
 
 	dao.checkSession()

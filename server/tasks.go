@@ -69,18 +69,17 @@ func (task *NotifyParticipantChange) Run(ex *TaskExecutor) {
 	}
 }
 
-// FIXME: It's only adding so far. It has to sync, i.e. remove friends that are not facebook friends
-type SyncFacebookFriends struct {
+type ImportFacebookFriends struct {
 	UserId  uint64
 	Name    string
 	Fbtoken string // Facebook User Access token
 }
 
-func (task *SyncFacebookFriends) Run(ex *TaskExecutor) {
+func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 
 	server := ex.server
 	fbsession := fb.NewSession(task.Fbtoken)
-	friends, err := fb.GetFriends(fbsession)
+	fbFriends, err := fb.GetFriends(fbsession)
 
 	if err != nil {
 		fb.LogError(err)
@@ -88,28 +87,39 @@ func (task *SyncFacebookFriends) Run(ex *TaskExecutor) {
 	}
 
 	user_dao := server.NewUserDAO()
+	storedFriends, err := user_dao.LoadFriendsIndex(task.UserId, ALL_CONTACTS_GROUP)
+
+	if err != nil {
+		log.Println("ImportFacebookFriends Error:", err)
+		return
+	}
+
 	counter := 0
 
-	for _, friend := range friends {
+	for _, friend := range fbFriends {
 
 		friend_id, err := user_dao.GetIDByFacebookID(friend.Id)
 
 		if err != nil {
-			if err != dao.ErrNotFound {
-				log.Println("SyncFacebookFriends Error:", err)
+			if err == dao.ErrNotFound {
+				log.Println("ImportFacebookFriends Error: Facebook friend has the App but it's not registered")
 			} else {
-				log.Println("SyncFacebookFriends: Facebook friend has the App but it's not registered")
+				log.Println("ImportFacebookFriends Error:", err)
 			}
 			continue
 		}
 
-		user_dao.MakeFriends(
-			&core.Friend{UserId: task.UserId, Name: task.Name},
-			&core.Friend{UserId: friend_id, Name: friend.Name},
-		)
+		// Assume that if friend_id isn't in stored friends, then current user id isn't either
+		// in the other user friends list
+		if _, ok := storedFriends[friend_id]; !ok {
+			user_dao.MakeFriends(
+				&core.Friend{UserId: task.UserId, Name: task.Name},
+				&core.Friend{UserId: friend_id, Name: friend.Name},
+			)
 
-		ex.Submit(&SendUserFriends{UserId: friend_id})
-		counter++
+			ex.Submit(&SendUserFriends{UserId: friend_id})
+			counter++
+		}
 	}
 
 	if counter > 0 {
