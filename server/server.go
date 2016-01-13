@@ -77,7 +77,7 @@ func (s *Server) init() {
 
 	// Start Event Delivery
 	s.ds = NewDeliverySystem(s)
-	s.ds.Run()
+	s.ds.Start()
 }
 
 func (s *Server) connectToDB() {

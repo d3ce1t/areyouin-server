@@ -30,38 +30,56 @@ func (ds *DeliverySystem) Submit(event *core.Event) {
  Puts an event to participants' inbox, updates event delivery information and notify
  participants
 */
-func (ds *DeliverySystem) Run() {
-	go func() {
+func (ds *DeliverySystem) Start() {
+	go func() { // Wrapper function to capture
+		exit := false
+		for !exit {
+			exit = ds.run()
+		}
+	}()
+}
 
-		dao := ds.server.NewEventDAO()
+func (ds *DeliverySystem) run() (exit bool) {
 
-		for {
-			// Get pending event from queue
-			event := <-ds.queue
-			log.Println("Event", event.EventId, "has author", event.AuthorId, "and", event.NumGuests, "guests")
-
-			// Dispatch event to each participant
-			event_participants, _ := dao.LoadAllParticipants(event.EventId)
-
-			if len(event_participants) > 0 {
-
-				for _, participant := range event_participants {
-					if err := ds.dispatchEvent(event, participant); err == nil {
-						log.Println("Event", event.EventId, "delivered to user", participant.UserId)
-					} else {
-						log.Println("Coudn't deliver event", event.EventId, err)
-					}
-				}
-
-				// Send notifications
-				for _, participant := range event_participants {
-					ds.sendNotifications(event, event_participants, participant)
-				}
+	defer func() {
+		if r := recover(); r != nil {
+			if err, ok := r.(error); ok {
+				log.Println("DeliverySystem Run Error: ", err)
 			} else {
-				log.Println("DeliverySystem: Event", event.EventId, "has no participants (nothing to do)")
+				log.Println("DeliverySystem Run Panic: ", r)
 			}
 		}
-	}() // Go func
+		exit = false
+	}()
+
+	dao := ds.server.NewEventDAO()
+
+	for {
+		// Get pending event from queue
+		event := <-ds.queue
+		log.Println("Event", event.EventId, "has author", event.AuthorId, "and", event.NumGuests, "guests")
+
+		// Dispatch event to each participant
+		event_participants, _ := dao.LoadAllParticipants(event.EventId)
+
+		if len(event_participants) > 0 {
+
+			for _, participant := range event_participants {
+				if err := ds.dispatchEvent(event, participant); err == nil {
+					log.Println("Event", event.EventId, "delivered to user", participant.UserId)
+				} else {
+					log.Println("Coudn't deliver event", event.EventId, err)
+				}
+			}
+
+			// Send notifications
+			for _, participant := range event_participants {
+				ds.sendNotifications(event, event_participants, participant)
+			}
+		} else {
+			log.Println("DeliverySystem: Event", event.EventId, "has no participants (nothing to do)")
+		}
+	}
 }
 
 func (ds *DeliverySystem) dispatchEvent(event *core.Event, participant *core.EventParticipant) error {
