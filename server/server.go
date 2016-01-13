@@ -396,10 +396,10 @@ func (s *Server) PublishEvent(event *core.Event, participants []*core.EventParti
 	return result
 }
 
-func (s *Server) createParticipantsList(author_id uint64, participants_id []uint64) []*core.EventParticipant {
+func (s *Server) createParticipantsList(author_id uint64, participants_id []uint64) ([]*core.EventParticipant, error) {
 
+	var warning error
 	result := make([]*core.EventParticipant, 0, len(participants_id))
-
 	dao := s.NewUserDAO()
 
 	// TODO: Optimise this path
@@ -409,13 +409,15 @@ func (s *Server) createParticipantsList(author_id uint64, participants_id []uint
 				result = append(result, uac.AsParticipant())
 			} else {
 				log.Println("createParticipantList() participant", user_id, "does not exist")
+				warning = ErrUnregisteredFriendsIgnored
 			}
 		} else {
 			log.Println("createParticipantList() Not friends", author_id, "and", user_id, "or doesn't exist")
+			warning = ErrNonFriendsIgnored
 		}
 	}
 
-	return result
+	return result, warning
 }
 
 func (s *Server) createParticipantsFromFriends(author_id uint64) []*core.EventParticipant {
@@ -537,16 +539,20 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 	fb.CreateTestUser("Test User Two", true)
 	fb.CreateTestUser("Test User Three", true)
 	fb.CreateTestUser("Test User Four", true)
+	fb.CreateTestUser("Test User Five", true)
+	fb.CreateTestUser("Test User Six", true)
+	fb.CreateTestUser("Test User Seven", true)
+	fb.CreateTestUser("Test User Eight", true)
 }*/
 
 func main() {
 
 	server := NewServer() // Server is global
-
+	//createFbTestUsers()
 	/*if server.DbSession() != nil {
-		core.ClearUserAccounts(server.DbSession())
-		core.CreateFakeUsers(server.NewUserDAO())
-		//createFbTestUsers()
+		core.AddFriendsToFbTestUserOne(server.NewUserDAO())
+		//core.ClearUserAccounts(server.DbSession())
+		//core.CreateFakeUsers(server.NewUserDAO())
 	}*/
 	server.RegisterCallback(proto.M_PING, onPing)
 	server.RegisterCallback(proto.M_PONG, onPong)

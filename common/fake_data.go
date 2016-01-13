@@ -1,5 +1,24 @@
 package common
 
+func AddFriendsToFbTestUserOne(dao UserDAO) {
+
+	user2 := NewUserAccount(15918606642578452, "User 2", "user2@foo.com", "12345", "", "FBID2", "FBTOKEN2")
+	user3 := NewUserAccount(15918606642578453, "User 3", "user3@foo.com", "12345", "", "FBID3", "FBTOKEN3")
+	user4 := NewUserAccount(15918606642578454, "User 4", "user4@foo.com", "12345", "", "", "")
+	user5 := NewUserAccount(15919019823465485, "User 5", "user5@foo.com", "12345", "", "", "")
+	user6 := NewUserAccount(15919019823465496, "User 6", "user6@foo.com", "12345", "", "FBID6", "FBTOKEN6")
+	user7 := NewUserAccount(15919019823465497, "User 7", "user7@foo.com", "12345", "", "FBID7", "FBTOKEN7")
+	user8 := NewUserAccount(15919019823465498, "User 8", "user8@foo.com", "12345", "", "FBID8", "FBTOKEN8")
+
+	dao.AddFriend(23829049541395456, user2.AsFriend(), 0)
+	dao.AddFriend(23829049541395456, user3.AsFriend(), 0)
+	dao.AddFriend(23829049541395456, user4.AsFriend(), 0)
+	dao.AddFriend(23829049541395456, user5.AsFriend(), 0)
+	dao.AddFriend(23829049541395456, user6.AsFriend(), 0)
+	dao.AddFriend(23829049541395456, user7.AsFriend(), 0)
+	dao.AddFriend(23829049541395456, user8.AsFriend(), 0)
+}
+
 func DeleteFakeusers(dao UserDAO) {
 
 	user1 := NewUserAccount(15918606474806281, "User 1", "user1@foo.com", "12345", "", "", "")

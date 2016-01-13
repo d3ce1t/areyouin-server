@@ -228,17 +228,36 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 		return
 	}
 
-	// TODO: Check overlapping with other own published events
-	event := core.CreateNewEvent(server.GetNewID(), author.Id, author.Name, msg.StartDate, msg.EndDate, msg.Message)
+	// Check event creation is inside creation window
+	currentDate := core.UnixMillisToTime(core.GetCurrentTimeSeconds())
+	createdDate := core.UnixMillisToTime(msg.CreatedDate)
 
-	if !event.IsValid() {
-		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_INVALID_INPUT).Marshal())
+	if createdDate.Before(currentDate.Add(-time.Minute)) || createdDate.After(currentDate.Add(time.Minute)) {
+		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_EVENT_OUT_OF_CREATE_WINDOW).Marshal())
+		log.Println("onCreateEvent Failed: Event is out of the allowed creating window")
+		return
+	}
+
+	event := core.CreateNewEvent(server.GetNewID(), author.Id, author.Name, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
+
+	// TODO: Check overlapping with other own published events
+	if _, err := event.IsValid(); err != nil {
+
+		switch err {
+		case core.ErrInvalidStartDate:
+			session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_EVENT_INVALID_START_DATE).Marshal())
+		case core.ErrInvalidEndDate:
+			session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_EVENT_INVALID_END_DATE).Marshal())
+		default:
+			session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_INVALID_INPUT).Marshal())
+		}
+
 		log.Println("onCreateEvent Failed: Event isn't valid")
 		return
 	}
 
 	// Prepare participants
-	participantsList := server.createParticipantsList(author.Id, msg.Participants)
+	participantsList, warning := server.createParticipantsList(author.Id, msg.Participants)
 
 	// Add author as another participant of the event and assume he or she
 	// will assist by default
@@ -258,7 +277,11 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 		}
 
 	} else {
-		session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_EVENT_PARTICIPANTS_REQUIRED).Marshal())
+		if warning == ErrNonFriendsIgnored || warning == ErrUnregisteredFriendsIgnored {
+			session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_INVALID_PARTICIPANT).Marshal())
+		} else {
+			session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_EVENT_PARTICIPANTS_REQUIRED).Marshal())
+		}
 		log.Println("< EVENT CREATION ERROR INVALID PARTICIPANTS")
 	}
 }

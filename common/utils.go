@@ -8,12 +8,24 @@ import (
 	"time"
 )
 
+// Get current time in millis
 func GetCurrentTimeMillis() int64 {
 	return TimeToMillis(time.Now())
 }
 
+// Return current time in millis with seconds precision
+func GetCurrentTimeSeconds() int64 {
+	return TimeToSeconds(time.Now()) * 1000
+}
+
+// Return time as millis
 func TimeToMillis(t time.Time) int64 {
 	return t.UnixNano() / int64(time.Millisecond)
+}
+
+// Return time as seconds
+func TimeToSeconds(t time.Time) int64 {
+	return t.UnixNano() / int64(time.Second)
 }
 
 func UnixMillisToTime(timestamp int64) time.Time {

@@ -13,9 +13,10 @@ import "core.proto";
 // CREATE EVENT
 message CreateEvent {
   string message = 1;
-  int64 start_date = 2;
-  int64 end_date = 3;
-  repeated uint64 participants = 4;
+  int64 created_date = 2;
+  int64 start_date = 3;
+  int64 end_date = 4;
+  repeated uint64 participants = 5;
 }
 
 // CANCEL EVENT
