@@ -7,9 +7,9 @@ import (
 
 const (
 	MIN_DIF_IN_START_DATE = 30 * time.Minute             // 30 minutes
-	MAX_DIF_IN_START_DATE = 7 * 24 * time.Hour           // 1 week
-	MIN_DIF_IN_END_DATE   = 30*time.Minute - time.Second // 30 minutes
-	MAX_DIF_IN_END_DATE   = 24*time.Hour - time.Second   // 1 day
+	MAX_DIF_IN_START_DATE = 365 * 24 * time.Hour         // 1 year
+	MIN_DIF_IN_END_DATE   = 30*time.Minute - time.Second // 30 minutes (from start date)
+	MAX_DIF_IN_END_DATE   = 7*24*time.Hour - time.Second // 1 week (from start date)
 )
 
 var (

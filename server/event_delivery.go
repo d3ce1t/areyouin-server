@@ -41,6 +41,7 @@ func (ds *DeliverySystem) Start() {
 
 func (ds *DeliverySystem) run() (exit bool) {
 
+	// Recover to Panics
 	defer func() {
 		if r := recover(); r != nil {
 			if err, ok := r.(error); ok {
@@ -52,6 +53,7 @@ func (ds *DeliverySystem) run() (exit bool) {
 		exit = false
 	}()
 
+	// Start
 	dao := ds.server.NewEventDAO()
 
 	for {

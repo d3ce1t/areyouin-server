@@ -88,6 +88,8 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	session.WriteReply(reply)
 }
 
+// FIXME: Renew token should also authenticate the user without needing to get the user to call
+// authenticate.
 func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	checkUnauthenticated(session)
