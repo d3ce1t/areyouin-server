@@ -139,7 +139,7 @@ func (task *SendUserFriends) Run(ex *TaskExecutor) {
 	friends, err := dao.LoadFriends(task.UserId, ALL_CONTACTS_GROUP)
 
 	if err != nil {
-		log.Println("NotifyFriendChange Error:", err)
+		log.Println("SendUserFriends Error:", err)
 		return
 	}
 
