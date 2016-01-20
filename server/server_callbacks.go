@@ -253,7 +253,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 			session.WriteReply(proto.NewMessage().Error(packet_type, proto.E_INVALID_INPUT).Marshal())
 		}
 
-		log.Println("onCreateEvent Failed: Event isn't valid")
+		log.Println("onCreateEvent Error:", err)
 		return
 	}
 
