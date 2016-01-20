@@ -5,13 +5,18 @@ import (
 )
 
 type EventDAO interface {
-	Insert(event *Event) (ok bool, err error)
-	//EventHasParticipant(event_id uint64, user_id uint64) bool
+	InsertEventCAS(event *Event) (ok bool, err error)
+	InsertEvent(event *Event) error
+	InsertEventAndParticipants(event *Event) error
+	LoadEvent(event_ids ...uint64) (events []*Event, err error)
+	LoadEventAndParticipants(event_ids ...uint64) (events []*Event, err error)
 	LoadParticipant(event_id uint64, user_id uint64) (*EventParticipant, error)
 	LoadAllParticipants(event_id uint64) ([]*EventParticipant, error)
+	LoadUserInbox(user_id uint64, fromDate int64) ([]uint64, error)
+	LoadUserEvents(user_id uint64, fromDate int64) (events []*Event, err error)
+	LoadUserEventsAndParticipants(user_id uint64, fromDate int64) ([]*Event, error)
 	AddOrUpdateParticipants(event_id uint64, participantList []*EventParticipant) error
 	AddEventToUserInbox(user_id uint64, event *Event, response AttendanceResponse) error
-	LoadUserEvents(user_id uint64, fromDate int64) (events []*Event, err error)
 	CompareAndSetNumGuests(event_id uint64, num_guests int32) (bool, error)
 	SetNumGuests(event_id uint64, num_guests int32) error
 	CompareAndSetNumAttendees(event_id uint64, num_attendees int) (bool, error)

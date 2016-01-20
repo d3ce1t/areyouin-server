@@ -29,6 +29,7 @@ message Event {
   int32 num_attendees = 9;
   int32 num_guests = 10;
   int64 created_date = 11;
+  repeated EventParticipant participants = 12;
 }
 
 message Location {

@@ -20,7 +20,7 @@ func NewEventDAO(session *gocql.Session) core.EventDAO {
 	return &EventDAO{session: session}
 }
 
-func (dao *EventDAO) Insert(event *core.Event) (ok bool, err error) {
+func (dao *EventDAO) InsertEventCAS(event *core.Event) (bool, error) {
 
 	dao.checkSession()
 
@@ -36,20 +36,44 @@ func (dao *EventDAO) Insert(event *core.Event) (ok bool, err error) {
 	return q.ScanCAS(nil)
 }
 
-// FIXME: There is no different between error and not found
-/*func (dao *EventDAO) EventHasParticipant(event_id uint64, user_id uint64) bool {
+func (dao *EventDAO) InsertEvent(event *core.Event) error {
 
-	stmt := `SELECT event_id FROM event_participants
-		WHERE event_id = ? AND user_id = ? LIMIT 1`
+	dao.checkSession()
 
-	exists := false
+	stmt := `INSERT INTO event (event_id, author_id, author_name, message, start_date,
+		end_date, public, num_attendees, num_guests, created_date)
+	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-	if err := dao.session.Query(stmt, event_id, user_id).Scan(nil); err == nil {
-		exists = true
+	q := dao.session.Query(stmt,
+		event.EventId, event.AuthorId, event.AuthorName, event.Message, event.StartDate,
+		event.EndDate, event.IsPublic, event.NumAttendees, event.NumGuests, event.CreatedDate)
+
+	return q.Exec()
+}
+
+func (dao *EventDAO) InsertEventAndParticipants(event *core.Event) error {
+
+	dao.checkSession()
+
+	stmt_event := `INSERT INTO event (event_id, author_id, author_name, message, start_date,
+		end_date, public, num_attendees, num_guests, created_date)
+	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	stmt_participant := `INSERT INTO event (event_id, guest_id, guest_name, guest_response, guest_status)
+			VALUES (?, ?, ?, ?, ?)`
+
+	batch := dao.session.NewBatch(gocql.UnloggedBatch) // Use unlogged batches when making updates to the same partition key.
+
+	batch.Query(stmt_event, event.EventId, event.AuthorId, event.AuthorName, event.Message, event.StartDate,
+		event.EndDate, event.IsPublic, event.NumAttendees, event.NumGuests, event.CreatedDate)
+
+	for _, participant := range event.Participants {
+		batch.Query(stmt_participant, event.EventId, participant.UserId, participant.Name,
+			participant.Response, participant.Delivered)
 	}
 
-	return exists
-}*/
+	return dao.session.ExecuteBatch(batch)
+}
 
 // Load the participant of an event and returns it. If not found returns a nil participant
 // and error. Whatever else returns (nil, error)
@@ -57,8 +81,8 @@ func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*core.Eve
 
 	dao.checkSession()
 
-	stmt := `SELECT name, response, status FROM event_participants
-		WHERE event_id = ? AND user_id = ? LIMIT 1`
+	stmt := `SELECT guest_name, guest_response, guest_status FROM event
+		WHERE event_id = ? AND guest_id = ? LIMIT 1`
 
 	q := dao.session.Query(stmt, event_id, user_id)
 
@@ -86,7 +110,7 @@ func (dao *EventDAO) LoadAllParticipants(event_id uint64) ([]*core.EventParticip
 
 	dao.checkSession()
 
-	stmt := `SELECT user_id, name, response, status FROM event_participants
+	stmt := `SELECT guest_id, guest_name, guest_response, guest_status FROM event
 		WHERE event_id = ? LIMIT ?`
 
 	iter := dao.session.Query(stmt, event_id, MAX_NUM_GUESTS).Iter()
@@ -124,7 +148,7 @@ func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *core.E
 
 	dao.checkSession()
 
-	stmt := `INSERT INTO event_participants (event_id, user_id, name, response, status)
+	stmt := `INSERT INTO event (event_id, guest_id, guest_name, guest_response, guest_status)
 		VALUES (?, ?, ?, ?, ?)`
 
 	q := dao.session.Query(stmt, event_id, participant.UserId, participant.Name,
@@ -137,7 +161,7 @@ func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []
 
 	dao.checkSession()
 
-	stmt := `INSERT INTO event_participants (event_id, user_id, name, response, status)
+	stmt := `INSERT INTO event (event_id, guest_id, guest_name, guest_response, guest_status)
 		VALUES (?, ?, ?, ?, ?)`
 
 	batch := dao.session.NewBatch(gocql.UnloggedBatch) // Use unlogged batches when making updates to the same partition key.
@@ -162,18 +186,13 @@ func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event, resp
 	return q.Exec()
 }
 
-// FIXME: Each event of event table is in its own partition, classify events by date
-// or something in order to improve read performance.
-// TODO: Split in two functions
-func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*core.Event, err error) {
+func (dao *EventDAO) LoadUserInbox(user_id uint64, fromDate int64) ([]uint64, error) {
 
-	dao.checkSession()
-
-	// First read events from user_events to get the IDs
 	stmt := `SELECT event_id FROM user_events
 		WHERE user_id = ? AND end_date >= ?`
+
 	iter := dao.session.Query(stmt, user_id, fromDate).Iter()
-	event_id_list := make([]interface{}, 0, 20)
+	event_id_list := make([]uint64, 0, 20)
 	var event_id uint64
 
 	for iter.Scan(&event_id) {
@@ -181,33 +200,58 @@ func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*c
 	}
 
 	if err := iter.Close(); err != nil {
-		log.Println("LoadUserEvents 1 (", user_id, "):", err)
+		log.Println("LoadUserInbox Error (user", user_id, "):", err)
 		return nil, err
 	}
 
-	// Read from event table to get the actual info
-	events = make([]*core.Event, 0, len(event_id_list))
+	if len(event_id_list) == 0 {
+		return nil, ErrEmptyInbox
+	}
 
-	if len(event_id_list) > 0 {
+	return event_id_list, nil
+}
 
-		stmt = `SELECT event_id, author_id, author_name, message, start_date, end_date, num_attendees, num_guests, created_date
-						FROM event WHERE event_id IN (` + GenParams(len(event_id_list)) + `)`
+// Read one or more events and their participants. Event info and participants are in the
+// same partition
+func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*core.Event, err error) {
 
-		iter = dao.session.Query(stmt, event_id_list...).Iter()
+	if event_ids == nil || len(event_ids) == 0 {
+		return nil, ErrInvalidArg
+	}
 
-		var author_id uint64
-		var author_name string
-		var message string
-		var start_date int64
-		var end_date int64
-		var num_attendees int32
-		var num_guests int32
-		var created_date int64
+	events = make([]*core.Event, 0, len(event_ids))
 
-		for iter.Scan(&event_id, &author_id, &author_name, &message, &start_date, &end_date,
-			&num_attendees, &num_guests, &created_date) {
+	stmt := `SELECT event_id, author_id, author_name, message, created_date, start_date,
+									end_date, num_attendees, num_guests, guest_id, guest_name,
+									guest_response, guest_status
+						FROM event WHERE event_id IN (` + GenParams(len(event_ids)) + `)`
 
-			events = append(events, &core.Event{
+	values := GenValues(event_ids)
+	iter := dao.session.Query(stmt, values...).Iter()
+
+	var event_id uint64
+	var author_id uint64
+	var author_name string
+	var message string
+	var created_date int64
+	var start_date int64
+	var end_date int64
+	var num_attendees int32
+	var num_guests int32
+	var guest_id uint64
+	var guest_name string
+	var guest_response, guest_status int32
+
+	events_index := make(map[uint64]*core.Event)
+
+	// Except guest attributes, all of the attributes are STATIC in cassandra
+	for iter.Scan(&event_id, &author_id, &author_name, &message, &created_date, &start_date,
+		&end_date, &num_attendees, &num_guests, &guest_id, &guest_name, &guest_response, &guest_status) {
+
+		event, ok := events_index[event_id]
+
+		if !ok {
+			event = &core.Event{
 				EventId:      event_id,
 				AuthorId:     author_id,
 				AuthorName:   author_name,
@@ -218,13 +262,130 @@ func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) (events []*c
 				NumAttendees: num_attendees,
 				NumGuests:    num_guests,
 				CreatedDate:  created_date,
-			})
+			}
+
+			events_index[event_id] = event
+			events = append(events, event)
 		}
 
-		if err := iter.Close(); err != nil {
-			log.Println("LoadUserEvents 2 (", user_id, "):", err)
-			return nil, err
+		guest := &core.EventParticipant{
+			UserId:    guest_id,
+			Name:      guest_name,
+			Response:  core.AttendanceResponse(guest_response),
+			Delivered: core.MessageStatus(guest_status),
 		}
+
+		event.Participants = append(event.Participants, guest)
+	}
+
+	if err := iter.Close(); err != nil {
+		log.Println("LoadEventAndParticipants Error:", err)
+		return nil, err
+	}
+
+	return events, nil
+}
+
+// Read one or more events and their participants. Event info and participants are in the
+// same partition
+func (dao *EventDAO) LoadEvent(event_ids ...uint64) (events []*core.Event, err error) {
+
+	if event_ids == nil || len(event_ids) == 0 {
+		return nil, ErrInvalidArg
+	}
+
+	events = make([]*core.Event, 0, len(event_ids))
+
+	stmt := `SELECT DISTINCT event_id, author_id, author_name, message, created_date, start_date,
+									end_date, num_attendees, num_guests
+						FROM event WHERE event_id IN (` + GenParams(len(event_ids)) + `)`
+
+	values := GenValues(event_ids)
+	iter := dao.session.Query(stmt, values...).Iter()
+
+	var event_id uint64
+	var author_id uint64
+	var author_name string
+	var message string
+	var created_date int64
+	var start_date int64
+	var end_date int64
+	var num_attendees int32
+	var num_guests int32
+
+	// Except guest attributes, all of the attributes are STATIC in cassandra
+	for iter.Scan(&event_id, &author_id, &author_name, &message, &created_date, &start_date,
+		&end_date, &num_attendees, &num_guests) {
+
+		event := &core.Event{
+			EventId:      event_id,
+			AuthorId:     author_id,
+			AuthorName:   author_name,
+			StartDate:    start_date,
+			EndDate:      end_date,
+			Message:      message,
+			IsPublic:     false,
+			NumAttendees: num_attendees,
+			NumGuests:    num_guests,
+			CreatedDate:  created_date,
+		}
+
+		events = append(events, event)
+	}
+
+	if err := iter.Close(); err != nil {
+		log.Println("LoadEvent Error:", err)
+		return nil, err
+	}
+
+	return events, nil
+}
+
+// FIXME: Each event of event table is in its own partition, classify events by date
+// or something in order to improve read performance.
+func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) ([]*core.Event, error) {
+
+	dao.checkSession()
+
+	// Get index of events
+	event_id_list, err := dao.LoadUserInbox(user_id, fromDate)
+
+	if err != nil {
+		log.Println("LoadUserEvents 1 (", user_id, "):", err)
+		return nil, err
+	}
+
+	// Read from event table to get the actual info
+	events, err := dao.LoadEvent(event_id_list...)
+
+	if err != nil {
+		log.Println("LoadUserEvents 2 (", user_id, "):", err)
+		return nil, err
+	}
+
+	return events, nil
+}
+
+// FIXME: Each event of event table is in its own partition, classify events by date
+// or something in order to improve read performance.
+func (dao *EventDAO) LoadUserEventsAndParticipants(user_id uint64, fromDate int64) ([]*core.Event, error) {
+
+	dao.checkSession()
+
+	// Get index of events
+	event_id_list, err := dao.LoadUserInbox(user_id, fromDate)
+
+	if err != nil {
+		log.Println("LoadUserEventsAndParticipants 1 (", user_id, "):", err)
+		return nil, err
+	}
+
+	// Read from event table to get the actual info
+	events, err := dao.LoadEventAndParticipants(event_id_list...)
+
+	if err != nil {
+		log.Println("LoadUserEventsAndParticipants 2 (", user_id, "):", err)
+		return nil, err
 	}
 
 	return events, nil
@@ -296,7 +457,7 @@ func (dao *EventDAO) SetParticipantStatus(user_id uint64, event_id uint64, statu
 
 	dao.checkSession()
 
-	stmt := `UPDATE event_participants SET status = ? WHERE event_id = ? AND user_id = ?`
+	stmt := `UPDATE event SET guest_status = ? WHERE event_id = ? AND guest_id = ?`
 	q := dao.session.Query(stmt, status, event_id, user_id)
 	return q.Exec()
 }
@@ -305,7 +466,7 @@ func (dao *EventDAO) SetParticipantResponse(user_id uint64, event_id uint64, res
 
 	dao.checkSession()
 
-	stmt := `UPDATE event_participants SET response = ? WHERE event_id = ? AND user_id = ?`
+	stmt := `UPDATE event SET guest_response = ? WHERE event_id = ? AND guest_id = ?`
 	q := dao.session.Query(stmt, response, event_id, user_id)
 	return q.Exec()
 }
@@ -315,6 +476,17 @@ func GenParams(size int) string {
 	for i := 1; i < size; i++ {
 		result += ", ?"
 	}
+	return result
+}
+
+func GenValues(values []uint64) []interface{} {
+
+	result := make([]interface{}, 0, len(values))
+
+	for _, val := range values {
+		result = append(result, val)
+	}
+
 	return result
 }
 

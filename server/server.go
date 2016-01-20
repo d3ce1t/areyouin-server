@@ -16,7 +16,6 @@ import (
 
 const (
 	ALL_CONTACTS_GROUP = 0 // Id for the main friend group of a user
-	MAX_WRITE_TIMEOUT  = 15 * time.Second
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 	MAX_IDLE_TIME    = 30 * time.Minute // 30m
 	MAX_LOGIN_TIME   = 30 * time.Second // 30s
@@ -372,9 +371,10 @@ func (s *Server) PublishEvent(event *core.Event, participants []*core.EventParti
 		// EventID (primary key) is unique if, and only if, IDGen ID do not overlap with
 		// others IDGen running concurrently. In other words, if each IDGen produces keys
 		// of its assigned space, then EventID is unique.
-		if ok, err := dao.Insert(event); ok {
+		if ok, err := dao.InsertEventCAS(event); ok {
 			if err := dao.AddOrUpdateParticipants(event.EventId, participants); err == nil {
 				event.NumGuests = int32(len(participants))
+				// Should use Compare-and-set version of SetNumGuests
 				if err := dao.SetNumGuests(event.EventId, event.NumGuests); err != nil {
 					log.Println("PublishEvent", err)
 				}
@@ -438,11 +438,26 @@ func sendPrivateEvents(session *AyiSession) {
 
 	server := session.Server
 	dao := server.NewEventDAO()
-	events, err := dao.LoadUserEvents(session.UserId, core.GetCurrentTimeMillis())
+	events, err := dao.LoadUserEventsAndParticipants(session.UserId, core.GetCurrentTimeMillis())
 
 	if err != nil {
 		log.Println("sendPrivateEvents()", err)
 		return
+	}
+
+	// For compatibility, split events in event info and participants
+	participants_map := make(map[uint64][]*core.EventParticipant)
+	client_status_map := make(map[uint64]*core.EventParticipant)
+
+	for _, event := range events {
+		participants_map[event.EventId] = event.Participants
+		for _, p := range event.Participants {
+			if p.UserId == session.UserId {
+				client_status_map[event.EventId] = p
+				break
+			}
+		}
+		event.Participants = nil
 	}
 
 	if len(events) > 0 {
@@ -454,8 +469,8 @@ func sendPrivateEvents(session *AyiSession) {
 		// Send participants info of each event, update participant status as delivered and notify
 		for _, event := range events {
 
-			participant, _ := dao.LoadParticipant(event.EventId, session.UserId)
-			event_participants, _ := dao.LoadAllParticipants(event.EventId)
+			participant := client_status_map[event.EventId]
+			event_participants, _ := participants_map[event.EventId]
 			participants_filtered := session.Server.filterParticipants(session.UserId, event_participants)
 
 			// Send attendance info
@@ -465,7 +480,7 @@ func sendPrivateEvents(session *AyiSession) {
 			// Update participant status
 			if participant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
 
-				dao.SetParticipantStatus(session.UserId, event.EventId, core.MessageStatus_CLIENT_DELIVERED) //FIXME: Probably could do so in only one operation
+				dao.SetParticipantStatus(session.UserId, event.EventId, core.MessageStatus_CLIENT_DELIVERED) //FIXME: Probably could do it in only one operation
 
 				// Notify change in participant status to the other participants
 				task := &NotifyParticipantChange{
@@ -547,7 +562,7 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 
 func main() {
 
-	server := NewServer() // Server is global
+	server := NewTestServer() // Server is global
 	//createFbTestUsers()
 	/*if server.DbSession() != nil {
 		core.AddFriendsToFbTestUserOne(server.NewUserDAO())

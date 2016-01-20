@@ -90,12 +90,7 @@ func (s *AyiSession) SendPing() {
 }
 
 func (s *AyiSession) WriteReply(reply []byte) error {
-	client := s.Conn
-	client.SetWriteDeadline(time.Now().Add(MAX_WRITE_TIMEOUT))
-	_, err := client.Write(reply)
-	if err != nil {
-		log.Println("Coudn't send reply: ", err)
-	}
+	_, err := proto.WriteBytes(reply, s.Conn)
 	return err
 }
 

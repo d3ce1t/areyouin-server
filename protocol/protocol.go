@@ -5,6 +5,11 @@ import (
 	"io"
 	"net"
 	"syscall"
+	"time"
+)
+
+const (
+	MAX_WRITE_TIMEOUT = 15 * time.Second
 )
 
 func NewMessage() *MessageBuilder {
@@ -33,6 +38,22 @@ func getError(err error) (protoerror error) {
 	}
 
 	return
+}
+
+func WriteBytes(data []byte, conn net.Conn) (int, error) {
+
+	if conn == nil {
+		return -1, ErrInvalidSocket
+	}
+
+	conn.SetWriteDeadline(time.Now().Add(MAX_WRITE_TIMEOUT))
+	n, err := conn.Write(data)
+
+	if err != nil {
+		return n, getError(err)
+	}
+
+	return n, err
 }
 
 // Reads a message from an io.Reader

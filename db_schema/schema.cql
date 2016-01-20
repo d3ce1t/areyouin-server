@@ -72,30 +72,26 @@ AND CLUSTERING ORDER BY (end_date ASC, event_id ASC);
 // TODO: Study event partitions by date
 DROP TABLE IF EXISTS event;
 CREATE TABLE event (
+	// Partition Key
 	event_id bigint,
-	author_id bigint,
-	author_name text, // STATIC,
-	message text,
-	start_date timestamp,
-	end_date timestamp,
-	public boolean,
-	latitude float,
-	longitude float,
-	num_attendees int, // maybe use a counter?
-	num_guests int,
-	created_date timestamp,
-	PRIMARY KEY (event_id) // removed author_id as partition key
+	// Event Info
+	author_id bigint STATIC,
+	author_name text STATIC,
+	message text STATIC,
+  created_date timestamp STATIC,
+	start_date timestamp STATIC,
+	end_date timestamp STATIC,
+	public boolean STATIC,
+	latitude float STATIC,
+	longitude float STATIC,
+	num_attendees int STATIC, // maybe use a counter?
+	num_guests int STATIC,
+	// Participants
+	guest_id bigint,
+	guest_name text, // participant name
+	guest_response int, // 0) no response, 1) no assist, 2) cannot assist, 3) assist
+	guest_status int, // 0) no delivered, 1) server, 2) client
+	PRIMARY KEY (event_id, guest_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 //AND CLUSTERING ORDER BY (event_id DESC);
-
-DROP TABLE IF EXISTS event_participants;
-CREATE TABLE event_participants (
-	event_id bigint,
-	user_id bigint,
-	name text, // participant name
-	response int, // 0) no response, 1) no assist, 2) cannot assist, 3) assist
-	status int, // 0) no delivered, 1) server, 2) client
-	PRIMARY KEY (event_id, user_id)
-)
-WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};

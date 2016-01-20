@@ -363,6 +363,7 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 	batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email)
 	batch.Query(`DELETE FROM user_account WHERE user_id = ?`, user.Id)
 	batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`, user.Id, 0)
+	// FIXME: I should also delete this user to all of their friends
 
 	if user.HasFacebookCredentials() {
 		batch.Query(`DELETE FROM user_facebook_credentials WHERE fb_id = ?`, user.Fbid)

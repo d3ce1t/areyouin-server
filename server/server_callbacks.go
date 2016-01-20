@@ -242,7 +242,6 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 
 	event := core.CreateNewEvent(server.GetNewID(), author.Id, author.Name, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
 
-	// TODO: Check overlapping with other own published events
 	if _, err := event.IsValid(); err != nil {
 
 		switch err {
