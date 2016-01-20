@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	core "peeple/areyouin/common"
 	proto "peeple/areyouin/protocol"
 	"time"
 )
@@ -99,4 +100,11 @@ func (s *AyiSession) Close() {
 	s.IsAuth = false
 	s.UserId = 0
 	s.Conn.Close()
+}
+
+func (s *AyiSession) updateLastConnection() {
+	if s.IsAuth {
+		last_connection := core.GetCurrentTimeMillis()
+		s.Server.NewUserDAO().SetLastConnection(s.UserId, last_connection)
+	}
 }

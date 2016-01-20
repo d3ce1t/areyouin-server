@@ -169,7 +169,7 @@ func (s *Server) handleSession(session *AyiSession) {
 	// Defer session close
 	defer func() {
 
-		defer func() { // SetLastConnection may also panic
+		defer func() { // updateLastconnection may also panic
 			if r := recover(); r != nil {
 				log.Printf("Session %v Defer Panic: %v\n", session, r)
 			}
@@ -180,10 +180,8 @@ func (s *Server) handleSession(session *AyiSession) {
 		if r := recover(); r != nil {
 			log.Printf("Session %v Panic: %v\n", session, r)
 		}
-		if session.IsAuth {
-			last_connection := core.GetCurrentTimeMillis()
-			session.Server.NewUserDAO().SetLastConnection(session.UserId, last_connection)
-		}
+
+		session.updateLastConnection()
 	}()
 
 	log.Println("New connection from", session)

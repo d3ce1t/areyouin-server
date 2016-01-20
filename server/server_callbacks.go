@@ -203,6 +203,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 		session.IsAuth = true
 		session.UserId = user_id
 		server.RegisterSession(session)
+		session.updateLastConnection()
 		session.WriteReply(proto.NewMessage().Ok(packet_type).Marshal())
 		log.Println("< AUTH OK")
 		server.task_executor.Submit(&SendUserFriends{UserId: user_id})
