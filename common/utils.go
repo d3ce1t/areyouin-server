@@ -43,7 +43,7 @@ func ClearUserAccounts(session *gocql.Session) {
 
 func ClearEvents(session *gocql.Session) {
 	session.Query(`TRUNCATE event`).Exec()
-	session.Query(`TRUNCATE event_participants`).Exec()
+	//session.Query(`TRUNCATE event_participants`).Exec()
 	session.Query(`TRUNCATE user_events`).Exec()
 }
 
@@ -65,6 +65,10 @@ func CreateParticipantsFromFriends(author_id uint64, friends []*Friend) []*Event
 
 	return result
 }
+
+/*func Log(message string) {
+	fmt.Println(message)
+}*/
 
 func NewRandomSalt32() (salt [32]byte, err error) {
 	_, err = rand.Read(salt[:])

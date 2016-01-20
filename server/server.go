@@ -180,8 +180,10 @@ func (s *Server) handleSession(session *AyiSession) {
 		if r := recover(); r != nil {
 			log.Printf("Session %v Panic: %v\n", session, r)
 		}
-		last_connection := core.GetCurrentTimeMillis()
-		session.Server.NewUserDAO().SetLastConnection(session.UserId, last_connection)
+		if session.IsAuth {
+			last_connection := core.GetCurrentTimeMillis()
+			session.Server.NewUserDAO().SetLastConnection(session.UserId, last_connection)
+		}
 	}()
 
 	log.Println("New connection from", session)
