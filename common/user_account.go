@@ -1,11 +1,19 @@
 package common
 
 import (
+	"errors"
 	"github.com/twinj/uuid"
 	"regexp"
 )
 
 var validEmail = regexp.MustCompile(`\w[-._\w]*\w@\w[-._\w]*\w\.\w{2,3}`)
+
+var (
+	ErrInvalidEmail    = errors.New("invalid e-mail address")
+	ErrInvalidName     = errors.New("invalid user name")
+	ErrInvalidPassword = errors.New("password is too short")
+	ErrNoCredentials   = errors.New("no credentials")
+)
 
 func NewEmptyUserAccount() *UserAccount {
 	user := &UserAccount{}
@@ -29,23 +37,36 @@ func NewUserAccount(id uint64, name string, email string, password string, phone
 	return user
 }
 
-func (user *UserAccount) IsValid() bool {
+// A valid user account always has an id, name and email, and at least one
+// credential method, namely e-mail and password. or facebook
+func (user *UserAccount) IsValid() (bool, error) {
 
-	// A valid user account always has an id, name and email
-	if user.Id == 0 || len(user.Name) < 3 || user.Email == "" || !IsValidEmail(user.Email) {
-		return false
+	if user.Id == 0 || len(user.Name) < 3 {
+		return false, ErrInvalidName
+	}
+
+	if user.Email == "" || !IsValidEmail(user.Email) {
+		return false, ErrInvalidEmail
 	}
 
 	// Check if there is at least one credential
-	valid := false
+	exist_credential := false
 
-	if user.Password == "" {
-		valid = user.HasFacebookCredentials()
+	if user.Password != "" {
+		if len(user.Password) < 5 {
+			return false, ErrInvalidPassword
+		} else {
+			exist_credential = true
+		}
 	} else {
-		valid = len(user.Password) >= 5
+		exist_credential = user.HasFacebookCredentials()
 	}
 
-	return valid
+	if !exist_credential {
+		return false, ErrNoCredentials
+	}
+
+	return true, nil
 }
 
 func IsValidEmail(email string) bool {

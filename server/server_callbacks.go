@@ -26,9 +26,21 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	user := core.NewUserAccount(server.GetNewID(), msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
 
 	// Check if its a valid user, so the input was correct
-	if !user.IsValid() {
-		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_INVALID_INPUT).Marshal())
-		log.Println("< CREATE ACCOUNT INVALID USER")
+	if valid, err := user.IsValid(); !valid {
+
+		var error_code int32
+
+		switch err {
+		case core.ErrInvalidEmail:
+			error_code = proto.E_INPUT_INVALID_EMAIL_ADDRESS
+		case core.ErrInvalidName:
+			error_code = proto.E_INPUT_INVALID_USER_NAME
+		default:
+			error_code = proto.E_INVALID_INPUT
+		}
+
+		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, error_code).Marshal())
+		log.Println("< CREATE ACCOUNT INVALID USER (", err, ")")
 		return
 	}
 

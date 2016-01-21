@@ -157,8 +157,10 @@ func (shell *Shell) showUser(args []string) {
 	user, err := dao.Load(user_id)
 	manageShellError(err)
 
+	valid_user, _ := user.IsValid()
+
 	fmt.Println("---------------------------------")
-	fmt.Printf("User details (%v)\n", user.IsValid())
+	fmt.Printf("User details (%v)\n", valid_user)
 	fmt.Println("---------------------------------")
 	fmt.Println("UserID:", user.Id)
 	fmt.Println("Name:", user.Name)

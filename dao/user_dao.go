@@ -355,8 +355,8 @@ func (dao *UserDAO) Insert(user *core.UserAccount) error {
 	dao.checkSession()
 
 	// Check if user account has a valid ID and email or fb credentials
-	if !user.IsValid() {
-		return ErrInvalidUser
+	if valid, err := user.IsValid(); !valid {
+		return err
 	}
 
 	// First insert into E-mail credentials to ensure there is no one using the same
