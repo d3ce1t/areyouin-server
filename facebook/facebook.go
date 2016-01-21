@@ -49,10 +49,9 @@ func CheckAccess(id string, session *fb.Session) (*FacebookAccount, error) {
 		return nil, ErrMissingFields
 	}
 
+	// If there isn't e-mail, then do not give an error
 	if email, ok := res["email"]; ok {
 		account.Email = email.(string)
-	} else {
-		return nil, ErrMissingFields
 	}
 
 	// Check

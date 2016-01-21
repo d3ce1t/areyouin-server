@@ -38,8 +38,11 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	dao := server.NewUserDAO()
 
 	// Check if user exists and performs some sanity of data if needed
-	if exists, _ := dao.ExistWithSanity(user); exists {
+	if exists, err := dao.ExistWithSanity(user); exists {
 		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_EMAIL_EXISTS).Marshal())
+		return
+	} else if err != nil { // If an error happen, assume it may exist so, cancel operation
+		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_OPERATION_FAILED).Marshal())
 		return
 	}
 
@@ -50,12 +53,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 
 		fbsession := fb.NewSession(user.Fbtoken)
 
-		if fbaccount, err := fb.CheckAccess(user.Fbid, fbsession); err == nil {
-			// Trust on Facebook e-mail verification
-			if user.Email == fbaccount.Email {
-				user.EmailVerified = true
-			}
-		} else {
+		if _, err := fb.CheckAccess(user.Fbid, fbsession); err != nil {
 			reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_FB_INVALID_ACCESS).Marshal()
 			session.WriteReply(reply)
 			fb.LogError(err)

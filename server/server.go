@@ -23,13 +23,26 @@ const (
 )
 
 func NewServer() *Server {
-	server := &Server{Keyspace: "areyouin"}
+	server := &Server{
+		DbAddress: "192.168.1.2",
+		Keyspace:  "areyouin",
+	}
 	server.init()
 	return server
 }
 
 func NewTestServer() *Server {
-	server := &Server{Keyspace: "areyouin_demo"}
+
+	fmt.Println("---------------------------------------!")
+	fmt.Println("! WARNING WARNING WARNING              !")
+	fmt.Println("! You have started a testing server    !")
+	fmt.Println("! WARNING WARNING WARNING              !")
+	fmt.Println("----------------------------------------")
+
+	server := &Server{
+		DbAddress: "192.168.1.10",
+		Keyspace:  "areyouin",
+	}
 	server.init()
 	return server
 }
@@ -47,6 +60,7 @@ type Server struct {
 	dbsession     *gocql.Session
 	Keyspace      string
 	webhook       *wh.WebHookServer
+	DbAddress     string
 }
 
 func (s *Server) DbSession() *gocql.Session {
@@ -65,7 +79,7 @@ func (s *Server) init() {
 	go s.generatorTask(1)
 
 	// Connect to Cassandra
-	s.cluster = gocql.NewCluster("192.168.1.2" /*"192.168.1.3"*/)
+	s.cluster = gocql.NewCluster(s.DbAddress /*"192.168.1.3"*/)
 	s.cluster.Keyspace = s.Keyspace
 	s.cluster.Consistency = gocql.LocalQuorum
 	s.connectToDB()
@@ -157,10 +171,6 @@ func (s *Server) NewEventDAO() core.EventDAO {
 		s.connectToDB()
 	}
 	return dao.NewEventDAO(s.dbsession)
-}
-
-func (s *Server) AddFriend(user_id uint64, friend *core.Friend) error {
-	return dao.NewUserDAO(s.dbsession).AddFriend(user_id, friend, ALL_CONTACTS_GROUP)
 }
 
 // Private methods
@@ -562,6 +572,7 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 
 func main() {
 
+	//server := NewTestServer()
 	server := NewServer() // Server is global
 	//createFbTestUsers()
 	/*if server.DbSession() != nil {
