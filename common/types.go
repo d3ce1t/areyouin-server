@@ -36,16 +36,20 @@ type UserDAO interface {
 	GetIDByEmail(email string) (uint64, error)
 	GetIDByFacebookID(fb_id string) (uint64, error)
 	Exists(user_id uint64) (bool, error)
+	MakeFriends(user1 *Friend, user2 *Friend) error
+	AreFriends(user_id uint64, other_user_id uint64) (bool, error)
+	Insert(user *UserAccount) error
+	AddFriend(user_id uint64, friend *Friend, group_id int32) error
 	Load(user_id uint64) (*UserAccount, error)
 	LoadByEmail(email string) (*UserAccount, error)
-	Insert(user *UserAccount) error
-	Delete(user *UserAccount) error
-	DeleteEmailCredentials(email string) error
-	DeleteFacebookCredentials(fb_id string) error
-	MakeFriends(user1 *Friend, user2 *Friend) error
-	AddFriend(user_id uint64, friend *Friend, group_id int32) error
-	DeleteFriendsGroup(user_id uint64, group_id int32) error
+	LoadAllUsers() ([]*UserAccount, error)
 	LoadFriends(user_id uint64, group_id int32) ([]*Friend, error)
 	LoadFriendsIndex(user_id uint64, group_id int32) (map[uint64]*Friend, error)
-	AreFriends(user_id uint64, other_user_id uint64) (bool, error)
+	LoadEmailCredential(email string) (credent *EmailCredential, err error)
+	LoadFacebookCredential(fbid string) (credent *FacebookCredential, err error)
+	Delete(user *UserAccount) error
+	DeleteUserAccount(user_id uint64) error
+	DeleteEmailCredentials(email string) error
+	DeleteFacebookCredentials(fb_id string) error
+	DeleteFriendsGroup(user_id uint64, group_id int32) error
 }

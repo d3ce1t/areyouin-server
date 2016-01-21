@@ -19,6 +19,59 @@ func NewUserDAO(session *gocql.Session) core.UserDAO {
 	return &UserDAO{session: session}
 }
 
+func (dao *UserDAO) LoadEmailCredential(email string) (credent *core.EmailCredential, err error) {
+
+	dao.checkSession()
+
+	if email == "" {
+		return nil, ErrInvalidEmail
+	}
+
+	stmt := `SELECT password, salt, user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
+	q := dao.session.Query(stmt, email)
+
+	var pass_slice, salt_slice []byte
+	var uid uint64
+
+	// FIXME: Scan doesn't work with array[:] notation
+	if err = q.Scan(&pass_slice, &salt_slice, &uid); err == nil {
+
+		credent = &core.EmailCredential{
+			Email:  email,
+			UserId: uid,
+		}
+
+		// HACK: Copy slices to vectors
+		copy(credent.Password[:], pass_slice)
+		copy(credent.Salt[:], salt_slice)
+		// --- End Hack ---
+	}
+
+	return
+}
+
+func (dao *UserDAO) LoadFacebookCredential(fbid string) (credent *core.FacebookCredential, err error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT fb_token, user_id FROM user_facebook_credentials WHERE fb_id = ? LIMIT 1`
+	q := dao.session.Query(stmt, fbid)
+
+	var fb_token string
+	var uid uint64
+
+	if err = q.Scan(&fb_token, &uid); err == nil {
+
+		credent = &core.FacebookCredential{
+			Fbid:    fbid,
+			Fbtoken: fb_token,
+			UserId:  uid,
+		}
+	}
+
+	return
+}
+
 /*
 	Check if exists an user with given e-mail and password. Returns user id if
 	exists or 0 if doesn't exist.
@@ -103,8 +156,8 @@ func (dao *UserDAO) SetFacebookAccessToken(user_id uint64, fb_id string, fb_toke
 	batch.Query(`UPDATE user_facebook_credentials SET fb_token = ? WHERE fb_id = ?`,
 		fb_token, fb_id)
 
-	batch.Query(`UPDATE user_account SET fb_token = ? WHERE user_id = ?`,
-		fb_token, user_id)
+	batch.Query(`UPDATE user_account SET fb_id = ?, fb_token = ? WHERE user_id = ?`,
+		fb_id, fb_token, user_id)
 
 	return dao.session.ExecuteBatch(batch)
 }
@@ -118,12 +171,14 @@ func (dao *UserDAO) SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID,
 	batch.Query(`UPDATE user_facebook_credentials SET fb_token = ? WHERE fb_id = ?`,
 		fb_token, fb_id)
 
-	batch.Query(`UPDATE user_account SET auth_token = ?, fb_token = ? WHERE user_id = ?`,
-		auth_token.String(), fb_token, user_id)
+	batch.Query(`UPDATE user_account SET auth_token = ?, fb_id = ?, fb_token = ? WHERE user_id = ?`,
+		auth_token.String(), fb_id, fb_token, user_id)
 
 	return dao.session.ExecuteBatch(batch)
 }
 
+// Returns an user id corresponding to the given e-mail. If it doesn't exist
+// or un error happens, returns (0, error).
 func (dao *UserDAO) GetIDByEmail(email string) (uint64, error) {
 
 	dao.checkSession()
@@ -152,6 +207,8 @@ func (dao *UserDAO) GetIDByFacebookID(fb_id string) (uint64, error) {
 	return user_id, nil
 }
 
+// Check if a user exists. Returns true if exists and false if it doesn't.
+// If an error happend returns (false, error)
 func (dao *UserDAO) Exists(user_id uint64) (bool, error) {
 
 	dao.checkSession()
@@ -159,10 +216,96 @@ func (dao *UserDAO) Exists(user_id uint64) (bool, error) {
 	stmt := `SELECT user_id FROM user_account WHERE user_id = ? LIMIT 1`
 
 	if err := dao.session.Query(stmt, user_id).Scan(nil); err != nil {
-		return false, err
+		if err == ErrNotFound {
+			return false, nil
+		} else {
+			return false, err
+		}
 	}
 
 	return true, nil
+}
+
+// Check if user exists. If user e-mail exists may be orphan due to the way users are
+// inserted into cassandra. So it's needed to check if the user related to this e-mail
+// also exists. In case it doesn't exist, then delete the e-mail in order to avoid a collision
+// when inserting later. Returns true if the e-mail exist and is not orphan, or false otherwise.
+func (dao *UserDAO) ExistWithSanity(user *core.UserAccount) (bool, error) {
+
+	dao.checkSession()
+
+	// Check if e-mail exists
+	user_id, err := dao.GetIDByEmail(user.Email)
+	if err != nil {
+		if err == ErrNotFound {
+			err = nil
+		}
+		return false, err
+	}
+
+	// If exists, check also if the related user_id also exists
+	if exist, err := dao.Exists(user_id); err != nil || exist {
+		return exist, err // returns (true, nil) or (false, err)
+	}
+
+	// E-mail exist but user account doesn't exist
+	if user.HasFacebookCredentials() {
+		if user_id, _ := dao.GetIDByFacebookID(user.Fbid); user.Id == user_id { // FIXME: Errors aren't checked
+			dao.DeleteFacebookCredentials(user.Fbid)
+		}
+	}
+
+	dao.DeleteEmailCredentials(user.Email)
+
+	return false, nil
+}
+
+func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
+						last_connection, created_date
+						FROM user_account`
+
+	iter := dao.session.Query(stmt).Iter()
+
+	if iter == nil {
+		return nil, ErrNilPointer
+	}
+
+	users := make([]*core.UserAccount, 0, 1000)
+	var user_id uint64
+	var auth_token gocql.UUID
+	var email string
+	var email_verified bool
+	var name string
+	var fbid string
+	var fbtoken string
+	var last_connection int64
+	var created int64
+
+	for iter.Scan(&user_id, &auth_token, &email, &email_verified, &name,
+		&fbid, &fbtoken, &last_connection, &created) {
+		user := &core.UserAccount{
+			Id:             user_id,
+			AuthToken:      uuid.New(auth_token.Bytes()),
+			Email:          email,
+			EmailVerified:  email_verified,
+			Name:           name,
+			Fbid:           fbid,
+			Fbtoken:        fbtoken,
+			LastConnection: last_connection,
+			CreatedDate:    created,
+		}
+		users = append(users, user)
+	}
+
+	if err := iter.Close(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }
 
 func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
@@ -372,7 +515,7 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *UserDAO) deleteUserAccount(user_id uint64) error {
+func (dao *UserDAO) DeleteUserAccount(user_id uint64) error {
 
 	dao.checkSession()
 
@@ -516,38 +659,6 @@ func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) (bool, erro
 	}
 
 	return one_way && two_way, nil
-}
-
-// Check if user exists. If user e-mail exists may be orphan due to the way users are
-// inserted into cassandra. So it's needed to check if the user related to this e-mail
-// also exists. In case it doesn't exist, then delete the e-mail in order to avoid a collision
-// when inserting later. Exist
-func (dao *UserDAO) ExistWithSanity(user *core.UserAccount) (bool, error) {
-
-	dao.checkSession()
-
-	// Check if e-mail exists
-	user_id, err := dao.GetIDByEmail(user.Email)
-	if err != nil {
-		return false, err
-	}
-
-	// If exists, check also if the related user_id also exists
-	exist, err := dao.Exists(user_id)
-	if err != nil && err != gocql.ErrNotFound {
-		return false, err
-	}
-
-	if !exist {
-		if user.HasFacebookCredentials() {
-			if user_id, _ := dao.GetIDByFacebookID(user.Fbid); user_id == user.Id { // FIXME: Errors aren't checked
-				dao.DeleteFacebookCredentials(user.Fbid)
-			}
-		}
-		dao.DeleteEmailCredentials(user.Email)
-	}
-
-	return exist, nil
 }
 
 func (dao *UserDAO) checkSession() {

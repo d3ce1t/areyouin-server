@@ -1,7 +1,6 @@
 package dao
 
 import (
-	"errors"
 	"github.com/gocql/gocql"
 	"log"
 	core "peeple/areyouin/common"
@@ -116,8 +115,7 @@ func (dao *EventDAO) LoadAllParticipants(event_id uint64) ([]*core.EventParticip
 	iter := dao.session.Query(stmt, event_id, MAX_NUM_GUESTS).Iter()
 
 	if iter == nil {
-		log.Println("LoadParticipants iter is nil!!")
-		return nil, errors.New("LoadParticipants iter is nill")
+		return nil, ErrNilPointer
 	}
 
 	participants := make([]*core.EventParticipant, 0, 10)

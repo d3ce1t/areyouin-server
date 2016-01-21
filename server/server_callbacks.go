@@ -28,6 +28,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// Check if its a valid user, so the input was correct
 	if !user.IsValid() {
 		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_INVALID_INPUT).Marshal())
+		log.Println("< CREATE ACCOUNT INVALID USER")
 		return
 	}
 
@@ -43,6 +44,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 		return
 	} else if err != nil { // If an error happen, assume it may exist so, cancel operation
 		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_OPERATION_FAILED).Marshal())
+		log.Println("< CREATE ACCOUNT OPERATION FAILED")
 		return
 	}
 

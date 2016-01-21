@@ -105,6 +105,8 @@ func (s *AyiSession) Close() {
 func (s *AyiSession) updateLastConnection() {
 	if s.IsAuth {
 		last_connection := core.GetCurrentTimeMillis()
+		//NOTE: If a user is deleted from user_account while it is still connected,
+		// a row in invalid state will be created when updating last connection
 		s.Server.NewUserDAO().SetLastConnection(s.UserId, last_connection)
 	}
 }
