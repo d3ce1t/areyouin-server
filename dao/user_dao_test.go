@@ -126,12 +126,12 @@ func TestGetIDByEmail(t *testing.T) {
 		{"user7@foo.com", true},
 		{"user8@foo.com", true},
 		{"user9@foo.com", true},
-		{"user10@foo.com", false},
+		{"abcdefg@foo.com", false},
 	}
 
 	for i, test := range tests {
-		if user_id, err := dao.GetIDByEmail(test.email); (user_id != 0) != test.want {
-			t.Fatal("Failed at test", i, user_id, "with error", err)
+		if user_id, _ := dao.GetIDByEmail(test.email); (user_id != 0) != test.want {
+			t.Fatal("Failed at test", i, user_id)
 		}
 	}
 }

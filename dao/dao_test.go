@@ -11,6 +11,9 @@ import (
 
 var session *gocql.Session
 var idgen *core.IDGen
+var participants100 []*core.EventParticipant
+var eventIds10000 []uint64
+var eventIds10000unsorted []uint64
 
 func TestMain(m *testing.M) {
 
@@ -29,6 +32,33 @@ func TestMain(m *testing.M) {
 	}
 
 	session = s
+
+	// Create 100 randome participants
+	participants100 = make([]*core.EventParticipant, 0, 100)
+
+	for i := 0; i < 100; i++ {
+		participants100 = append(participants100, CreateRandomParticipant())
+	}
+
+	// Load 1000 events Ids
+	eventIds10000 = GetEventIDs(10000)
+
+	// Unsort
+	eventIds10000unsorted = make([]uint64, len(eventIds10000))
+
+	/*initial_offset := 0
+	final_offset := len(eventIds10000) - 1
+
+	for i := 0; i < len(eventIds10000); i += 2 {
+		eventIds10000unsorted[initial_offset] = eventIds10000[i]
+		eventIds10000unsorted[final_offset] = eventIds10000[i+1]
+		initial_offset++
+		final_offset--
+	}*/
+
+	//core.Create100Users(NewUserDAO(s))
+	//core.Delete100Users(NewUserDAO(s))
+
 	flag.Parse()
 	os.Exit(m.Run())
 }
@@ -52,4 +82,38 @@ func CreateParticipantsList(author_id uint64, participants_id []uint64) []*core.
 	}
 
 	return result
+}
+
+func CreateRandomParticipant() *core.EventParticipant {
+
+	participant := &core.EventParticipant{
+		UserId:    idgen.GenerateID(),
+		Name:      "Prueba",
+		Response:  core.AttendanceResponse_NO_RESPONSE,
+		Delivered: core.MessageStatus_NO_DELIVERED,
+	}
+
+	return participant
+}
+
+func GetEventIDs(limit int) []uint64 {
+
+	stmt := `SELECT DISTINCT event_id, date FROM event LIMIT ?`
+
+	iter := session.Query(stmt, limit).Iter()
+
+	list_ids := make([]uint64, 0, limit)
+	var event_id uint64
+	var date string
+
+	for iter.Scan(&event_id, &date) {
+		list_ids = append(list_ids, event_id)
+	}
+
+	if err := iter.Close(); err != nil {
+		log.Println("GetEventIDS Error:", err)
+		return nil
+	}
+
+	return list_ids
 }

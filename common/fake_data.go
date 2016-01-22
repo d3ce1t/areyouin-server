@@ -1,5 +1,9 @@
 package common
 
+import (
+	"strconv"
+)
+
 func AddFriendsToFbTestUserOne(dao UserDAO) {
 
 	user2 := NewUserAccount(15918606642578452, "User 2", "user2@foo.com", "12345", "", "FBID2", "FBTOKEN2")
@@ -91,4 +95,27 @@ func CreateFakeUsers(dao UserDAO) {
 	dao.AddFriend(user7.Id, user1.AsFriend(), 0)
 
 	dao.AddFriend(user8.Id, user1.AsFriend(), 0)
+}
+
+func Create100Users(dao UserDAO) {
+
+	idgen := NewIDGen(1)
+
+	user10 := NewUserAccount(idgen.GenerateID(), "User 10", "user10@foo.com", "12345", "", "", "")
+	dao.Insert(user10)
+
+	for i := 11; i < 110; i++ {
+		user := NewUserAccount(idgen.GenerateID(), "User "+strconv.Itoa(i), "user"+strconv.Itoa(i)+"@foo.com", "12345", "", "", "")
+		dao.Insert(user)
+		dao.MakeFriends(user10.AsFriend(), user.AsFriend())
+	}
+
+	//dao.AddFriend(user1.Id, user2.AsFriend(), 0)
+}
+
+func Delete100Users(dao UserDAO) {
+	for i := 10; i < 110; i++ {
+		user, _ := dao.LoadByEmail("user" + strconv.Itoa(i) + "@foo.com")
+		dao.Delete(user)
+	}
 }
