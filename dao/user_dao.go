@@ -9,6 +9,7 @@ import (
 
 const (
 	MAX_NUM_FRIENDS = 1000
+	GRACE_PERIOD_MS = 20 * 1000 // 20s
 )
 
 type UserDAO struct {
@@ -17,6 +18,152 @@ type UserDAO struct {
 
 func NewUserDAO(session *gocql.Session) core.UserDAO {
 	return &UserDAO{session: session}
+}
+
+// Insert a new user into Cassandra involving tables user_account, user_email_credentials
+// and user_facebook_credentials. It takes account race conditions like two users trying
+// to create the same account simultaneously. If user email is already used this operation
+// fails. In the same way, if FB account is already linked to a valid user account (rows
+// exists in user_account and user_email_credential), then operation fails. With this
+// implementation, orphan fb rows are removed after a grace period time in order to enable
+// retry logic in the client when, by some reason, registration failed at first attempt.
+// In contrast to the older implementation, this new one do not remove user account, it
+// only updates orphaned user_facebook_credentials rows that doesn't point to a valid
+// user account. In order to work properly, a row in user_email_credentials must be
+// inserted before GRACE_PERIOD_MS. Otherwise, another account could reclaim that FB
+// for itself with another Insert call.
+func (dao *UserDAO) Insert(user *core.UserAccount) error {
+
+	dao.checkSession()
+
+	// Check if user account has a valid ID and email or fb credentials
+	if _, err := user.IsValid(); err != nil {
+		return err
+	}
+
+	// 1) Check if the given e-mail already exists
+	if exist, err := dao.ExistEmail(user.Email); exist {
+		return ErrEmailAlreadyExists
+	} else if err != nil {
+		return err
+	}
+
+	// E-mail doesn't exist. Then continue
+	insert_state := 0
+
+	// Clean logic
+	defer func() {
+		switch insert_state {
+		case 1:
+			dao.DeleteUserAccount(user.Id)
+		case 2:
+			dao.DeleteFacebookCredentials(user.Fbid)
+			dao.DeleteUserAccount(user.Id) // Delete always last
+		}
+	}()
+
+	// 2) Insert into user_account
+	if _, err := dao.insertUserAccount(user); err != nil {
+		return err
+	}
+
+	// 3) Try to insert Facebook credentials considering collisions.
+	// See insertFacebookCredentials for more info. If two users try to insert the same
+	// FbId, only one of them will succeed.
+	insert_state = 1
+
+	if user.HasFacebookCredentials() {
+		if _, err := dao.insertFacebookCredentials(user.Fbid, user.Fbtoken, user.Id); err != nil {
+			return err
+		}
+	}
+
+	// 4) Finally, insert e-mail into user_email_credentials. This insert is the most
+	// important because it makes the valid the user account warrantying that user_account
+	// and user_facebook_credentials also exist. If two users reach this point simultaneously
+	// then only one of them will succeed and the other one will fail.
+	insert_state = 3 // assume it gonna succeed
+
+	if user.HasEmailCredentials() {
+		if _, err := dao.insertEmailCredentials(user.Id, user.Email, user.Password); err != nil {
+			insert_state = 2
+			return err
+		}
+	} else if _, err := dao.insertEmail(user.Id, user.Email); err != nil {
+		insert_state = 2
+		return err
+	}
+
+	return nil
+}
+
+// Returns true if given e-mail exists, otherwise it returns false.
+func (dao *UserDAO) ExistEmail(email string) (bool, error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
+
+	if err := dao.session.Query(stmt, email).Scan(nil); err != nil {
+		if err == ErrNotFound {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+
+	return true, nil
+}
+
+// Check if a user exists. Returns true if exists and false if it doesn't.
+// If an error happend returns (false, error)
+/*func (dao *UserDAO) ExistsUserAccount(user_id uint64) (bool, error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT user_id FROM user_account WHERE user_id = ? LIMIT 1`
+
+	if err := dao.session.Query(stmt, user_id).Scan(nil); err != nil {
+		if err == ErrNotFound {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+
+	return true, nil
+}*/
+
+// Returns an user id corresponding to the given e-mail. If it doesn't exist
+// or an error happens, returns (0, error).
+func (dao *UserDAO) GetIDByEmail(email string) (uint64, error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
+	var user_id uint64
+
+	if err := dao.session.Query(stmt, email).Scan(&user_id); err != nil {
+		return 0, err
+	}
+
+	return user_id, nil
+}
+
+// Returns all of the IDs associated with the given fb_id. If no id is foound
+// an empty slide is returned
+func (dao *UserDAO) GetIDByFacebookID(fb_id string) (uint64, error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT user_id FROM user_facebook_credentials WHERE fb_id = ?`
+	var user_id uint64
+
+	if err := dao.session.Query(stmt, fb_id).Scan(&user_id); err != nil {
+		return 0, err
+	}
+
+	return user_id, nil
 }
 
 func (dao *UserDAO) LoadEmailCredential(email string) (credent *core.EmailCredential, err error) {
@@ -54,28 +201,105 @@ func (dao *UserDAO) LoadFacebookCredential(fbid string) (credent *core.FacebookC
 
 	dao.checkSession()
 
-	stmt := `SELECT fb_token, user_id FROM user_facebook_credentials WHERE fb_id = ? LIMIT 1`
+	stmt := `SELECT fb_token, user_id, created_date FROM user_facebook_credentials WHERE fb_id = ? LIMIT 1`
 	q := dao.session.Query(stmt, fbid)
 
 	var fb_token string
 	var uid uint64
+	var created_date int64
 
-	if err = q.Scan(&fb_token, &uid); err == nil {
+	if err = q.Scan(&fb_token, &uid, &created_date); err == nil {
 
 		credent = &core.FacebookCredential{
-			Fbid:    fbid,
-			Fbtoken: fb_token,
-			UserId:  uid,
+			Fbid:        fbid,
+			Fbtoken:     fb_token,
+			UserId:      uid,
+			CreatedDate: created_date,
 		}
 	}
 
 	return
 }
 
-/*
-	Check if exists an user with given e-mail and password. Returns user id if
-	exists or 0 if doesn't exist.
-*/
+// Checks if the given user_id belongs to an existing and valid account. Returns true
+// if the account is valid or false otherwise. If account isn't found or something
+// unexpected happens, it returns also an error.
+func (dao *UserDAO) CheckValidAccount(user_id uint64, check_credentials bool) (bool, error) {
+
+	stmt_user := `SELECT email, fb_id FROM user_account WHERE user_id = ? LIMIT 1`
+	query_user := dao.session.Query(stmt_user, user_id)
+	var email string
+	var fb_id string
+
+	if err := query_user.Scan(&email, &fb_id); err != nil || email == "" {
+		return false, err
+	}
+
+	email_credential, err := dao.LoadEmailCredential(email)
+
+	if err == ErrNotFound {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	if user_id != email_credential.UserId {
+		return false, nil
+	}
+
+	if check_credentials {
+
+		// First, check e-mail credential
+		if email_credential.Password != core.EMPTY_ARRAY_32B && email_credential.Salt != core.EMPTY_ARRAY_32B {
+			return true, nil
+		}
+
+		// If e-mail credential isn't set, check Facebook
+		if fb_credential, err := dao.LoadFacebookCredential(fb_id); err == nil && user_id == fb_credential.UserId {
+			return true, nil
+		} else if err == ErrNotFound {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+
+	return true, nil
+}
+
+// Returns if given crentials for the given user are valid or not. If credential does not exist it
+// consider that are invalid. So, no ErrNotFound is returned.
+func (dao *UserDAO) CheckValidCredentials(user_id uint64, email string, fb_id string) (bool, error) {
+
+	email_credential, err := dao.LoadEmailCredential(email)
+
+	if err == ErrNotFound {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	if user_id != email_credential.UserId {
+		return false, nil
+	}
+
+	// First, check e-mail credential
+	if email_credential.Password != core.EMPTY_ARRAY_32B && email_credential.Salt != core.EMPTY_ARRAY_32B {
+		return true, nil
+	}
+
+	// If e-mail credential isn't set, check Facebook
+	if fb_credential, err := dao.LoadFacebookCredential(fb_id); err == nil && user_id == fb_credential.UserId {
+		return true, nil
+	} else if err == ErrNotFound {
+		return false, nil
+	} else {
+		return false, err
+	}
+}
+
+// Check if exists an user with given e-mail and password. Returns user id if
+// succeed or 0 if doesn't.
 func (dao *UserDAO) CheckEmailCredentials(email string, password string) (user_id uint64, err error) {
 
 	dao.checkSession()
@@ -177,89 +401,6 @@ func (dao *UserDAO) SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID,
 	return dao.session.ExecuteBatch(batch)
 }
 
-// Returns an user id corresponding to the given e-mail. If it doesn't exist
-// or un error happens, returns (0, error).
-func (dao *UserDAO) GetIDByEmail(email string) (uint64, error) {
-
-	dao.checkSession()
-
-	stmt := `SELECT user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
-	var user_id uint64
-
-	if err := dao.session.Query(stmt, email).Scan(&user_id); err != nil {
-		return 0, err
-	}
-
-	return user_id, nil
-}
-
-func (dao *UserDAO) GetIDByFacebookID(fb_id string) (uint64, error) {
-
-	dao.checkSession()
-
-	stmt := `SELECT user_id FROM user_facebook_credentials WHERE fb_id = ? LIMIT 1`
-	var user_id uint64
-
-	if err := dao.session.Query(stmt, fb_id).Scan(&user_id); err != nil {
-		return 0, err
-	}
-
-	return user_id, nil
-}
-
-// Check if a user exists. Returns true if exists and false if it doesn't.
-// If an error happend returns (false, error)
-func (dao *UserDAO) Exists(user_id uint64) (bool, error) {
-
-	dao.checkSession()
-
-	stmt := `SELECT user_id FROM user_account WHERE user_id = ? LIMIT 1`
-
-	if err := dao.session.Query(stmt, user_id).Scan(nil); err != nil {
-		if err == ErrNotFound {
-			return false, nil
-		} else {
-			return false, err
-		}
-	}
-
-	return true, nil
-}
-
-// Check if user exists. If user e-mail exists may be orphan due to the way users are
-// inserted into cassandra. So it's needed to check if the user related to this e-mail
-// also exists. In case it doesn't exist, then delete the e-mail in order to avoid a collision
-// when inserting later. Returns true if the e-mail exist and is not orphan, or false otherwise.
-func (dao *UserDAO) ExistWithSanity(user *core.UserAccount) (bool, error) {
-
-	dao.checkSession()
-
-	// Check if e-mail exists
-	user_id, err := dao.GetIDByEmail(user.Email)
-	if err != nil {
-		if err == ErrNotFound {
-			err = nil
-		}
-		return false, err
-	}
-
-	// If exists, check also if the related user_id also exists
-	if exist, err := dao.Exists(user_id); err != nil || exist {
-		return exist, err // returns (true, nil) or (false, err)
-	}
-
-	// E-mail exist but user account doesn't exist
-	if user.HasFacebookCredentials() {
-		if user_id, _ := dao.GetIDByFacebookID(user.Fbid); user.Id == user_id { // FIXME: Errors aren't checked
-			dao.DeleteFacebookCredentials(user.Fbid)
-		}
-	}
-
-	dao.DeleteEmailCredentials(user.Email)
-
-	return false, nil
-}
-
 func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 
 	dao.checkSession()
@@ -346,54 +487,6 @@ func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
 	return dao.Load(user_id)
 }
 
-/*
-	Insert a new user into Cassandra involving tables user_account,
-	user_email_credentials and user_facebook_credentials.
-*/
-func (dao *UserDAO) Insert(user *core.UserAccount) error {
-
-	dao.checkSession()
-
-	// Check if user account has a valid ID and email or fb credentials
-	if valid, err := user.IsValid(); !valid {
-		return err
-	}
-
-	// First insert into E-mail credentials to ensure there is no one using the same
-	// email address. If there isn't email credentials, there will be Facebook and
-	// a valid email address. So try to insert email anyway to check there is no one
-	// using it.
-	if user.HasEmailCredentials() {
-		if _, err := dao.insertEmailCredentials(user.Id, user.Email, user.Password); err != nil {
-			return err
-		}
-	} else if _, err := dao.insertEmail(user.Id, user.Email); err != nil {
-		return err
-	}
-
-	// May also (or only) have Facebook credentials
-	if user.HasFacebookCredentials() {
-		if _, err := dao.insertFacebookCredentials(user.Id, user.Fbid, user.Fbtoken); err != nil {
-			dao.DeleteEmailCredentials(user.Email)
-			return err
-		}
-	}
-
-	// If this point is reached, then insert user account. UserID must be unique or
-	// the operation will fail. Code guarantees that each generated UserID does not
-	// collide if each generator running on its own goroutine has a different ID.
-	// However, if for any reason the same UserID is generated, the already stored
-	// user account does not have to be replaced. In this case, it's needed to
-	// manually rollback previously inserted EmailCredentials and/or FacebookCredentials
-	if _, err := dao.insertUserAccount(user); err != nil {
-		dao.DeleteFacebookCredentials(user.Fbid)
-		dao.DeleteEmailCredentials(user.Email)
-		return err
-	}
-
-	return nil
-}
-
 func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err error) {
 
 	dao.checkSession()
@@ -476,7 +569,13 @@ func (dao *UserDAO) insertEmail(user_id uint64, email string) (ok bool, err erro
 	return dao.session.Query(insertUserEmail, email, user_id).ScanCAS(nil)
 }
 
-func (dao *UserDAO) insertFacebookCredentials(user_id uint64, fb_id string, fb_token string) (ok bool, err error) {
+// Try to insert Facebook credentials. If it fails because of a collision, retrieve
+// the row causing that collision, compare created_date with grace_period and check if
+// that row belongs to a valid account. If grace_period seconds have elapsed since
+// created_date and account isn't valid, then remove row causing conflict and retry.
+// Otherwise, if account is valid, returns ErrFacebookAlreadyExists. If grace_period
+// seconds haven't elapsed yet since created_date then return ErrGracePeriod .
+func (dao *UserDAO) insertFacebookCredentials(fb_id string, fb_token string, user_id uint64) (ok bool, err error) {
 
 	dao.checkSession()
 
@@ -484,19 +583,53 @@ func (dao *UserDAO) insertFacebookCredentials(user_id uint64, fb_id string, fb_t
 		return false, ErrInvalidArg
 	}
 
-	insertFacebookCredentials := `INSERT INTO user_facebook_credentials
-		(fb_id, fb_token, user_id)
-		VALUES (?, ?, ?)
-		IF NOT EXISTS`
+	insert_stmt := `INSERT INTO user_facebook_credentials (fb_id, fb_token, user_id, created_date)
+		VALUES (?, ?, ?, ?) IF NOT EXISTS`
 
-	return dao.session.Query(insertFacebookCredentials, fb_id, fb_token, user_id).ScanCAS(nil)
+	current_date := core.GetCurrentTimeMillis()
+	query_insert := dao.session.Query(insert_stmt, fb_id, fb_token, user_id, current_date)
+
+	var old_fbid string
+	var old_token string
+	var old_uid uint64
+	var created_date int64
+
+	applied, err := query_insert.ScanCAS(&old_fbid, &created_date, &old_token, &old_uid)
+	if err != nil {
+		return false, err
+	}
+
+	// Retry logic
+	if !applied {
+		// Grace period expired. Check if account is valid. If not, overwrite row
+		if (created_date + GRACE_PERIOD_MS) < current_date {
+			if valid, err := dao.CheckValidAccount(old_uid, false); err != nil && err != ErrNotFound {
+				return false, err // error happened
+			} else if valid {
+				return false, ErrFacebookAlreadyExists
+			} else { // is invalid account or not exist
+				update_stmt := `UPDATE user_facebook_credentials SET fb_token = ?, user_id = ?, created_date = ?
+					WHERE fb_id = ? IF created_date < ?`
+				current_date = core.GetCurrentTimeMillis()
+				query_update := dao.session.Query(update_stmt, fb_token, user_id, current_date, fb_id, current_date-GRACE_PERIOD_MS)
+				if applied, err = query_update.ScanCAS(nil); err != nil {
+					return false, err
+				} else if !applied {
+					return false, ErrGracePeriod
+				}
+			}
+		} else {
+			return false, ErrGracePeriod
+		}
+	}
+
+	return applied, err // returns true, nil
 }
 
-/*
-	User information is spread in three tables: user_account, user_email_credentials
-	and user_facebook_credentials. So, in order to delete a user, it's needed an
-	user_id, e-mail and, likely, a Facebook ID
-*/
+// User information is spread in three tables: user_account, user_email_credentials
+// and user_facebook_credentials. So, in order to delete a user, it's needed an
+// user_id, e-mail and, likely, a Facebook ID
+// FIXME: I should also delete this user to all of their friends
 func (dao *UserDAO) Delete(user *core.UserAccount) error {
 
 	dao.checkSession()
@@ -504,47 +637,38 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
 	batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email)
-	batch.Query(`DELETE FROM user_account WHERE user_id = ?`, user.Id)
 	batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`, user.Id, 0)
-	// FIXME: I should also delete this user to all of their friends
 
 	if user.HasFacebookCredentials() {
 		batch.Query(`DELETE FROM user_facebook_credentials WHERE fb_id = ?`, user.Fbid)
 	}
 
+	batch.Query(`DELETE FROM user_account WHERE user_id = ?`, user.Id) // Always last
+
 	return dao.session.ExecuteBatch(batch)
 }
 
 func (dao *UserDAO) DeleteUserAccount(user_id uint64) error {
-
 	dao.checkSession()
-
 	if user_id == 0 {
 		return ErrInvalidArg
 	}
-
 	return dao.session.Query(`DELETE FROM user_account WHERE user_id = ?`, user_id).Exec()
 }
 
 func (dao *UserDAO) DeleteEmailCredentials(email string) error {
-
 	dao.checkSession()
-
 	if email == "" {
 		return ErrInvalidArg
 	}
-
 	return dao.session.Query(`DELETE FROM user_email_credentials WHERE email = ?`, email).Exec()
 }
 
 func (dao *UserDAO) DeleteFacebookCredentials(fb_id string) error {
-
 	dao.checkSession()
-
 	if fb_id == "" {
 		return ErrInvalidArg
 	}
-
 	return dao.session.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, fb_id).Exec()
 }
 
@@ -563,6 +687,7 @@ func (dao *UserDAO) MakeFriends(user1 *core.Friend, user2 *core.Friend) error {
 	return dao.session.ExecuteBatch(batch)
 }
 
+// FIXME: Remove!!!
 func (dao *UserDAO) AddFriend(user_id uint64, friend *core.Friend, group_id int32) error {
 
 	dao.checkSession()
@@ -637,6 +762,7 @@ func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) ([]*core.Friend,
 	return friend_list, nil
 }
 
+// FIXME: Since makeFriends function insert in two tables. I can assume that if I have the user, then we are friends
 func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) (bool, error) {
 
 	dao.checkSession()

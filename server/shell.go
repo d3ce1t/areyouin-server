@@ -134,14 +134,21 @@ func (shell *Shell) listUserAccounts(args []string) {
 	users, err := dao.LoadAllUsers()
 	manageShellError(err)
 
-	fmt.Println(rp("-", 101))
-	fmt.Printf("| %-17s | %-15s | %-40s | %-16s |\n", "Id", "Name", "Email", "Last connection")
-	fmt.Println(rp("-", 101))
+	fmt.Println(rp("-", 105))
+	fmt.Printf("| S | %-17s | %-15s | %-40s | %-16s |\n", "Id", "Name", "Email", "Last connection")
+	fmt.Println(rp("-", 105))
 
 	for _, user := range users {
-		fmt.Printf("| %-17v | %-15v | %-40v | %-16v |\n", ff(user.Id, 17), ff(user.Name, 15), ff(user.Email, 40), ff(core.UnixMillisToTime(user.LastConnection), 16))
+		status_info := " "
+		if valid, err := dao.CheckValidCredentials(user.Id, user.Email, user.Fbid); err != nil {
+			status_info = "?"
+		} else if !valid {
+			status_info = "E"
+		}
+
+		fmt.Printf("| %v | %-17v | %-15v | %-40v | %-16v |\n", status_info, ff(user.Id, 17), ff(user.Name, 15), ff(user.Email, 40), ff(core.UnixMillisToTime(user.LastConnection), 16))
 	}
-	fmt.Println(rp("-", 101))
+	fmt.Println(rp("-", 105))
 
 	fmt.Println("Num. Users:", len(users))
 }
@@ -158,9 +165,19 @@ func (shell *Shell) showUser(args []string) {
 	manageShellError(err)
 
 	valid_user, _ := user.IsValid()
+	valid_account, err := dao.CheckValidAccount(user_id, true)
+
+	if err != nil {
+		fmt.Println("Error checking account:", err)
+	}
+
+	account_status := ""
+	if !valid_user || !valid_account {
+		account_status = "¡¡¡INVALID STATUS!!!"
+	}
 
 	fmt.Println("---------------------------------")
-	fmt.Printf("User details (%v)\n", valid_user)
+	fmt.Printf("User details (%v)\n", account_status)
 	fmt.Println("---------------------------------")
 	fmt.Println("UserID:", user.Id)
 	fmt.Println("Name:", user.Name)
@@ -175,11 +192,16 @@ func (shell *Shell) showUser(args []string) {
 	fmt.Println("---------------------------------")
 	fmt.Println("E-mail credentials")
 	fmt.Println("---------------------------------")
+
 	if email, err := dao.LoadEmailCredential(user.Email); err == nil {
 		fmt.Println("E-mail:", email.Email == user.Email)
-		fmt.Printf("Password: %x\n", email.Password)
-		fmt.Printf("Salt: %x\n", email.Salt)
-		fmt.Println("UserId:", email.UserId == user.Id)
+		if email.Password == core.EMPTY_ARRAY_32B || email.Salt == core.EMPTY_ARRAY_32B {
+			fmt.Println("No password set")
+		} else {
+			fmt.Printf("Password: %x\n", email.Password)
+			fmt.Printf("Salt: %x\n", email.Salt)
+		}
+		fmt.Println("UserID Match:", email.UserId == user.Id)
 	} else {
 		fmt.Println("Error:", err)
 	}
@@ -190,14 +212,21 @@ func (shell *Shell) showUser(args []string) {
 
 	if user.HasFacebookCredentials() {
 		facebook, err := dao.LoadFacebookCredential(user.Fbid)
-		manageShellError(err)
-		fmt.Println("Fbid:", facebook.Fbid == user.Fbid)
-		fmt.Println("Fbtoken:", facebook.Fbtoken == user.Fbtoken)
-		fmt.Println("UserId:", facebook.UserId == user.Id)
+		if err == nil {
+			fmt.Println("Fbid:", facebook.Fbid == user.Fbid)
+			fmt.Println("Fbtoken:", facebook.Fbtoken == user.Fbtoken)
+			fmt.Println("UserID Match:", facebook.UserId == user.Id)
+		} else {
+			fmt.Println("Error:", err)
+		}
 	} else {
 		fmt.Println("There aren't credentials")
 	}
 	fmt.Println("---------------------------------")
+
+	if account_status != "" {
+		fmt.Printf("\nACCOUNT INFO: %v\n", account_status)
+	}
 }
 
 // delete_user $user_id --force

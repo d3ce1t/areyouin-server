@@ -8,7 +8,8 @@ type EmailCredential struct {
 }
 
 type FacebookCredential struct {
-	Fbid    string
-	Fbtoken string
-	UserId  uint64
+	Fbid        string
+	Fbtoken     string
+	UserId      uint64
+	CreatedDate int64
 }

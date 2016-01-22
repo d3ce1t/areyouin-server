@@ -572,8 +572,8 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 
 func main() {
 
-	//server := NewTestServer()
-	server := NewServer() // Server is global
+	server := NewTestServer()
+	//server := NewServer() // Server is global
 	//createFbTestUsers()
 	/*if server.DbSession() != nil {
 		core.AddFriendsToFbTestUserOne(server.NewUserDAO())

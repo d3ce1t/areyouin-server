@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+var (
+	EMPTY_ARRAY_32B = [32]byte{}
+)
+
 // Get current time in millis
 func GetCurrentTimeMillis() int64 {
 	return TimeToMillis(time.Now())

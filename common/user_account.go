@@ -87,9 +87,6 @@ type UserAccount struct {
 	Fbtoken        string // Facebook User Access token
 	LastConnection int64
 	CreatedDate    int64
-	//friends         map[uint64]*Friend
-	//udb   *UsersDatabase // Database the user belongs to
-	//inbox *Inbox
 }
 
 func (ua *UserAccount) HasFacebookCredentials() bool {

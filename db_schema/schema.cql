@@ -20,6 +20,7 @@ CREATE TABLE user_facebook_credentials (
 	fb_id text,
 	fb_token text,
 	user_id bigint,
+	created_date timestamp,
 	PRIMARY KEY (fb_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};

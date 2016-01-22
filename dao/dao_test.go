@@ -17,8 +17,8 @@ func TestMain(m *testing.M) {
 	idgen = core.NewIDGen(1)
 
 	// Connect to Cassandra
-	cluster := gocql.NewCluster("192.168.1.2" /*"192.168.1.3"*/)
-	cluster.Keyspace = "areyouin_demo"
+	cluster := gocql.NewCluster("192.168.1.10" /*"192.168.1.3"*/)
+	cluster.Keyspace = "areyouin"
 	cluster.Consistency = gocql.Quorum
 
 	s, err := cluster.CreateSession()

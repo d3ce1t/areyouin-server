@@ -26,16 +26,18 @@ type EventDAO interface {
 }
 
 type UserDAO interface {
+	CheckValidAccount(user_id uint64, check_credentials bool) (bool, error)
+	CheckValidCredentials(user_id uint64, email string, fb_id string) (bool, error)
 	CheckEmailCredentials(email string, password string) (uint64, error)
 	CheckAuthToken(user_id uint64, auth_token uuid.UUID) (bool, error)
-	ExistWithSanity(user *UserAccount) (bool, error)
+	ExistEmail(email string) (bool, error)
+	//ExistsUserAccount(user_id uint64) (bool, error)
 	SetAuthToken(user_id uint64, auth_token uuid.UUID) error
 	SetLastConnection(user_id uint64, time int64) error
 	SetFacebookAccessToken(user_id uint64, fb_id string, fb_token string) error
 	SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID, fb_id string, fb_token string) error
 	GetIDByEmail(email string) (uint64, error)
 	GetIDByFacebookID(fb_id string) (uint64, error)
-	Exists(user_id uint64) (bool, error)
 	MakeFriends(user1 *Friend, user2 *Friend) error
 	AreFriends(user_id uint64, other_user_id uint64) (bool, error)
 	Insert(user *UserAccount) error

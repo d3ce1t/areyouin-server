@@ -27,39 +27,18 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 
 	// Check if its a valid user, so the input was correct
 	if valid, err := user.IsValid(); !valid {
-
-		var error_code int32
-
-		switch err {
-		case core.ErrInvalidEmail:
-			error_code = proto.E_INPUT_INVALID_EMAIL_ADDRESS
-		case core.ErrInvalidName:
-			error_code = proto.E_INPUT_INVALID_USER_NAME
-		default:
-			error_code = proto.E_INVALID_INPUT
-		}
-
+		error_code := getNetErrorCode(err, proto.E_INVALID_INPUT)
 		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, error_code).Marshal())
 		log.Println("< CREATE ACCOUNT INVALID USER (", err, ")")
 		return
 	}
 
 	// Because an attacker could use the create account feature in order to check if a user exists,
-	// a security wait is introduced here to prevent an attacker massive e-mail checking
+	// a security wait is introduced here to prevent an attacker massive e-mail checking. It's
+	// ridiculous but it's my only anti-flood protection so far
 	time.Sleep(SECURITY_WAIT_TIME)
 
-	dao := server.NewUserDAO()
-
-	// Check if user exists and performs some sanity of data if needed
-	if exists, err := dao.ExistWithSanity(user); exists {
-		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_EMAIL_EXISTS).Marshal())
-		return
-	} else if err != nil { // If an error happen, assume it may exist so, cancel operation
-		session.WriteReply(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_OPERATION_FAILED).Marshal())
-		log.Println("< CREATE ACCOUNT OPERATION FAILED")
-		return
-	}
-
+	userDAO := server.NewUserDAO()
 	var reply []byte
 
 	// If it's a Facebook account (fbid and fbtoken are not empty) check token
@@ -75,15 +54,23 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 		}
 	}
 
-	// Insert into users database
-	if err := dao.Insert(user); err != nil {
-		// Facebook account may already be linked to another user
-		reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_FB_EXISTS).Marshal()
+	// Insert into users database. Insert will fail if an existing user with the same
+	// e-mail address already exists, or if the Facebook address is already being used
+	// by another user. It also controls orphaned user_facebook_credentials rows due
+	// to the way insertion is performed in Cassandra. When orphaned row is found and
+	// grace period has not elapsed, an ErrGracePeriod error is triggered. A different
+	// error message could be sent to the client whenever this happens. This way client
+	// could be notified to wait grace period seconds and retry. However, an OPERATION
+	// FAILED message is sent so far. 	Read UserDAO.insert for more info.
+	if err := userDAO.Insert(user); err != nil {
+		err_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
+		reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, err_code).Marshal()
 		session.WriteReply(reply)
 		log.Println("onCreateUserAccount Error:", err)
 		return
 	}
 
+	// Insert OK
 	reply = proto.NewMessage().UserAccessGranted(user.Id, user.AuthToken).Marshal()
 
 	// Import Facebook friends that uses AreYouIN if needed
@@ -110,8 +97,6 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 	msg := message.(*proto.NewAuthToken)
 	log.Println("> USER NEW AUTH TOKEN", msg)
 
-	userDAO := server.NewUserDAO()
-
 	var reply []byte
 
 	if msg.Type != proto.AuthType_A_NATIVE && msg.Type != proto.AuthType_A_FACEBOOK {
@@ -121,7 +106,10 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		return
 	}
 
+	userDAO := server.NewUserDAO()
+
 	// Get new token by e-mail and password
+	// NOTE: Review
 	if msg.Type == proto.AuthType_A_NATIVE {
 
 		if user_id, err := userDAO.CheckEmailCredentials(msg.Pass1, msg.Pass2); err == nil {
@@ -146,6 +134,8 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		// Get new token by Facebook User ID and Facebook Access Token
 	} else if msg.Type == proto.AuthType_A_FACEBOOK {
 
+		// In this context, E_FB_INVALID_USER_OR_PASSWORD means that account does not exist or
+		// it is an invalid account.
 		fbsession := fb.NewSession(msg.Pass2)
 
 		if _, err := fb.CheckAccess(msg.Pass1, fbsession); err != nil {
@@ -158,15 +148,27 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 		user_id, err := userDAO.GetIDByFacebookID(msg.Pass1)
 
-		if err != nil {
-			if err == dao.ErrNotFound {
-				reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
-				log.Println("< INVALID USER OR PASSWORD")
-			} else {
-				reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
-				log.Println("onUserNewAuthToken:", err)
-			}
+		if err == dao.ErrNotFound {
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
+			log.Println("< INVALID USER OR PASSWORD")
 			session.WriteReply(reply)
+			return
+		} else if err != nil {
+			reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+			log.Println("onUserNewAuthToken:", err)
+			session.WriteReply(reply)
+			return
+		}
+
+		// Check that account linked to given Facebook ID is valid, i.e. it has user_email_credentials (with or without
+		// password). It may happen that row in user_email_credentials exists but does not have set a password. Moreover,
+		// it may not have Facebook either and it would still be valid. This behaviour is preferred because if
+		// this state is found, something had have to be wrong. Under normal conditions, that state should have never
+		// happened. So, at this point only existence of e-mail are checked (credentials are ignored).
+		if _, err := userDAO.CheckValidAccount(user_id, false); err != nil {
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
+			session.WriteReply(reply)
+			log.Println("< INVALID USER OR PASSWORD (FBID exists but account is invalid):", err)
 			return
 		}
 
