@@ -98,11 +98,34 @@ func TestInsert4(t *testing.T) {
 		want bool
 	}{
 		{core.NewUserAccount(15918606474806281, "User 9", "user9@foo.com", "", "", "FBID9", "FBTOKEN9"), false}, // Same ID as user 1
-		{core.NewUserAccount(15919019823465559, "User 9", "user9@foo.com", "", "", "FBID9", "FBTOKEN9"), true},  // If previous test didn't remove e-mail and facebook, this will fail
+		{core.NewUserAccount(15919019823465559, "User 9", "user9@foo.com", "", "", "FBID6", "FBTOKEN6"), false}, // Same FBID as user 6
+		{core.NewUserAccount(15919019823465559, "User 9", "user9@foo.com", "", "", "FBID9", "FBTOKEN9"), true},  // If previous inserts didn't remove orphaned rows, this will fail
 	}
 
 	for i, test := range tests {
 		if err := dao.Insert(test.user); (err == nil) != test.want {
+			t.Fatal("Failed at test", i, "with error", err)
+		}
+	}
+}
+
+// Test grace period
+func TestInsertFacebookCredentials(t *testing.T) {
+	dao := &UserDAO{session}
+
+	var tests = []struct {
+		fbid, token string
+		id          uint64
+		want        bool
+	}{
+		{"FBID10", "FBTOKEN10", 93, true},
+		{"FBID10", "FBTOKEN10", 93, false},
+		{"FBID10", "FBTOKEN10", 109, false},
+		{"FBID11", "FBTOKEN11", 93, true},
+	}
+
+	for i, test := range tests {
+		if ok, err := dao.insertFacebookCredentials(test.fbid, test.token, test.id); ok != test.want {
 			t.Fatal("Failed at test", i, "with error", err)
 		}
 	}
@@ -136,6 +159,32 @@ func TestGetIDByEmail(t *testing.T) {
 	}
 }
 
+func TestGetIDByFacebook(t *testing.T) {
+
+	dao := NewUserDAO(session)
+
+	var tests = []struct {
+		fbid string
+		want bool
+	}{
+		{"FBID1", false},
+		{"FBID2", true},
+		{"FBID3", true},
+		{"FBID4", false},
+		{"FBID5", false},
+		{"FBID6", true},
+		{"FBID7", true},
+		{"FBID8", true},
+		{"FBID9", true},
+	}
+
+	for i, test := range tests {
+		if user_id, _ := dao.GetIDByFacebookID(test.fbid); (user_id != 0) != test.want {
+			t.Fatal("Failed at test", i, user_id)
+		}
+	}
+}
+
 func TestCheckEmailCredentials(t *testing.T) {
 
 	dao := NewUserDAO(session)
@@ -157,6 +206,36 @@ func TestCheckEmailCredentials(t *testing.T) {
 			t.Fatal("Failed at test", i, "with error", err)
 		}
 	}
+}
+
+func TestCheckValidAccount(t *testing.T) {
+
+	dao := &UserDAO{session}
+
+	var tests = []struct {
+		user *core.UserAccount
+		want bool
+	}{
+		{core.NewUserAccount(15918606474806281, "User 1", "user1@foo.com", "12345", "", "", ""), false},             // Valid e-mail
+		{core.NewUserAccount(15918606642578452, "User 2", "user2@foo.com", "", "", "FBID2", "FBTOKEN2"), true},      // Remove existing user
+		{core.NewUserAccount(15918606642578453, "User 3", "user3@foo.com", "12345", "", "FBID3", "FBTOKEN3"), true}, // Remove existing user
+		{core.NewUserAccount(15918606642578454, "User 4", "user4@foo.com", "12345", "", "", ""), true},              // Remove existing user
+		{core.NewUserAccount(15919019823465485, "User 5", "user5@foo.com", "12345", "", "", ""), true},              // Remove existing user
+		{core.NewUserAccount(15919019823465496, "User 6", "user6@foo.com", "", "", "FBID6", "FBTOKEN6"), true},      // Remove existing user
+		{core.NewUserAccount(15919019823465497, "User 7", "user7@foo.com", "", "", "FBID7", "FBTOKEN6"), true},      // Remove existing user
+		{core.NewUserAccount(15919019823465498, "User 8", "user8@foo.com", "", "", "FBID8", "FBTOKEN8"), true},      // Remove existing user
+		{core.NewUserAccount(15919019823465559, "User 9", "user9@foo.com", "", "", "FBID9", "FBTOKEN9"), true},      // Remove existing user
+	}
+
+	dao.DeleteEmailCredentials("user1@foo.com")
+	dao.DeleteFacebookCredentials("FBID2")
+
+	for i, test := range tests {
+		if ok, err := dao.CheckValidAccount(test.user.Id, false); ok != test.want {
+			t.Fatal("Failed at test", i, "with error", err)
+		}
+	}
+
 }
 
 func TestDelete(t *testing.T) {

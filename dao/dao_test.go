@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 	idgen = core.NewIDGen(1)
 
 	// Connect to Cassandra
-	cluster := gocql.NewCluster("192.168.1.10" /*"192.168.1.3"*/)
+	cluster := gocql.NewCluster("192.168.1.10", "192.168.1.11" /*"192.168.1.3"*/)
 	cluster.Keyspace = "areyouin"
 	cluster.Consistency = gocql.Quorum
 
@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 	// Unsort
 	eventIds10000unsorted = make([]uint64, len(eventIds10000))
 
-	/*initial_offset := 0
+	initial_offset := 0
 	final_offset := len(eventIds10000) - 1
 
 	for i := 0; i < len(eventIds10000); i += 2 {
@@ -54,7 +54,7 @@ func TestMain(m *testing.M) {
 		eventIds10000unsorted[final_offset] = eventIds10000[i+1]
 		initial_offset++
 		final_offset--
-	}*/
+	}
 
 	//core.Create100Users(NewUserDAO(s))
 	//core.Delete100Users(NewUserDAO(s))
@@ -98,15 +98,14 @@ func CreateRandomParticipant() *core.EventParticipant {
 
 func GetEventIDs(limit int) []uint64 {
 
-	stmt := `SELECT DISTINCT event_id, date FROM event LIMIT ?`
+	stmt := `SELECT DISTINCT event_id FROM event LIMIT ?`
 
 	iter := session.Query(stmt, limit).Iter()
 
 	list_ids := make([]uint64, 0, limit)
 	var event_id uint64
-	var date string
 
-	for iter.Scan(&event_id, &date) {
+	for iter.Scan(&event_id) {
 		list_ids = append(list_ids, event_id)
 	}
 
