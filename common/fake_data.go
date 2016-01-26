@@ -4,25 +4,6 @@ import (
 	"strconv"
 )
 
-func AddFriendsToFbTestUserOne(dao UserDAO) {
-
-	user2 := NewUserAccount(15918606642578452, "User 2", "user2@foo.com", "12345", "", "FBID2", "FBTOKEN2")
-	user3 := NewUserAccount(15918606642578453, "User 3", "user3@foo.com", "12345", "", "FBID3", "FBTOKEN3")
-	user4 := NewUserAccount(15918606642578454, "User 4", "user4@foo.com", "12345", "", "", "")
-	user5 := NewUserAccount(15919019823465485, "User 5", "user5@foo.com", "12345", "", "", "")
-	user6 := NewUserAccount(15919019823465496, "User 6", "user6@foo.com", "12345", "", "FBID6", "FBTOKEN6")
-	user7 := NewUserAccount(15919019823465497, "User 7", "user7@foo.com", "12345", "", "FBID7", "FBTOKEN7")
-	user8 := NewUserAccount(15919019823465498, "User 8", "user8@foo.com", "12345", "", "FBID8", "FBTOKEN8")
-
-	dao.AddFriend(23829049541395456, user2.AsFriend(), 0)
-	dao.AddFriend(23829049541395456, user3.AsFriend(), 0)
-	dao.AddFriend(23829049541395456, user4.AsFriend(), 0)
-	dao.AddFriend(23829049541395456, user5.AsFriend(), 0)
-	dao.AddFriend(23829049541395456, user6.AsFriend(), 0)
-	dao.AddFriend(23829049541395456, user7.AsFriend(), 0)
-	dao.AddFriend(23829049541395456, user8.AsFriend(), 0)
-}
-
 func DeleteFakeusers(dao UserDAO) {
 
 	user1 := NewUserAccount(15918606474806281, "User 1", "user1@foo.com", "12345", "", "", "")
@@ -68,33 +49,18 @@ func CreateFakeUsers(dao UserDAO) {
 	dao.Insert(user8)
 	dao.Insert(user9)
 
-	dao.AddFriend(user1.Id, user2.AsFriend(), 0)
-	dao.AddFriend(user1.Id, user3.AsFriend(), 0)
-	dao.AddFriend(user1.Id, user4.AsFriend(), 0)
-	dao.AddFriend(user1.Id, user5.AsFriend(), 0)
-	dao.AddFriend(user1.Id, user6.AsFriend(), 0)
-	dao.AddFriend(user1.Id, user7.AsFriend(), 0)
-	dao.AddFriend(user1.Id, user8.AsFriend(), 0)
+	dao.MakeFriends(user1, user2)
+	dao.MakeFriends(user1, user3)
+	dao.MakeFriends(user1, user4)
+	dao.MakeFriends(user1, user5)
+	dao.MakeFriends(user1, user6)
+	dao.MakeFriends(user1, user7)
+	dao.MakeFriends(user1, user8)
 
-	dao.AddFriend(user2.Id, user1.AsFriend(), 0)
-	dao.AddFriend(user2.Id, user3.AsFriend(), 0)
-	dao.AddFriend(user2.Id, user4.AsFriend(), 0)
+	dao.MakeFriends(user2, user3)
+	dao.MakeFriends(user2, user4)
 
-	dao.AddFriend(user3.Id, user1.AsFriend(), 0)
-	dao.AddFriend(user3.Id, user2.AsFriend(), 0)
-	dao.AddFriend(user3.Id, user4.AsFriend(), 0)
-
-	dao.AddFriend(user4.Id, user1.AsFriend(), 0)
-	dao.AddFriend(user4.Id, user2.AsFriend(), 0)
-	dao.AddFriend(user4.Id, user3.AsFriend(), 0)
-
-	dao.AddFriend(user5.Id, user1.AsFriend(), 0)
-
-	dao.AddFriend(user6.Id, user1.AsFriend(), 0)
-
-	dao.AddFriend(user7.Id, user1.AsFriend(), 0)
-
-	dao.AddFriend(user8.Id, user1.AsFriend(), 0)
+	dao.MakeFriends(user3, user4)
 }
 
 func Create100Users(dao UserDAO) {
@@ -107,7 +73,7 @@ func Create100Users(dao UserDAO) {
 	for i := 11; i < 110; i++ {
 		user := NewUserAccount(idgen.GenerateID(), "User "+strconv.Itoa(i), "user"+strconv.Itoa(i)+"@foo.com", "12345", "", "", "")
 		dao.Insert(user)
-		dao.MakeFriends(user10.AsFriend(), user.AsFriend())
+		dao.MakeFriends(user10, user)
 	}
 
 	//dao.AddFriend(user1.Id, user2.AsFriend(), 0)

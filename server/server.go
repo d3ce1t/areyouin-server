@@ -11,15 +11,11 @@ import (
 	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
 	wh "peeple/areyouin/webhook"
-	"time"
 )
 
 const (
 	ALL_CONTACTS_GROUP = 0 // Id for the main friend group of a user
 	//MAX_READ_TIMEOUT   = 1 * time.Second
-	MAX_IDLE_TIME    = 30 * time.Minute // 30m
-	MAX_LOGIN_TIME   = 30 * time.Second // 30s
-	PING_INTERVAL_MS = 29 * time.Minute // 29m
 )
 
 func NewServer() *Server {
@@ -50,9 +46,8 @@ func NewTestServer() *Server {
 type Callback func(proto.PacketType, proto.Message, *AyiSession)
 
 type Server struct {
-	sessions      map[uint64]*AyiSession
+	sessions      *SessionsMap
 	task_executor *TaskExecutor
-	ds            *DeliverySystem
 	id_gen_ch     chan uint64
 	callbacks     map[proto.PacketType]Callback
 	id_generators map[uint16]*core.IDGen
@@ -61,6 +56,7 @@ type Server struct {
 	Keyspace      string
 	webhook       *wh.WebHookServer
 	DbAddress     string
+	serialChannel chan func()
 }
 
 func (s *Server) DbSession() *gocql.Session {
@@ -70,8 +66,16 @@ func (s *Server) DbSession() *gocql.Session {
 // Setup server components
 func (s *Server) init() {
 
-	s.sessions = make(map[uint64]*AyiSession)
+	s.sessions = NewSessionsMap()
 	s.callbacks = make(map[proto.PacketType]Callback)
+
+	// Serial execution
+	s.serialChannel = make(chan func(), 8)
+	go func() {
+		for f := range s.serialChannel {
+			f()
+		}
+	}()
 
 	// ID generator
 	s.id_generators = make(map[uint16]*core.IDGen)
@@ -87,10 +91,6 @@ func (s *Server) init() {
 	// Task Executor
 	s.task_executor = NewTaskExecutor(s)
 	s.task_executor.Start()
-
-	// Start Event Delivery
-	s.ds = NewDeliverySystem(s)
-	s.ds.Start()
 }
 
 func (s *Server) connectToDB() {
@@ -100,6 +100,10 @@ func (s *Server) connectToDB() {
 		log.Println("Error connecting to cassandra:", err)
 		return
 	}
+}
+
+func (s *Server) executeSerial(f func()) {
+	s.serialChannel <- f
 }
 
 func (s *Server) Run() {
@@ -142,21 +146,30 @@ func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
 }
 
 func (s *Server) RegisterSession(session *AyiSession) {
-
-	if oldSession, ok := s.sessions[session.UserId]; ok {
-		s.UnregisterSession(oldSession)
-		oldSession.Close()
-	}
-
-	s.sessions[session.UserId] = session
+	s.executeSerial(func() {
+		if oldSession, ok := s.sessions.Get(session.UserId); ok {
+			oldSession.WriteSync(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD).Marshal())
+			log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", oldSession)
+			oldSession.Exit()
+			log.Printf("Closing old session %v for user %v\n", oldSession, oldSession.UserId)
+		}
+		s.sessions.Put(session.UserId, session)
+		log.Printf("Register session %v for user %v\n", session, session.UserId)
+	})
 }
 
 func (s *Server) UnregisterSession(session *AyiSession) {
-	user_id := session.UserId
-	if !session.IsClosed {
-		session.Close()
-	}
-	delete(s.sessions, user_id)
+	s.executeSerial(func() {
+		user_id := session.UserId
+		if !session.IsClosed() {
+			session.Exit()
+		}
+		oldSession, ok := s.sessions.Get(user_id)
+		if ok && oldSession == session {
+			s.sessions.Remove(user_id)
+			log.Printf("Unregister session %v for user %v\n", session, user_id)
+		}
+	})
 }
 
 func (s *Server) NewUserDAO() core.UserDAO {
@@ -174,84 +187,47 @@ func (s *Server) NewEventDAO() core.EventDAO {
 }
 
 // Private methods
-func (s *Server) handleSession(session *AyiSession) {
+func (server *Server) handleSession(session *AyiSession) {
 
-	// Defer session close
-	defer func() {
-
-		defer func() { // updateLastconnection may also panic
-			if r := recover(); r != nil {
-				log.Printf("Session %v Defer Panic: %v\n", session, r)
-			}
-			s.UnregisterSession(session)
-			log.Println("Session closed:", session)
-		}()
-
+	defer func() { // session.RunLoop() may throw panic
 		if r := recover(); r != nil {
 			log.Printf("Session %v Panic: %v\n", session, r)
 		}
-
-		session.updateLastConnection()
 	}()
 
 	log.Println("New connection from", session)
 
-	pingTime := time.Now().Add(PING_INTERVAL_MS)
+	session.OnRead = func(s *AyiSession, packet *proto.AyiPacket) {
+		if err := s.Server.serveMessage(packet, s); err != nil { // may block until writes are performed
+			log.Println("ServeMessage Panic:", err)
+			log.Println("Involved packet:", packet)
+			s.Write(proto.NewMessage().Error(packet.Type(), proto.E_OPERATION_FAILED).Marshal())
+		}
+	}
 
-	exit := false
+	session.OnError = func(s *AyiSession, err error) {
+		if err != proto.ErrTimeout {
+			log.Println("Session Error:", err)
+		}
+	}
 
-	for !session.IsClosed && !exit {
+	session.OnClosed = func(s *AyiSession, peer bool) {
+		if s.IsAuth {
+			//NOTE: If a user is deleted from user_account while it is still connected,
+			// a row in invalid state will be created when updating last connection
+			s.Server.NewUserDAO().SetLastConnection(s.UserId, core.GetCurrentTimeMillis())
+		}
 
-		select {
-		// Send Notifications
-		case notification := <-session.NotificationChannel:
-			session.ProcessNotification(notification)
-			continue
+		s.Server.UnregisterSession(s)
 
-		// Read messages
-		case packet := <-session.SocketChannel:
-			session.lastRecvMsg = time.Now()
-			pingTime = session.lastRecvMsg.Add(PING_INTERVAL_MS)
-			if err := s.serveMessage(packet, session); err != nil { // may block until writes are performed
-				log.Println("ServeMessage Panic:", err)
-				log.Println("Involved packet:", packet)
-				session.WriteReply(proto.NewMessage().Error(packet.Type(), proto.E_OPERATION_FAILED).Marshal())
-			}
+		if peer {
+			log.Printf("Session closed by client: %v %v\n", s.UserId, s)
+		} else {
+			log.Printf("Session closed %v %v\n", s.UserId, s)
+		}
+	}
 
-		// Manage errors
-		case err := <-session.SocketError:
-			if err == proto.ErrConnectionClosed {
-				log.Println("Connection closed by client:", session)
-				exit = true
-			} else if err != proto.ErrTimeout {
-				log.Println("Error:", err)
-			}
-
-		default:
-			current_time := time.Now()
-			if !session.IsAuth {
-				if current_time.After(session.lastRecvMsg.Add(MAX_LOGIN_TIME)) {
-					session.lastRecvMsg = time.Now()
-					log.Println("Connection IDLE", session)
-					exit = true
-				}
-			} else {
-				if current_time.After(session.lastRecvMsg.Add(MAX_IDLE_TIME)) {
-					session.lastRecvMsg = time.Now()
-					log.Println("Connection IDLE", session)
-					exit = true
-				} else if current_time.After(pingTime) {
-					session.SendPing()
-					pingTime = time.Now().Add(18 * time.Second)
-					log.Println("< PING to", session)
-				}
-			}
-
-			time.Sleep(250 * time.Millisecond)
-
-		} // End select
-
-	} // End loop
+	session.RunLoop() // Block here
 }
 
 func (s *Server) getIDGenerator(id uint16) *core.IDGen {
@@ -321,7 +297,6 @@ func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err
 						changed_fields:[friends]]
 	 ]
 ]*/
-
 func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 
 	if updateInfo.Object != "user" {
@@ -358,76 +333,113 @@ func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 	} // End outter loop
 }
 
-func (s *Server) notifyUser(user_id uint64, message []byte, callback func()) {
-	if session, ok := s.sessions[user_id]; ok {
-		session.Notify(&Notification{
-			Message:  message,
-			Callback: callback,
-		})
+func (s *Server) SendMessage(user_id uint64, message []byte) bool {
+	session := s.GetSession(user_id)
+	if session == nil {
+		return false
 	}
+	return session.Write(message)
 }
 
-/*
-Insert an event into database, add participants to it and send it to users' inbox.
-NOTE: This function isn't thread-safe
-*/
-func (s *Server) PublishEvent(event *core.Event, participants []*core.EventParticipant) bool {
-
-	result := false
-	dao := s.NewEventDAO()
-
-	if len(participants) > 0 {
-		// FIXME: Insert uses lightweight-transaction but actually may be not needed because
-		// EventID (primary key) is unique if, and only if, IDGen ID do not overlap with
-		// others IDGen running concurrently. In other words, if each IDGen produces keys
-		// of its assigned space, then EventID is unique.
-		if ok, err := dao.InsertEventCAS(event); ok {
-			if err := dao.AddOrUpdateParticipants(event.EventId, participants); err == nil {
-				event.NumGuests = int32(len(participants))
-				// Should use Compare-and-set version of SetNumGuests
-				if err := dao.SetNumGuests(event.EventId, event.NumGuests); err != nil {
-					log.Println("PublishEvent", err)
-				}
-				// FIXME: DeliverySystem Submit must be persistent in order to continue the job
-				// in case of failure
-				s.ds.Submit(event) // put event into users' inbox
-				result = true
-			} else {
-				log.Println("PublishEvent", err)
-			}
-
-		} else {
-			log.Println("PublishEvent:", err)
-		}
+func (s *Server) GetSession(user_id uint64) *AyiSession {
+	if session, ok := s.sessions.Get(user_id); ok {
+		return session
 	} else {
-		log.Println("Trying to publish an event with no participants")
+		return nil
 	}
-
-	return result
 }
 
-func (s *Server) createParticipantsList(author_id uint64, participants_id []uint64) ([]*core.EventParticipant, error) {
+// Insert an event into database, add participants to it and send it to users' inbox.
+func (s *Server) PublishEvent(event *core.Event) error {
 
-	var warning error
-	result := make([]*core.EventParticipant, 0, len(participants_id))
-	dao := s.NewUserDAO()
+	eventDAO := s.NewEventDAO()
 
-	// TODO: Optimise this path
-	for _, user_id := range participants_id {
-		if ok, _ := dao.AreFriends(author_id, user_id); ok {
-			if uac, _ := dao.Load(user_id); uac != nil {
-				result = append(result, uac.AsParticipant())
-			} else {
-				log.Println("createParticipantList() participant", user_id, "does not exist")
-				warning = ErrUnregisteredFriendsIgnored
-			}
-		} else {
-			log.Println("createParticipantList() Not friends", author_id, "and", user_id, "or doesn't exist")
-			warning = ErrNonFriendsIgnored
+	if len(event.Participants) <= 1 { // I need more than the only author
+		return ErrParticipantsRequired
+	}
+
+	if err := eventDAO.InsertEventAndParticipants(event); err != nil {
+		return err
+	}
+
+	// NOTE: DeliverySystem Submit must be persistent in order to continue the job
+	// in case of failure. So, in the meanwhile publishing events to inbox will be
+	// managed here. Only notification will be managed async.
+	//s.ds.Submit(event) // put event into users' inbox
+
+	// Author is the last participant. Add it first in order to get the author receive
+	// the event to add other participants if something fails
+	tmp_error := s.inviteParticipantToEvent(event, event.Participants[event.AuthorId])
+	if tmp_error != nil {
+		log.Println("PublishEvent Error:", tmp_error)
+		return ErrAuthorDeliveryError
+	}
+
+	for k, participant := range event.Participants {
+		if k != event.AuthorId {
+			s.inviteParticipantToEvent(event, participant) // TODO: Implement retry but do not return on error
 		}
 	}
 
-	return result, warning
+	notification := &NotifyEventInvitation{
+		Event: event,
+	}
+
+	s.task_executor.Submit(notification)
+
+	return nil
+}
+
+func (s *Server) inviteParticipantToEvent(event *core.Event, participant *core.EventParticipant) error {
+
+	task := &DeliverEventToParticipantInbox{
+		Event: event,
+		DstId: participant.UserId,
+	}
+
+	task.Run(s.task_executor)
+
+	if task.Error() != nil {
+		return task.Error()
+	}
+
+	participant.Delivered = core.MessageStatus_SERVER_DELIVERED
+	return nil
+}
+
+// This function is used to create a participant list that will be added to an event.
+// This event will be published on behalf of the author. By this reason, participants
+// can only be current friends of the author. In this code, it is assumed that
+// participants are already friends of the author (author has-friend way). However,
+// it must be checked if participants have also the author as a friend (friend has-author way)
+func (s *Server) createParticipantsList(author_id uint64, participants_id []uint64) (participant map[uint64]*core.EventParticipant, warn error, err error) {
+
+	var last_warning error
+	result := make(map[uint64]*core.EventParticipant)
+	userDAO := s.NewUserDAO()
+
+	for _, p_id := range participants_id {
+
+		if ok, err := userDAO.IsFriend(p_id, author_id); ok {
+
+			if uac, err := userDAO.Load(p_id); err == dao.ErrNotFound { // FIXME: Load several participants in one operation
+				last_warning = ErrUnregisteredFriendsIgnored
+				log.Printf("createParticipantList() Warning at userid %v: %v\n", p_id, err)
+			} else if err != nil {
+				return nil, nil, err
+			} else {
+				result[uac.Id] = uac.AsParticipant()
+			}
+
+		} else if err != nil {
+			return nil, nil, err
+		} else {
+			log.Println("createParticipantList() Not friends", author_id, "and", p_id)
+			last_warning = ErrNonFriendsIgnored
+		}
+	}
+
+	return result, last_warning, nil
 }
 
 func (s *Server) createParticipantsFromFriends(author_id uint64) []*core.EventParticipant {
@@ -444,6 +456,7 @@ func (s *Server) createParticipantsFromFriends(author_id uint64) []*core.EventPa
 }
 
 // Called from multiple threads
+// TODO: Update to send events + participants in one single message
 func sendPrivateEvents(session *AyiSession) {
 
 	server := session.Server
@@ -451,66 +464,57 @@ func sendPrivateEvents(session *AyiSession) {
 	events, err := dao.LoadUserEventsAndParticipants(session.UserId, core.GetCurrentTimeMillis())
 
 	if err != nil {
-		log.Println("sendPrivateEvents()", err)
+		log.Printf("sendPrivateEvents() to %v Error: %v\n", session.UserId, err)
 		return
 	}
 
-	// For compatibility, split events in event info and participants
-	participants_map := make(map[uint64][]*core.EventParticipant)
-	client_status_map := make(map[uint64]*core.EventParticipant)
-
-	for _, event := range events {
-		participants_map[event.EventId] = event.Participants
-		for _, p := range event.Participants {
-			if p.UserId == session.UserId {
-				client_status_map[event.EventId] = p
-				break
-			}
-		}
-		event.Participants = nil
+	if len(events) <= 1 {
+		log.Printf("There aren't events to send to %v\n", session.UserId)
+		return
 	}
 
-	if len(events) > 0 {
+	// For compatibility, split events into event info and participants
+	half_events := make([]*core.Event, 0, len(events))
+	for _, event := range events {
+		half_events = append(half_events, event.GetEventWithoutParticipants())
+	}
 
-		// Send events list to user
-		log.Println("SEND PRIVATE EVENTS to", session)
-		session.WriteReply(proto.NewMessage().EventsList(events).Marshal())
+	// Send events list to user
+	log.Printf("< (%v) SEND PRIVATE EVENTS", session.UserId)
+	session.Write(proto.NewMessage().EventsList(half_events).Marshal()) // TODO: Change after remove compatibility
 
-		// Send participants info of each event, update participant status as delivered and notify
-		for _, event := range events {
+	// Send participants info of each event, update participant status as delivered and notify
+	for _, event := range events {
 
-			participant := client_status_map[event.EventId]
-			event_participants, _ := participants_map[event.EventId]
-			participants_filtered := session.Server.filterParticipants(session.UserId, event_participants)
+		participants_filtered := session.Server.filterParticipantsMap(session.UserId, event.Participants)
 
-			// Send attendance info
-			msg := proto.NewMessage().AttendanceStatus(event.EventId, participants_filtered).Marshal()
-			session.WriteReply(msg)
+		// Send attendance info
+		msg := proto.NewMessage().AttendanceStatus(event.EventId, participants_filtered).Marshal()
+		session.Write(msg)
 
-			// Update participant status
-			if participant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
+		// Update participant status of the session user
+		ownParticipant := event.Participants[session.UserId]
 
-				dao.SetParticipantStatus(session.UserId, event.EventId, core.MessageStatus_CLIENT_DELIVERED) //FIXME: Probably could do it in only one operation
+		if ownParticipant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
+			ownParticipant.Delivered = core.MessageStatus_CLIENT_DELIVERED
+			dao.SetParticipantStatus(session.UserId, event.EventId, ownParticipant.Delivered)
 
-				// Notify change in participant status to the other participants
-				task := &NotifyParticipantChange{
-					EventId:  event.EventId,
-					UserId:   session.UserId,
-					Name:     participant.Name,
-					Response: participant.Response,
-					Status:   core.MessageStatus_CLIENT_DELIVERED,
-				}
-
-				task.AddParticipantsDst(event_participants) // I'm also sending notification to the author. Could avoid this because author already knows
-				server.task_executor.Submit(task)           // that the event has been send to him
+			// Notify change in participant status to the other participants
+			task := &NotifyParticipantChange{
+				Event:               event,
+				ParticipantsChanged: []uint64{session.UserId},
 			}
+
+			// I'm also sending notification to the author. Could avoid this because author already knows
+			// that the event has been send to him
+			server.task_executor.Submit(task)
 		}
 	}
 }
 
 func sendAuthError(session *AyiSession) {
-	session.WriteReply(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD).Marshal())
-	log.Println("SEND INVALID USER OR PASSWORD")
+	session.Write(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD).Marshal())
+	log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", session)
 }
 
 func checkAuthenticated(session *AyiSession) {
@@ -525,14 +529,13 @@ func checkUnauthenticated(session *AyiSession) {
 	}
 }
 
-/* Returns a participant list where users that will not assist the event or aren't
-   friends of the given user are removed */
-func (s *Server) filterParticipants(participant uint64, participants []*core.EventParticipant) []*core.EventParticipant {
+// Returns a participant list where users that will not assist the event or aren't
+// friends of the given user are removed */
+func (s *Server) filterParticipantsMap(participant uint64, participants map[uint64]*core.EventParticipant) []*core.EventParticipant {
 
 	result := make([]*core.EventParticipant, 0, len(participants))
 
 	for _, p := range participants {
-		// If the participant is a confirmed user (yes or cannot assist answer has been given)
 		if s.canSee(participant, p) {
 			result = append(result, p)
 		} else {
@@ -543,17 +546,29 @@ func (s *Server) filterParticipants(participant uint64, participants []*core.Eve
 	return result
 }
 
-/*
- Tells if participant p1 can see changes of participant p2
-*/
-// FIXME: Maybe is better to cache this
+func (s *Server) filterParticipantsSlice(participant uint64, participants []*core.EventParticipant) []*core.EventParticipant {
+
+	result := make([]*core.EventParticipant, 0, len(participants))
+
+	for _, p := range participants {
+		if s.canSee(participant, p) {
+			result = append(result, p)
+		} else {
+			result = append(result, p.AsAnonym())
+		}
+	}
+
+	return result
+}
+
+// Tells if participant p1 can see changes of participant p2
 func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 	dao := s.NewUserDAO()
 	if p2.Response == core.AttendanceResponse_ASSIST ||
 		/*p2.Response == core.AttendanceResponse_CANNOT_ASSIST ||*/
 		p1 == p2.UserId {
 		return true
-	} else if ok, _ := dao.AreFriends(p1, p2.UserId); ok {
+	} else if ok, _ := dao.IsFriend(p2.UserId, p1); ok {
 		return true
 	}
 	return false

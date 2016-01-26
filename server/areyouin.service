@@ -1,0 +1,13 @@
+[Unit]
+Description=AreYouIN Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/jpadilla/go-workspace/src/peeple/areyouin/server/server
+#WorkingDirectory
+User=areyouin
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

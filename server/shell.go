@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	core "peeple/areyouin/common"
 	proto "peeple/areyouin/protocol"
@@ -111,7 +112,7 @@ func (shell *Shell) sendAuthError(args []string) {
 	manageShellError(err)
 
 	server := shell.Server
-	if session, ok := server.sessions[user_id]; ok {
+	if session, ok := server.sessions.Get(user_id); ok {
 		sendAuthError(session)
 	}
 }
@@ -121,7 +122,10 @@ func (shell *Shell) listSessions(args []string) {
 
 	server := shell.Server
 
-	for k, session := range server.sessions {
+	keys := server.sessions.Keys()
+
+	for _, k := range keys {
+		session, _ := server.sessions.Get(k)
 		fmt.Printf("- %v %v\n", k, session)
 	}
 }
@@ -141,6 +145,7 @@ func (shell *Shell) listUserAccounts(args []string) {
 	for _, user := range users {
 		status_info := " "
 		if valid, err := dao.CheckValidCredentials(user.Id, user.Email, user.Fbid); err != nil {
+			log.Println("ListUserAccountsError:", err)
 			status_info = "?"
 		} else if !valid {
 			status_info = "E"
@@ -291,10 +296,10 @@ func (shell *Shell) pingClient(args []string) {
 	}
 
 	server := shell.Server
-	if session, ok := server.sessions[user_id]; ok {
+	if session, ok := server.sessions.Get(user_id); ok {
 		for i := uint64(0); i < repeat_times; i++ {
 			ping_msg := proto.NewMessage().Ping().Marshal()
-			session.WriteReply(ping_msg)
+			session.Write(ping_msg)
 		}
 	}
 }

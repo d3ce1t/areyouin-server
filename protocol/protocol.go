@@ -63,6 +63,7 @@ func ReadPacket(conn net.Conn) (*AyiPacket, error) {
 		return nil, ErrInvalidSocket
 	}
 
+	// FIXME: // I'm creating a lot of memory each time GC will have to work hard
 	packet := &AyiPacket{}
 
 	// Read header

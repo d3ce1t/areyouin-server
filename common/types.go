@@ -4,6 +4,11 @@ import (
 	"github.com/twinj/uuid"
 )
 
+type UserFriend interface {
+	GetName() string
+	GetUserId() uint64
+}
+
 type EventDAO interface {
 	InsertEventCAS(event *Event) (ok bool, err error)
 	InsertEvent(event *Event) error
@@ -16,7 +21,7 @@ type EventDAO interface {
 	LoadUserEvents(user_id uint64, fromDate int64) (events []*Event, err error)
 	LoadUserEventsAndParticipants(user_id uint64, fromDate int64) ([]*Event, error)
 	AddOrUpdateParticipants(event_id uint64, participantList []*EventParticipant) error
-	AddEventToUserInbox(user_id uint64, event *Event, response AttendanceResponse) error
+	AddEventToUserInbox(user_id uint64, event *Event) error
 	CompareAndSetNumGuests(event_id uint64, num_guests int32) (bool, error)
 	SetNumGuests(event_id uint64, num_guests int32) error
 	CompareAndSetNumAttendees(event_id uint64, num_attendees int) (bool, error)
@@ -38,10 +43,11 @@ type UserDAO interface {
 	SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID, fb_id string, fb_token string) error
 	GetIDByEmail(email string) (uint64, error)
 	GetIDByFacebookID(fb_id string) (uint64, error)
-	MakeFriends(user1 *Friend, user2 *Friend) error
+	MakeFriends(user1 UserFriend, user2 UserFriend) error
+	IsFriend(user_id uint64, other_user_id uint64) (bool, error)
 	AreFriends(user_id uint64, other_user_id uint64) (bool, error)
 	Insert(user *UserAccount) error
-	AddFriend(user_id uint64, friend *Friend, group_id int32) error
+	//AddFriend(user_id uint64, friend *Friend, group_id int32) error
 	Load(user_id uint64) (*UserAccount, error)
 	LoadByEmail(email string) (*UserAccount, error)
 	LoadAllUsers() ([]*UserAccount, error)

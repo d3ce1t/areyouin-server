@@ -79,3 +79,17 @@ func (event *Event) IsValidEndDate() bool {
 
 	return true
 }
+
+func (event *Event) SetParticipants(participants map[uint64]*EventParticipant) {
+	event.Participants = participants
+	if participants != nil {
+		event.NumGuests = int32(len(participants))
+	}
+}
+
+func (event *Event) GetEventWithoutParticipants() *Event {
+	new_event := &Event{}
+	*new_event = *event // copy
+	new_event.SetParticipants(nil)
+	return new_event
+}

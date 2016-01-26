@@ -23,7 +23,7 @@ func NewUserDAO(session *gocql.Session) core.UserDAO {
 // Insert a new user into Cassandra involving tables user_account, user_email_credentials
 // and user_facebook_credentials. It takes account race conditions like two users trying
 // to create the same account simultaneously. If user email is already used this operation
-// fails. In the same way, if FB account is already linked to a valid user account (rows
+// fails. In the same way, if FB account is already linked to a valid user account (row
 // exists in user_account and user_email_credential), then operation fails. With this
 // implementation, orphan fb rows are removed after a grace period time in order to enable
 // retry logic in the client when, by some reason, registration failed at first attempt.
@@ -273,7 +273,7 @@ func (dao *UserDAO) CheckValidCredentials(user_id uint64, email string, fb_id st
 
 	email_credential, err := dao.LoadEmailCredential(email)
 
-	if err == ErrNotFound {
+	if err == ErrNotFound || err == ErrInvalidEmail {
 		return false, nil
 	} else if err != nil {
 		return false, err
@@ -634,10 +634,21 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 
 	dao.checkSession()
 
+	friends, err := dao.LoadFriends(user.Id, 0)
+	if err != nil {
+		return err
+	}
+
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
-	batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email)
-	batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`, user.Id, 0)
+	batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email) // Now account is invalid
+
+	for _, friend := range friends {
+		batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ? AND friend_id = ?`,
+			friend.UserId, 0, user.Id)
+	}
+
+	batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`, user.Id, 0) // Always after delete itself from other friends
 
 	if user.HasFacebookCredentials() {
 		batch.Query(`DELETE FROM user_facebook_credentials WHERE fb_id = ?`, user.Fbid)
@@ -672,30 +683,19 @@ func (dao *UserDAO) DeleteFacebookCredentials(fb_id string) error {
 	return dao.session.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, fb_id).Exec()
 }
 
-func (dao *UserDAO) MakeFriends(user1 *core.Friend, user2 *core.Friend) error {
+func (dao *UserDAO) MakeFriends(user1 core.UserFriend, user2 core.UserFriend) error {
 
 	dao.checkSession()
 
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
 	batch.Query(`INSERT INTO user_friends (user_id, group_id, group_name, friend_id, name)
-							VALUES (?, ?, ?, ?, ?)`, user1.UserId, 0, "All Friends", user2.UserId, user2.Name)
+							VALUES (?, ?, ?, ?, ?)`, user1.GetUserId(), 0, "All Friends", user2.GetUserId(), user2.GetName())
 
 	batch.Query(`INSERT INTO user_friends (user_id, group_id, group_name, friend_id, name)
-							VALUES (?, ?, ?, ?, ?)`, user2.UserId, 0, "All Friends", user1.UserId, user1.Name)
+							VALUES (?, ?, ?, ?, ?)`, user2.GetUserId(), 0, "All Friends", user1.GetUserId(), user1.GetName())
 
 	return dao.session.ExecuteBatch(batch)
-}
-
-// FIXME: Remove!!!
-func (dao *UserDAO) AddFriend(user_id uint64, friend *core.Friend, group_id int32) error {
-
-	dao.checkSession()
-
-	stmt := `INSERT INTO user_friends (user_id, group_id, group_name, friend_id, name)
-							VALUES (?, ?, ?, ?, ?)`
-
-	return dao.session.Query(stmt, user_id, group_id, "All Friends", friend.UserId, friend.Name).Exec()
 }
 
 func (dao *UserDAO) DeleteFriendsGroup(user_id uint64, group_id int32) error {
@@ -762,29 +762,44 @@ func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) ([]*core.Friend,
 	return friend_list, nil
 }
 
-// FIXME: Since makeFriends function insert in two tables. I can assume that if I have the user, then we are friends
-func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) (bool, error) {
+// Since makeFriends() is bidirectional (adds the friend to user1 and user2). It can
+// be assumed that if first user is friend of the second one, then second user must also
+// have the first user in his/her friend list.
+func (dao *UserDAO) IsFriend(user_id uint64, other_user_id uint64) (bool, error) {
 
 	dao.checkSession()
 
 	stmt := `SELECT user_id FROM user_friends
 		WHERE user_id = ? AND group_id = ? AND friend_id = ?`
 
-	one_way := false
-	two_way := false
+	err := dao.session.Query(stmt, user_id, 0, other_user_id).Scan(nil)
 
-	if err := dao.session.Query(stmt, user_id, 0, other_user_id).Scan(nil); err == nil { // HACK: 0 group contains ALL_CONTACTS
-		one_way = true
-		if err := dao.session.Query(stmt, other_user_id, 0, user_id).Scan(nil); err == nil {
-			two_way = true
+	if err != nil { // HACK: 0 group contains ALL_CONTACTS
+		if err == ErrNotFound {
+			return false, nil
 		} else {
 			return false, err
 		}
-	} else {
-		return false, err
 	}
 
-	return one_way && two_way, nil
+	return true, nil
+}
+
+// Check if two users are friends. In contrast to IsFriend. This function perform checking
+// in two ways.
+func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) (bool, error) {
+
+	var one_way bool
+	var err error
+	var two_way bool
+
+	if one_way, err = dao.IsFriend(user_id, other_user_id); one_way {
+		if two_way, err = dao.IsFriend(other_user_id, user_id); two_way {
+			return true, nil
+		}
+	}
+
+	return false, err
 }
 
 func (dao *UserDAO) checkSession() {

@@ -172,16 +172,29 @@ func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event, response core.AttendanceResponse) error {
+func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event) error {
 
 	dao.checkSession()
 
-	stmt := `INSERT INTO user_events (user_id, event_id, end_date, response)
+	stmt_insert := `INSERT INTO user_events (user_id, event_id, end_date, response)
 		VALUES (?, ?, ?, ?)`
 
-	q := dao.session.Query(stmt, user_id, event.EventId, event.EndDate, response)
+	stmt_update := `UPDATE event SET guest_status = ? WHERE event_id = ? AND guest_id = ?`
 
-	return q.Exec()
+	var response core.AttendanceResponse
+
+	if event.AuthorId == user_id {
+		response = core.AttendanceResponse_ASSIST
+	} else {
+		response = core.AttendanceResponse_NO_RESPONSE
+	}
+
+	batch := dao.session.NewBatch(gocql.LoggedBatch)
+
+	batch.Query(stmt_insert, user_id, event.EventId, event.EndDate, response)
+	batch.Query(stmt_update, core.MessageStatus_SERVER_DELIVERED, event.EventId, user_id)
+
+	return dao.session.ExecuteBatch(batch)
 }
 
 func (dao *EventDAO) LoadUserInbox(user_id uint64, fromDate int64) ([]uint64, error) {
@@ -260,6 +273,7 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*co
 				NumAttendees: num_attendees,
 				NumGuests:    num_guests,
 				CreatedDate:  created_date,
+				Participants: make(map[uint64]*core.EventParticipant),
 			}
 
 			events_index[event_id] = event
@@ -273,7 +287,7 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*co
 			Delivered: core.MessageStatus(guest_status),
 		}
 
-		event.Participants = append(event.Participants, guest)
+		event.Participants[guest_id] = guest
 	}
 
 	if err := iter.Close(); err != nil {

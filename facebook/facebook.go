@@ -2,6 +2,7 @@ package facebook
 
 import (
 	"errors"
+	"fmt"
 	fb "github.com/huandu/facebook"
 	"log"
 )
@@ -180,6 +181,22 @@ func parseFriend(result fb.Result) (*Friend, error) {
 	}
 
 	return friend, nil
+}
+
+func GetErrorMessage(err error) string {
+
+	message := ""
+
+	if err != nil {
+		if e, ok := err.(*fb.Error); ok {
+			message = fmt.Sprintf("[message:%v] [type:%v] [code:%v] [subcode:%v]",
+				e.Message, e.Type, e.Code, e.ErrorSubcode)
+		} else {
+			message = fmt.Sprintf("%v", err)
+		}
+	}
+
+	return message
 }
 
 func LogError(err error) {

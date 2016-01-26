@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/twinj/uuid"
 	"regexp"
+	"strings"
 )
 
 var validEmail = regexp.MustCompile(`\w[-._\w]*\w@\w[-._\w]*\w\.\w{2,3}`)
@@ -26,7 +27,7 @@ func NewUserAccount(id uint64, name string, email string, password string, phone
 	user := &UserAccount{
 		Id:          id,
 		Name:        name,
-		Email:       email,
+		Email:       strings.ToLower(email),
 		Password:    password,
 		phone:       phone,
 		Fbid:        fbid,
@@ -35,6 +36,14 @@ func NewUserAccount(id uint64, name string, email string, password string, phone
 		CreatedDate: GetCurrentTimeMillis()}
 
 	return user
+}
+
+func (user *UserAccount) GetName() string {
+	return user.Name
+}
+
+func (user *UserAccount) GetUserId() uint64 {
+	return user.Id
 }
 
 // A valid user account always has an id, name and email, and at least one
@@ -103,10 +112,6 @@ func (ua *UserAccount) HasEmailCredentials() bool {
 		result = true
 	}
 	return result
-}
-
-func (ua *UserAccount) AsFriend() *Friend {
-	return &Friend{UserId: ua.Id, Name: ua.Name}
 }
 
 func (ua *UserAccount) AsParticipant() *EventParticipant {
