@@ -265,7 +265,7 @@ func (s *AyiSession) keepAlive() {
 			s.Exit()
 		} else if current_time.After(s.pingTime) {
 			s.ping()
-			log.Println("< PING to", s)
+			log.Printf("< (%v) PING", s.UserId)
 		}
 	}
 }

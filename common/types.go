@@ -4,6 +4,16 @@ import (
 	"github.com/twinj/uuid"
 )
 
+type EventInbox struct {
+	UserId     uint64
+	EventId    uint64
+	AuthorId   uint64
+	AuthorName string
+	StartDate  int64
+	Message    string
+	Response   AttendanceResponse
+}
+
 type UserFriend interface {
 	GetName() string
 	GetUserId() uint64
@@ -15,9 +25,8 @@ type EventDAO interface {
 	InsertEventAndParticipants(event *Event) error
 	LoadEvent(event_ids ...uint64) (events []*Event, err error)
 	LoadEventAndParticipants(event_ids ...uint64) (events []*Event, err error)
-	LoadParticipant(event_id uint64, user_id uint64) (*EventParticipant, error)
-	LoadAllParticipants(event_id uint64) ([]*EventParticipant, error)
-	LoadUserInbox(user_id uint64, fromDate int64) ([]uint64, error)
+	LoadParticipant(event_id uint64, user_id uint64) (*Participant, error)
+	LoadUserInbox(user_id uint64, fromDate int64, toDate int64) ([]*EventInbox, error)
 	LoadUserEvents(user_id uint64, fromDate int64) (events []*Event, err error)
 	LoadUserEventsAndParticipants(user_id uint64, fromDate int64) ([]*Event, error)
 	AddOrUpdateParticipants(event_id uint64, participantList []*EventParticipant) error
@@ -27,7 +36,7 @@ type EventDAO interface {
 	CompareAndSetNumAttendees(event_id uint64, num_attendees int) (bool, error)
 	SetNumAttendees(event_id uint64, num_attendees int) error
 	SetParticipantStatus(user_id uint64, event_id uint64, status MessageStatus) error
-	SetParticipantResponse(user_id uint64, event_id uint64, response AttendanceResponse) error
+	SetParticipantResponse(participant *Participant, response AttendanceResponse) error
 }
 
 type UserDAO interface {

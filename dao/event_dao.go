@@ -4,6 +4,7 @@ import (
 	"github.com/gocql/gocql"
 	"log"
 	core "peeple/areyouin/common"
+	"time"
 )
 
 const (
@@ -76,70 +77,39 @@ func (dao *EventDAO) InsertEventAndParticipants(event *core.Event) error {
 
 // Load the participant of an event and returns it. If not found returns a nil participant
 // and error. Whatever else returns (nil, error)
-func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*core.EventParticipant, error) {
+func (dao *EventDAO) LoadParticipant(event_id uint64, user_id uint64) (*core.Participant, error) {
 
 	dao.checkSession()
 
-	stmt := `SELECT guest_name, guest_response, guest_status FROM event
+	stmt := `SELECT guest_name, guest_response, guest_status, start_date FROM event
 		WHERE event_id = ? AND guest_id = ? LIMIT 1`
 
 	q := dao.session.Query(stmt, event_id, user_id)
 
 	var name string
 	var response, status int32
-	var participant *core.EventParticipant
+	var start_date int64
+	var participant *core.Participant
 
-	err := q.Scan(&name, &response, &status)
+	err := q.Scan(&name, &response, &status, &start_date)
 
 	if err == nil {
-		participant = &core.EventParticipant{
-			UserId:    user_id,
-			Name:      name,
-			Response:  core.AttendanceResponse(response),
-			Delivered: core.MessageStatus(status),
+		participant = &core.Participant{
+			EventParticipant: core.EventParticipant{
+				UserId:    user_id,
+				Name:      name,
+				Response:  core.AttendanceResponse(response),
+				Delivered: core.MessageStatus(status),
+			},
+			EventId:        event_id,
+			EventStartDate: start_date,
 		}
+
 	} else if err != gocql.ErrNotFound {
 		log.Println("LoadParticipant:", err)
 	}
 
 	return participant, err
-}
-
-func (dao *EventDAO) LoadAllParticipants(event_id uint64) ([]*core.EventParticipant, error) {
-
-	dao.checkSession()
-
-	stmt := `SELECT guest_id, guest_name, guest_response, guest_status FROM event
-		WHERE event_id = ? LIMIT ?`
-
-	iter := dao.session.Query(stmt, event_id, MAX_NUM_GUESTS).Iter()
-
-	if iter == nil {
-		return nil, ErrNilPointer
-	}
-
-	participants := make([]*core.EventParticipant, 0, 10)
-
-	var user_id uint64
-	var name string
-	var response int32
-	var status int32
-
-	for iter.Scan(&user_id, &name, &response, &status) {
-		participants = append(participants, &core.EventParticipant{
-			UserId:    user_id,
-			Name:      name,
-			Response:  core.AttendanceResponse(response),
-			Delivered: core.MessageStatus(status),
-		})
-	}
-
-	if err := iter.Close(); err != nil {
-		log.Println("LoadParticipants (", event_id, "):", err)
-		return nil, err
-	}
-
-	return participants, nil
 }
 
 func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *core.EventParticipant) error {
@@ -176,8 +146,8 @@ func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event) erro
 
 	dao.checkSession()
 
-	stmt_insert := `INSERT INTO user_events (user_id, event_id, end_date, response)
-		VALUES (?, ?, ?, ?)`
+	stmt_insert := `INSERT INTO events_by_user (user_id, event_bucket, start_date, event_id, author_id, author_name, message, response)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
 	stmt_update := `UPDATE event SET guest_status = ? WHERE event_id = ? AND guest_id = ?`
 
@@ -190,24 +160,40 @@ func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event) erro
 	}
 
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
+	event_bucket := 1 // TODO: Implement bucket logic properly
 
-	batch.Query(stmt_insert, user_id, event.EventId, event.EndDate, response)
+	batch.Query(stmt_insert, user_id, event_bucket, event.StartDate, event.EventId, event.AuthorId,
+		event.AuthorName, event.Message, response)
 	batch.Query(stmt_update, core.MessageStatus_SERVER_DELIVERED, event.EventId, user_id)
 
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *EventDAO) LoadUserInbox(user_id uint64, fromDate int64) ([]uint64, error) {
+func (dao *EventDAO) LoadUserInbox(user_id uint64, fromDate int64, toDate int64) ([]*core.EventInbox, error) {
 
-	stmt := `SELECT event_id FROM user_events
-		WHERE user_id = ? AND end_date >= ?`
+	stmt := `SELECT event_id, author_id, author_name, start_date, message, response FROM events_by_user
+		WHERE user_id = ? AND event_bucket = ? AND start_date >= ? AND start_date < ?`
 
-	iter := dao.session.Query(stmt, user_id, fromDate).Iter()
-	event_id_list := make([]uint64, 0, 20)
+	event_bucket := 1 // TODO: Add bucket logic
+	iter := dao.session.Query(stmt, user_id, event_bucket, fromDate, toDate).Iter()
+	events := make([]*core.EventInbox, 0, 20)
+
 	var event_id uint64
+	var author_id uint64
+	var author_name string
+	var start_date int64
+	var message string
+	var response int32
 
-	for iter.Scan(&event_id) {
-		event_id_list = append(event_id_list, event_id)
+	for iter.Scan(&event_id, &author_id, &author_name, &start_date, &message, &response) {
+		events = append(events, &core.EventInbox{
+			EventId:    event_id,
+			AuthorId:   author_id,
+			AuthorName: author_name,
+			StartDate:  start_date,
+			Message:    message,
+			Response:   core.AttendanceResponse(response),
+		})
 	}
 
 	if err := iter.Close(); err != nil {
@@ -215,11 +201,11 @@ func (dao *EventDAO) LoadUserInbox(user_id uint64, fromDate int64) ([]uint64, er
 		return nil, err
 	}
 
-	if len(event_id_list) == 0 {
+	if len(events) == 0 {
 		return nil, ErrEmptyInbox
 	}
 
-	return event_id_list, nil
+	return events, nil
 }
 
 // Read one or more events and their participants. Event info and participants are in the
@@ -360,11 +346,17 @@ func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) ([]*core.Eve
 	dao.checkSession()
 
 	// Get index of events
-	event_id_list, err := dao.LoadUserInbox(user_id, fromDate)
+	toDate := core.TimeToMillis(time.Now().Add(core.MAX_DIF_IN_START_DATE)) // One year
+	events_inbox, err := dao.LoadUserInbox(user_id, fromDate, toDate)
 
 	if err != nil {
 		log.Println("LoadUserEvents 1 (", user_id, "):", err)
 		return nil, err
+	}
+
+	event_id_list := make([]uint64, 0, len(events_inbox))
+	for _, event_inbox := range events_inbox {
+		event_id_list = append(event_id_list, event_inbox.EventId)
 	}
 
 	// Read from event table to get the actual info
@@ -385,11 +377,17 @@ func (dao *EventDAO) LoadUserEventsAndParticipants(user_id uint64, fromDate int6
 	dao.checkSession()
 
 	// Get index of events
-	event_id_list, err := dao.LoadUserInbox(user_id, fromDate)
+	toDate := core.TimeToMillis(time.Now().Add(core.MAX_DIF_IN_START_DATE)) // One year
+	events_inbox, err := dao.LoadUserInbox(user_id, fromDate, toDate)
 
 	if err != nil {
 		log.Println("LoadUserEventsAndParticipants 1 (", user_id, "):", err)
 		return nil, err
+	}
+
+	event_id_list := make([]uint64, 0, len(events_inbox))
+	for _, event_inbox := range events_inbox {
+		event_id_list = append(event_id_list, event_inbox.EventId)
 	}
 
 	// Read from event table to get the actual info
@@ -474,13 +472,19 @@ func (dao *EventDAO) SetParticipantStatus(user_id uint64, event_id uint64, statu
 	return q.Exec()
 }
 
-func (dao *EventDAO) SetParticipantResponse(user_id uint64, event_id uint64, response core.AttendanceResponse) error {
+func (dao *EventDAO) SetParticipantResponse(participant *core.Participant, response core.AttendanceResponse) error {
 
 	dao.checkSession()
 
-	stmt := `UPDATE event SET guest_response = ? WHERE event_id = ? AND guest_id = ?`
-	q := dao.session.Query(stmt, response, event_id, user_id)
-	return q.Exec()
+	stmt_event := `UPDATE event SET guest_response = ? WHERE event_id = ? AND guest_id = ?`
+	stmt_events_by_user := `UPDATE events_by_user SET response = ? WHERE user_id = ? AND event_bucket = ? AND start_date = ? AND event_id = ?`
+
+	batch := dao.session.NewBatch(gocql.LoggedBatch)
+
+	batch.Query(stmt_event, response, participant.EventId, participant.UserId)
+	batch.Query(stmt_events_by_user, response, participant.UserId, 1, participant.EventStartDate, participant.EventId)
+
+	return dao.session.ExecuteBatch(batch)
 }
 
 func GenParams(size int) string {

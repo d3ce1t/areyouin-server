@@ -5,6 +5,8 @@ CREATE KEYSPACE areyouin WITH REPLICATION = { 'class' : 'SimpleStrategy', 'repli
 // Create the schema
 USE areyouin;
 
+// Q1: Find a user with a known e-mail address
+// Used by: NewAuthToken
 DROP TABLE IF EXISTS user_email_credentials;
 CREATE TABLE user_email_credentials (
 	email text,
@@ -15,6 +17,8 @@ CREATE TABLE user_email_credentials (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
+// Q2: Find a user with a known Facebook ID
+// Used by: NewAuthToken
 DROP TABLE IF EXISTS user_facebook_credentials;
 CREATE TABLE user_facebook_credentials (
 	fb_id text,
@@ -25,6 +29,8 @@ CREATE TABLE user_facebook_credentials (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
+// Q3: Find a user with a known UID
+// Used by: UserAuth
 DROP TABLE IF EXISTS user_account;
 CREATE TABLE user_account (
 	user_id bigint,
@@ -42,6 +48,9 @@ CREATE TABLE user_account (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
+// Q4: Find friends of a known user and group
+// Users are not gonna have more than 1000 friends and the same for
+// groups. So remove group_id as part of the key
 DROP TABLE IF EXISTS user_friends;
 CREATE TABLE user_friends (
 	user_id bigint,
@@ -53,24 +62,38 @@ CREATE TABLE user_friends (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// look up table
-DROP TABLE IF EXISTS user_events;
-CREATE TABLE user_events (
+/*CREATE TABLE friend_by_user (
+   user_id bigint,
+   friend_id bigint,
+   friend_name text,
+   group_id UUID,
+   PRIMARY KEY (user_id, group_id, friend_id)
+)*/
+
+/*CREATE TABLE group_by_user {
 	user_id bigint,
-	// author_id bigint,
-	// author_name text,
-	// image,
-	end_date timestamp,
-	// start_date timestamp,
+	group_id UUID,
+	group_name text,
+	PRIMARY KEY (user_id, group_id)
+}*/
+
+// Q5: Find events a user has been invited to and range by start_date (order by start_date ASC)
+DROP TABLE IF EXISTS events_by_user;
+CREATE TABLE events_by_user (
+	user_id bigint,
+	event_bucket int, // add another table to store info about where buckets starts and ends and which size have
+	start_date timestamp,
 	event_id bigint,
+	author_id bigint,
+	author_name text,
+	message text,
 	response int, // 0) no response, 1) no assist, 2) cannot assist, 3) assist
-	// num_attendees int,
-	PRIMARY KEY (user_id, end_date, event_id) // FIXME: Make partitions because a user could have a lot of events as time goes further
+	PRIMARY KEY ((user_id, event_bucket), start_date, event_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
-AND CLUSTERING ORDER BY (end_date ASC, event_id ASC);
+AND CLUSTERING ORDER BY (start_date ASC, event_id ASC);
 
-// TODO: Study event partitions by date
+// Q6: Find a event with a specified event id
 DROP TABLE IF EXISTS event;
 CREATE TABLE event (
 	// Partition Key
@@ -95,4 +118,29 @@ CREATE TABLE event (
 	PRIMARY KEY (event_id, guest_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
-//AND CLUSTERING ORDER BY (event_id DESC);
+
+//
+// Stats
+//
+// Q7: Find number of users registered each day and be able of aggregating
+// by month and year quickly
+CREATE TABLE users_registered_by_day (
+	year int,
+	month int,
+	day int,
+	num_users int,
+	PRIMARY KEY (year, month, day)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
+AND CLUSTERING ORDER BY (month DESC, day DESC);
+
+// Auxiliary table to record registered users in order to provide Q7
+CREATE TABLE users_registered_log (
+	year int,
+	month int,
+	day int,
+	user_id bigint,
+	PRIMARY KEY ((year, month), day, user_id)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
+AND CLUSTERING ORDER BY (day DESC, user_id ASC);

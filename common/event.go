@@ -56,11 +56,13 @@ func (event *Event) IsValid() (bool, error) {
 
 func (event *Event) IsValidStartDate() bool {
 
-	createdDate := UnixMillisToTime(event.CreatedDate)
+	// I need only minute precision in order to emulate the same checking performed
+	// by the client.
+	createdDateMin := UnixMillisToTime(event.CreatedDate - (event.CreatedDate % 60000))
 	startDate := UnixMillisToTime(event.StartDate)
 
-	if startDate.Before(createdDate.Add(MIN_DIF_IN_START_DATE)) ||
-		startDate.After(createdDate.Add(MAX_DIF_IN_START_DATE)) {
+	if startDate.Before(createdDateMin.Add(MIN_DIF_IN_START_DATE)) ||
+		startDate.After(createdDateMin.Add(MAX_DIF_IN_START_DATE)) {
 		return false
 	}
 

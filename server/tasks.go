@@ -132,31 +132,6 @@ func (task *SendUserFriends) Run(ex *TaskExecutor) {
 	}
 }
 
-// Task to store an event into a participant inbox
-type DeliverEventToParticipantInbox struct {
-	Event *core.Event
-	DstId uint64
-	err   error
-}
-
-func (task *DeliverEventToParticipantInbox) Run(ex *TaskExecutor) {
-
-	server := ex.server
-	eventDAO := server.NewEventDAO()
-
-	task.err = eventDAO.AddEventToUserInbox(task.DstId, task.Event)
-	if task.err != nil {
-		log.Println("Coudn't deliver event", task.Event.EventId, task.err)
-		return
-	}
-
-	log.Println("Event", task.Event.EventId, "delivered to user", task.DstId)
-}
-
-func (task *DeliverEventToParticipantInbox) Error() error {
-	return task.err
-}
-
 // Task to notify guests/participants of an event that have been invited. This
 // task is used whenever a new event is created and participants have not been
 // notified yet.

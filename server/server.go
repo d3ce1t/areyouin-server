@@ -392,18 +392,15 @@ func (s *Server) PublishEvent(event *core.Event) error {
 
 func (s *Server) inviteParticipantToEvent(event *core.Event, participant *core.EventParticipant) error {
 
-	task := &DeliverEventToParticipantInbox{
-		Event: event,
-		DstId: participant.UserId,
-	}
+	eventDAO := s.NewEventDAO()
 
-	task.Run(s.task_executor)
-
-	if task.Error() != nil {
-		return task.Error()
+	if err := eventDAO.AddEventToUserInbox(participant.UserId, event); err != nil {
+		log.Println("Coudn't deliver event", event.EventId, err)
+		return err
 	}
 
 	participant.Delivered = core.MessageStatus_SERVER_DELIVERED
+	log.Println("Event", event.EventId, "delivered to user", participant.UserId)
 	return nil
 }
 
@@ -468,11 +465,6 @@ func sendPrivateEvents(session *AyiSession) {
 		return
 	}
 
-	if len(events) <= 1 {
-		log.Printf("There aren't events to send to %v\n", session.UserId)
-		return
-	}
-
 	// For compatibility, split events into event info and participants
 	half_events := make([]*core.Event, 0, len(events))
 	for _, event := range events {
@@ -480,7 +472,7 @@ func sendPrivateEvents(session *AyiSession) {
 	}
 
 	// Send events list to user
-	log.Printf("< (%v) SEND PRIVATE EVENTS", session.UserId)
+	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session.UserId, len(half_events))
 	session.Write(proto.NewMessage().EventsList(half_events).Marshal()) // TODO: Change after remove compatibility
 
 	// Send participants info of each event, update participant status as delivered and notify

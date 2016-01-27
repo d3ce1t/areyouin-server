@@ -346,6 +346,15 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 		return
 	}
 
+	current_time := core.GetCurrentTimeMillis()
+
+	if participant.EventStartDate < current_time {
+		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_EVENT_EXPIRED).Marshal()
+		log.Printf("< (%v) CONFIRM ATTENDANCE %v EVENT EXPIRED\n", session.UserId, msg.EventId)
+		session.Write(reply)
+		return
+	}
+
 	// If the stored response is the same as the provided, send OK response inmediately
 	if participant.Response == msg.ActionCode {
 		reply = proto.NewMessage().Ok(packet_type).Marshal()
@@ -353,7 +362,7 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 		return
 	}
 
-	if err := event_dao.SetParticipantResponse(session.UserId, msg.EventId, msg.ActionCode); err != nil {
+	if err := event_dao.SetParticipantResponse(participant, msg.ActionCode); err != nil {
 		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED).Marshal()
 		session.Write(reply)
 		log.Printf("< (%v) CONFIRM ATTENDANCE %v ERROR %v\n", session.UserId, msg.EventId, err)
