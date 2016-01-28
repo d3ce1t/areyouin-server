@@ -10,6 +10,7 @@ import (
 var (
 	ErrSessionNotConnected        = errors.New("session not connected")
 	ErrAuthRequired               = errors.New("auth required")
+	ErrNoAuthRequired             = errors.New("no auth required")
 	ErrUnhandledMessage           = errors.New("unhandled message")
 	ErrUnknownMessage             = errors.New("unknown message")
 	ErrNonFriendsIgnored          = errors.New("ignored non friends participants")

@@ -16,11 +16,11 @@ const (
 
 func onCreateAccount(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
-	checkUnauthenticated(session)
-
 	server := session.Server
 	msg := message.(*proto.CreateUserAccount)
 	log.Printf("> (%v) USER CREATE ACCOUNT %v\n", session, msg)
+
+	checkUnauthenticated(session)
 
 	// Create new user account
 	user := core.NewUserAccount(server.GetNewID(), msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
@@ -92,11 +92,11 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 // authenticate.
 func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
-	checkUnauthenticated(session)
-
 	server := session.Server
 	msg := message.(*proto.NewAuthToken)
 	log.Printf("> (%v) USER NEW AUTH TOKEN %v\n", session, msg)
+
+	checkUnauthenticated(session)
 
 	var reply []byte
 
@@ -189,11 +189,11 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 func onUserAuthentication(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
-	checkUnauthenticated(session)
-
 	server := session.Server
 	msg := message.(*proto.UserAuthentication)
 	log.Printf("> (%v) USER AUTH %v\n", session, msg)
+
+	checkUnauthenticated(session)
 
 	userDAO := server.NewUserDAO()
 
@@ -229,11 +229,11 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 
 func onCreateEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
-	checkAuthenticated(session)
-
 	server := session.Server
 	msg := message.(*proto.CreateEvent)
 	log.Printf("> (%v) CREATE EVENT %v\n", session.UserId, msg)
+
+	checkAuthenticated(session)
 
 	userDAO := server.NewUserDAO()
 
@@ -321,12 +321,12 @@ func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message
 // Clients are cool counting attendees :)
 func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
-	checkAuthenticated(session)
-
+	server := session.Server
 	msg := message.(*proto.ConfirmAttendance)
 	log.Printf("> (%v) CONFIRM ATTENDANCE %v\n", session.UserId, msg)
 
-	server := session.Server
+	checkAuthenticated(session)
+
 	event_dao := server.NewEventDAO()
 
 	// Preconditions: User must have received the invitationm, so user must be in the event participant list
@@ -455,9 +455,9 @@ func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, 
 
 func onUserFriends(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
-	checkAuthenticated(session)
-
 	log.Println("> USER FRIENDS") // Message does not has payload
+
+	checkAuthenticated(session)
 
 	if !session.IsAuth {
 		log.Println("Received USER FRIENDS message from unauthenticated client", session)
@@ -479,10 +479,10 @@ func onUserFriends(packet_type proto.PacketType, message proto.Message, session 
 
 func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
-	checkAuthenticated(session)
-
 	msg := message.(*proto.Ok)
 	log.Println("> OK", msg.Type)
+
+	checkAuthenticated(session)
 
 	/*switch msg.Type {
 	case proto.M_INVITATION_RECEIVED:
@@ -492,15 +492,15 @@ func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSessi
 }
 
 func onPing(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-	checkAuthenticated(session)
 	msg := message.(*proto.Ping)
 	log.Printf("> (%v) PING %v\n", session.UserId, msg.CurrentTime)
+	checkAuthenticated(session)
 	reply := proto.NewMessage().Pong().Marshal()
 	session.Write(reply)
 }
 
 func onPong(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-	checkAuthenticated(session)
 	msg := message.(*proto.Pong)
+	checkAuthenticated(session)
 	log.Printf("> (%v) PONG %v\n", session.UserId, msg.CurrentTime)
 }

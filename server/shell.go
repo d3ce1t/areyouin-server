@@ -182,6 +182,7 @@ func (shell *Shell) init() {
 		"list_users":      shell.listUserAccounts,
 		"delete_user":     shell.deleteUser,
 		"send_auth_error": shell.sendAuthError,
+		"close_session":   shell.closeSession,
 		"show_user":       shell.showUser,
 		"ping":            shell.pingClient,
 	}
@@ -266,6 +267,18 @@ func (shell *Shell) sendAuthError(args []string) {
 	server := shell.server
 	if session, ok := server.sessions.Get(user_id); ok {
 		sendAuthError(session)
+	}
+}
+
+// close_session user_id
+func (shell *Shell) closeSession(args []string) {
+
+	user_id, err := strconv.ParseUint(args[1], 10, 64)
+	manageShellError(err)
+
+	server := shell.server
+	if session, ok := server.sessions.Get(user_id); ok {
+		session.Exit()
 	}
 }
 

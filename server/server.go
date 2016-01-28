@@ -201,9 +201,13 @@ func (server *Server) handleSession(session *AyiSession) {
 
 	session.OnRead = func(s *AyiSession, packet *proto.AyiPacket) {
 		if err := s.Server.serveMessage(packet, s); err != nil { // may block until writes are performed
-			log.Println("ServeMessage Panic:", err)
-			log.Println("Involved packet:", packet)
-			s.Write(proto.NewMessage().Error(packet.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)).Marshal())
+			error_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
+			if err == ErrAuthRequired {
+				log.Printf("< (%v) AUTH REQUIRED\n", session)
+			} else {
+				log.Printf("< (%v) ERROR %v (panic %v)\n", session.UserId, error_code, err)
+			}
+			s.Write(proto.NewMessage().Error(packet.Type(), error_code).Marshal())
 		}
 	}
 
@@ -519,7 +523,7 @@ func checkAuthenticated(session *AyiSession) {
 
 func checkUnauthenticated(session *AyiSession) {
 	if session.IsAuth {
-		panic(ErrAuthRequired)
+		panic(ErrNoAuthRequired)
 	}
 }
 
