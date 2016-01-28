@@ -153,11 +153,13 @@ func (shell *Shell) Execute(channel io.ReadWriter) {
 
 	shell.io = channel
 
-	fmt.Fprint(shell.io, "----------------------------------------\n")
-	fmt.Fprint(shell.io, "! WARNING WARNING WARNING              !\n")
-	fmt.Fprint(shell.io, "! You have started a testing server    !\n")
-	fmt.Fprint(shell.io, "! WARNING WARNING WARNING              !\n")
-	fmt.Fprint(shell.io, "----------------------------------------\n")
+	if shell.server.Testing {
+		fmt.Fprint(shell.io, "----------------------------------------\n")
+		fmt.Fprint(shell.io, "! WARNING WARNING WARNING              !\n")
+		fmt.Fprint(shell.io, "! You have started a testing server    !\n")
+		fmt.Fprint(shell.io, "! WARNING WARNING WARNING              !\n")
+		fmt.Fprint(shell.io, "----------------------------------------\n")
+	}
 
 	shell.welcome = "Welcome to AreYouIN server shell\n"
 	shell.prompt = "areyouin$>"

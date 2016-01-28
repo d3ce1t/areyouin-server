@@ -38,6 +38,7 @@ func NewTestServer() *Server {
 	server := &Server{
 		DbAddress: "192.168.1.10",
 		Keyspace:  "areyouin",
+		Testing:   true,
 	}
 	server.init()
 	return server
@@ -57,6 +58,7 @@ type Server struct {
 	webhook       *wh.WebHookServer
 	DbAddress     string
 	serialChannel chan func()
+	Testing       bool
 }
 
 func (s *Server) DbSession() *gocql.Session {

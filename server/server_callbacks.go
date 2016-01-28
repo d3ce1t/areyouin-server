@@ -287,7 +287,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 
 	if err := server.PublishEvent(event); err == nil {
 		session.Write(proto.NewMessage().Ok(packet_type).Marshal())
-		log.Printf("< (%v) CREATE EVENT OK (eventId: %v Num.Participants: %v)\n", session.UserId, event.EventId, len(event.Participants))
+		log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session.UserId, event.EventId, len(event.Participants))
 	} else if err == ErrParticipantsRequired {
 		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(warning, proto.E_EVENT_PARTICIPANTS_REQUIRED)).Marshal())
 		log.Printf("< (%v) CREATE EVENT ERROR %v %v\n", session.UserId, err, warning)
