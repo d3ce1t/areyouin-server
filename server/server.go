@@ -203,7 +203,7 @@ func (server *Server) handleSession(session *AyiSession) {
 		if err := s.Server.serveMessage(packet, s); err != nil { // may block until writes are performed
 			log.Println("ServeMessage Panic:", err)
 			log.Println("Involved packet:", packet)
-			s.Write(proto.NewMessage().Error(packet.Type(), proto.E_OPERATION_FAILED).Marshal())
+			s.Write(proto.NewMessage().Error(packet.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)).Marshal())
 		}
 	}
 

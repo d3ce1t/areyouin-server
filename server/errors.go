@@ -23,6 +23,8 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	var err_code int32
 
 	switch err {
+	case ErrAuthRequired:
+		err_code = proto.E_AUTH_REQUIRED
 	case core.ErrInvalidEmail:
 		err_code = proto.E_INPUT_INVALID_EMAIL_ADDRESS
 	case core.ErrInvalidName:
