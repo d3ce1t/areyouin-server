@@ -31,12 +31,9 @@ type Command func([]string)
 
 func (shell *Shell) StartTermSSH() {
 
-	var listener net.Listener
-
 	defer func() {
 		if r := recover(); r != nil {
 			log.Println("StartTermSSH Error:", r)
-			listener.Close()
 		}
 	}()
 
@@ -67,10 +64,12 @@ func (shell *Shell) StartTermSSH() {
 
 	// Once a ServerConfig has been configured, connections can be
 	// accepted.
-	listener, err = net.Listen("tcp", "0.0.0.0:2022")
+	listener, err := net.Listen("tcp", "0.0.0.0:2022")
 	if err != nil {
 		panic("failed to listen for connection")
 	}
+
+	defer listener.Close()
 
 	// Manage incoming connections
 	for {
