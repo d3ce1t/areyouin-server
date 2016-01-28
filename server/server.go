@@ -29,7 +29,7 @@ func NewServer() *Server {
 
 func NewTestServer() *Server {
 
-	fmt.Println("---------------------------------------!")
+	fmt.Println("----------------------------------------")
 	fmt.Println("! WARNING WARNING WARNING              !")
 	fmt.Println("! You have started a testing server    !")
 	fmt.Println("! WARNING WARNING WARNING              !")
@@ -596,8 +596,8 @@ func main() {
 	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
 
-	shell := &Shell{Server: server}
-	go shell.Execute()
+	shell := NewShell(server)
+	go shell.StartTermSSH()
 
 	server.Run() // start server loop
 }

@@ -3,8 +3,11 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"golang.org/x/crypto/ssh"
+	"io"
+	"io/ioutil"
 	"log"
-	"os"
+	"net"
 	core "peeple/areyouin/common"
 	proto "peeple/areyouin/protocol"
 	"sort"
@@ -12,30 +15,163 @@ import (
 	"strings"
 )
 
+func NewShell(server *Server) *Shell {
+	return &Shell{server: server}
+}
+
 type Shell struct {
-	Server   *Server
+	server   *Server
 	welcome  string
 	prompt   string
 	commands map[string]Command
+	io       io.ReadWriter
 }
 
 type Command func([]string)
 
-// Shell wrapper to manage errors
-func (shell *Shell) Execute() {
+func (shell *Shell) StartTermSSH() {
 
-	shell.welcome = "Welcome to AreYouIN server shell"
+	var listener net.Listener
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("StartTermSSH Error:", r)
+			listener.Close()
+		}
+	}()
+
+	// An SSH server is represented by a ServerConfig, which holds
+	// certificate details and handles authentication of ServerConns.
+	config := &ssh.ServerConfig{
+		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
+			// Should use constant-time compare (or better, salt+hash) in
+			// a production setting.
+			if c.User() == "admin" && string(pass) == "admin" {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("password rejected for %q", c.User())
+		},
+	}
+
+	privateBytes, err := ioutil.ReadFile("server_rsa")
+	if err != nil {
+		panic("Failed to load private key")
+	}
+
+	private, err := ssh.ParsePrivateKey(privateBytes)
+	if err != nil {
+		panic("Failed to parse private key")
+	}
+
+	config.AddHostKey(private)
+
+	// Once a ServerConfig has been configured, connections can be
+	// accepted.
+	listener, err = net.Listen("tcp", "0.0.0.0:2022")
+	if err != nil {
+		panic("failed to listen for connection")
+	}
+
+	// Manage incoming connections
+	for {
+		nConn, err := listener.Accept()
+		if err != nil {
+			log.Printf("SSH Terminal: failed to accept incoming connection (%v)\n", err)
+		}
+		shell.manageSshSession(nConn, config)
+		log.Println("Waiting for a new SSH connection...")
+	}
+}
+
+func (shell *Shell) manageSshSession(nConn net.Conn, config *ssh.ServerConfig) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Shell Session Error:", r)
+			nConn.Close()
+		}
+	}()
+
+	// Before use, a handshake must be performed on the incoming
+	// net.Conn.
+	serverConn, chans, reqs, err := ssh.NewServerConn(nConn, config)
+	defer serverConn.Close()
+
+	if err != nil {
+		panic("failed to handshake")
+	}
+	// The incoming Request channel must be serviced.
+	go ssh.DiscardRequests(reqs)
+
+	// Service the incoming Channel channel.
+	var newChannel ssh.NewChannel
+
+	for newChannel = range chans {
+		// Channels have a type, depending on the application level
+		// protocol intended. In the case of a shell, the type is
+		// "session" and ServerShell may be used to present a simple
+		// terminal interface.
+		if newChannel.ChannelType() != "session" {
+			newChannel.Reject(ssh.UnknownChannelType, "unknown channel type")
+			continue
+		}
+
+		break
+	}
+
+	channel, requests, err := newChannel.Accept()
+	defer channel.Close()
+
+	if err != nil {
+		panic("could not accept channel.")
+	}
+
+	// Sessions have out-of-band requests such as "shell",
+	// "pty-req" and "env".  Here we handle only the
+	// "shell" request.
+	go func(in <-chan *ssh.Request) {
+		for req := range in {
+			ok := false
+			switch req.Type {
+			case "shell":
+				ok = true
+				if len(req.Payload) > 0 {
+					// We don't accept any
+					// commands, only the
+					// default shell.
+					ok = false
+				}
+			}
+			req.Reply(ok, nil)
+		}
+	}(requests)
+
+	shell.Execute(channel)
+}
+
+// Shell wrapper to manage errors
+func (shell *Shell) Execute(channel io.ReadWriter) {
+
+	shell.io = channel
+
+	fmt.Fprint(shell.io, "----------------------------------------\n")
+	fmt.Fprint(shell.io, "! WARNING WARNING WARNING              !\n")
+	fmt.Fprint(shell.io, "! You have started a testing server    !\n")
+	fmt.Fprint(shell.io, "! WARNING WARNING WARNING              !\n")
+	fmt.Fprint(shell.io, "----------------------------------------\n")
+
+	shell.welcome = "Welcome to AreYouIN server shell\n"
 	shell.prompt = "areyouin$>"
 	shell.init()
-
-	fmt.Printf("\n%s\n\n\n", shell.welcome)
+	fmt.Fprintf(channel, "\n%s\n\n", shell.welcome)
 	exit := false
 
 	for !exit {
 		exit = shell.executeShell()
 	}
 
-	fmt.Println("Good bye")
+	fmt.Fprintln(channel, "Good bye")
+	log.Println("Shell session terminated")
 }
 
 func (shell *Shell) init() {
@@ -55,18 +191,29 @@ func (shell *Shell) executeShell() (exit bool) {
 	// Defer recovery
 	defer func() {
 		if r := recover(); r != nil {
-			err := r.(error)
-			fmt.Println("Error:", err)
-			exit = false
+
+			err, ok := r.(error)
+
+			if ok {
+				if err == io.EOF {
+					exit = true
+				} else {
+					exit = false
+					fmt.Fprintf(shell.io, "Error: %v\r\n", err)
+				}
+			} else {
+				exit = true
+			}
+			log.Printf("Shell Error: %v\n", err)
 		}
 	}()
 
 	var args []string
-	in := bufio.NewReader(os.Stdin)
+	in := bufio.NewReader(shell.io)
 
 	for { // Execute until main goroutine finish
 		// Show prompt
-		fmt.Print(shell.prompt + " ")
+		fmt.Fprint(shell.io, shell.prompt+" ")
 
 		// Read command
 		line, err := in.ReadString('\n')
@@ -74,10 +221,14 @@ func (shell *Shell) executeShell() (exit bool) {
 		line = strings.TrimSpace(line)
 		args = strings.Split(line, " ")
 
+		if args[0] == "exit" {
+			return true
+		}
+
 		if command, ok := shell.commands[args[0]]; ok {
 			command(args)
 		} else {
-			fmt.Printf("Command %s does not exist\n", args[0])
+			fmt.Fprintf(shell.io, "Command %s does not exist\r\n", args[0])
 		}
 
 	} // Loop
@@ -101,7 +252,7 @@ func (shell *Shell) help(args []string) {
 	sort.Strings(keys)
 
 	for _, str := range keys {
-		fmt.Printf("- %v\n", str)
+		fmt.Fprintf(shell.io, "- %v\n", str)
 	}
 }
 
@@ -111,7 +262,7 @@ func (shell *Shell) sendAuthError(args []string) {
 	user_id, err := strconv.ParseUint(args[1], 10, 64)
 	manageShellError(err)
 
-	server := shell.Server
+	server := shell.server
 	if session, ok := server.sessions.Get(user_id); ok {
 		sendAuthError(session)
 	}
@@ -120,27 +271,27 @@ func (shell *Shell) sendAuthError(args []string) {
 // list_sessions
 func (shell *Shell) listSessions(args []string) {
 
-	server := shell.Server
+	server := shell.server
 
 	keys := server.sessions.Keys()
 
 	for _, k := range keys {
 		session, _ := server.sessions.Get(k)
-		fmt.Printf("- %v %v\n", k, session)
+		fmt.Fprintf(shell.io, "- %v %v\n", k, session)
 	}
 }
 
 // list_users
 func (shell *Shell) listUserAccounts(args []string) {
 
-	server := shell.Server
+	server := shell.server
 	dao := server.NewUserDAO()
 	users, err := dao.LoadAllUsers()
 	manageShellError(err)
 
-	fmt.Println(rp("-", 105))
-	fmt.Printf("| S | %-17s | %-15s | %-40s | %-16s |\n", "Id", "Name", "Email", "Last connection")
-	fmt.Println(rp("-", 105))
+	fmt.Fprintln(shell.io, rp("-", 105))
+	fmt.Fprintf(shell.io, "| S | %-17s | %-15s | %-40s | %-16s |\n", "Id", "Name", "Email", "Last connection")
+	fmt.Fprintln(shell.io, rp("-", 105))
 
 	for _, user := range users {
 		status_info := " "
@@ -151,11 +302,11 @@ func (shell *Shell) listUserAccounts(args []string) {
 			status_info = "E"
 		}
 
-		fmt.Printf("| %v | %-17v | %-15v | %-40v | %-16v |\n", status_info, ff(user.Id, 17), ff(user.Name, 15), ff(user.Email, 40), ff(core.UnixMillisToTime(user.LastConnection), 16))
+		fmt.Fprintf(shell.io, "| %v | %-17v | %-15v | %-40v | %-16v |\n", status_info, ff(user.Id, 17), ff(user.Name, 15), ff(user.Email, 40), ff(core.UnixMillisToTime(user.LastConnection), 16))
 	}
-	fmt.Println(rp("-", 105))
+	fmt.Fprintln(shell.io, rp("-", 105))
 
-	fmt.Println("Num. Users:", len(users))
+	fmt.Fprintln(shell.io, "Num. Users:", len(users))
 }
 
 // show_user
@@ -164,7 +315,7 @@ func (shell *Shell) showUser(args []string) {
 	user_id, err := strconv.ParseUint(args[1], 10, 64)
 	manageShellError(err)
 
-	server := shell.Server
+	server := shell.server
 	dao := server.NewUserDAO()
 	user, err := dao.Load(user_id)
 	manageShellError(err)
@@ -173,7 +324,7 @@ func (shell *Shell) showUser(args []string) {
 	valid_account, err := dao.CheckValidAccount(user_id, true)
 
 	if err != nil {
-		fmt.Println("Error checking account:", err)
+		fmt.Fprintln(shell.io, "Error checking account:", err)
 	}
 
 	account_status := ""
@@ -181,56 +332,56 @@ func (shell *Shell) showUser(args []string) {
 		account_status = "¡¡¡INVALID STATUS!!!"
 	}
 
-	fmt.Println("---------------------------------")
-	fmt.Printf("User details (%v)\n", account_status)
-	fmt.Println("---------------------------------")
-	fmt.Println("UserID:", user.Id)
-	fmt.Println("Name:", user.Name)
-	fmt.Println("Email:", user.Email)
-	fmt.Println("Email Verified:", user.EmailVerified)
-	fmt.Println("Created at:", core.UnixMillisToTime(user.CreatedDate))
-	fmt.Println("Last connection:", core.UnixMillisToTime(user.LastConnection))
-	fmt.Println("Authtoken:", user.AuthToken)
-	fmt.Println("Fbid:", user.Fbid)
-	fmt.Println("Fbtoken:", user.Fbtoken)
+	fmt.Fprintln(shell.io, "---------------------------------")
+	fmt.Fprintf(shell.io, "User details (%v)\n", account_status)
+	fmt.Fprintln(shell.io, "---------------------------------")
+	fmt.Fprintln(shell.io, "UserID:", user.Id)
+	fmt.Fprintln(shell.io, "Name:", user.Name)
+	fmt.Fprintln(shell.io, "Email:", user.Email)
+	fmt.Fprintln(shell.io, "Email Verified:", user.EmailVerified)
+	fmt.Fprintln(shell.io, "Created at:", core.UnixMillisToTime(user.CreatedDate))
+	fmt.Fprintln(shell.io, "Last connection:", core.UnixMillisToTime(user.LastConnection))
+	fmt.Fprintln(shell.io, "Authtoken:", user.AuthToken)
+	fmt.Fprintln(shell.io, "Fbid:", user.Fbid)
+	fmt.Fprintln(shell.io, "Fbtoken:", user.Fbtoken)
 
-	fmt.Println("---------------------------------")
-	fmt.Println("E-mail credentials")
-	fmt.Println("---------------------------------")
+	fmt.Fprintln(shell.io, "---------------------------------")
+	fmt.Fprintln(shell.io, "E-mail credentials")
+	fmt.Fprintln(shell.io, "---------------------------------")
 
 	if email, err := dao.LoadEmailCredential(user.Email); err == nil {
-		fmt.Println("E-mail:", email.Email == user.Email)
+		fmt.Fprintln(shell.io, "E-mail:", email.Email == user.Email)
 		if email.Password == core.EMPTY_ARRAY_32B || email.Salt == core.EMPTY_ARRAY_32B {
-			fmt.Println("No password set")
+			fmt.Fprintln(shell.io, "No password set")
 		} else {
-			fmt.Printf("Password: %x\n", email.Password)
-			fmt.Printf("Salt: %x\n", email.Salt)
+			fmt.Fprintf(shell.io, "Password: %x\n", email.Password)
+			fmt.Fprintf(shell.io, "Salt: %x\n", email.Salt)
 		}
-		fmt.Println("UserID Match:", email.UserId == user.Id)
+		fmt.Fprintln(shell.io, "UserID Match:", email.UserId == user.Id)
 	} else {
-		fmt.Println("Error:", err)
+		fmt.Fprintln(shell.io, "Error:", err)
 	}
 
-	fmt.Println("---------------------------------")
-	fmt.Println("Facebook credentials")
-	fmt.Println("---------------------------------")
+	fmt.Fprintln(shell.io, "---------------------------------")
+	fmt.Fprintln(shell.io, "Facebook credentials")
+	fmt.Fprintln(shell.io, "---------------------------------")
 
 	if user.HasFacebookCredentials() {
 		facebook, err := dao.LoadFacebookCredential(user.Fbid)
 		if err == nil {
-			fmt.Println("Fbid:", facebook.Fbid == user.Fbid)
-			fmt.Println("Fbtoken:", facebook.Fbtoken == user.Fbtoken)
-			fmt.Println("UserID Match:", facebook.UserId == user.Id)
+			fmt.Fprintln(shell.io, "Fbid:", facebook.Fbid == user.Fbid)
+			fmt.Fprintln(shell.io, "Fbtoken:", facebook.Fbtoken == user.Fbtoken)
+			fmt.Fprintln(shell.io, "UserID Match:", facebook.UserId == user.Id)
 		} else {
-			fmt.Println("Error:", err)
+			fmt.Fprintln(shell.io, "Error:", err)
 		}
 	} else {
-		fmt.Println("There aren't credentials")
+		fmt.Fprintln(shell.io, "There aren't credentials")
 	}
-	fmt.Println("---------------------------------")
+	fmt.Fprintln(shell.io, "---------------------------------")
 
 	if account_status != "" {
-		fmt.Printf("\nACCOUNT INFO: %v\n", account_status)
+		fmt.Fprintf(shell.io, "\nACCOUNT INFO: %v\n", account_status)
 	}
 }
 
@@ -240,7 +391,7 @@ func (shell *Shell) deleteUser(args []string) {
 	user_id, err := strconv.ParseUint(args[1], 10, 64)
 	manageShellError(err)
 
-	server := shell.Server
+	server := shell.server
 	dao := server.NewUserDAO()
 	user, err := dao.Load(user_id)
 	manageShellError(err)
@@ -249,37 +400,37 @@ func (shell *Shell) deleteUser(args []string) {
 		err = dao.Delete(user)
 
 		if err != nil {
-			fmt.Println("Error:", err)
-			fmt.Println("Try command:")
-			fmt.Printf("\tdelete_user %d --force\n", user_id)
+			fmt.Fprintln(shell.io, "Error:", err)
+			fmt.Fprintln(shell.io, "Try command:")
+			fmt.Fprintf(shell.io, "\tdelete_user %d --force\n", user_id)
 			return
 		}
 	} else if len(args) > 2 {
 
 		// Try remove user account
 		if err := dao.DeleteUserAccount(user_id); err != nil {
-			fmt.Println("Removing user account error:", err)
+			fmt.Fprintln(shell.io, "Removing user account error:", err)
 		} else {
-			fmt.Println("User account removed")
+			fmt.Fprintln(shell.io, "User account removed")
 		}
 
 		// Try remove e-mail credential
 		if err := dao.DeleteEmailCredentials(user.Email); err != nil {
-			fmt.Println("Removing e-mail credential error:", err)
+			fmt.Fprintln(shell.io, "Removing e-mail credential error:", err)
 		} else {
-			fmt.Println("E-mail credential removed")
+			fmt.Fprintln(shell.io, "E-mail credential removed")
 		}
 
 		// Try remove facebook credential
 		if err := dao.DeleteFacebookCredentials(user.Fbid); err != nil {
-			fmt.Println("Removing facebook credential error:", err)
+			fmt.Fprintln(shell.io, "Removing facebook credential error:", err)
 		} else {
-			fmt.Println("Facebook credential removed")
+			fmt.Fprintln(shell.io, "Facebook credential removed")
 		}
 
 	}
 
-	fmt.Printf("User with id %d has been removed\n", user_id)
+	fmt.Fprintf(shell.io, "User with id %d has been removed\n", user_id)
 }
 
 // ping client
@@ -295,7 +446,7 @@ func (shell *Shell) pingClient(args []string) {
 		manageShellError(err)
 	}
 
-	server := shell.Server
+	server := shell.server
 	if session, ok := server.sessions.Get(user_id); ok {
 		for i := uint64(0); i < repeat_times; i++ {
 			ping_msg := proto.NewMessage().Ping().Marshal()
