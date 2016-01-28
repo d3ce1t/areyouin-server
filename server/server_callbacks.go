@@ -349,7 +349,7 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	current_time := core.GetCurrentTimeMillis()
 
 	if participant.EventStartDate < current_time {
-		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_EVENT_EXPIRED).Marshal()
+		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_EVENT_CANNOT_BE_MODIFIED).Marshal()
 		log.Printf("< (%v) CONFIRM ATTENDANCE %v EVENT EXPIRED\n", session.UserId, msg.EventId)
 		session.Write(reply)
 		return
