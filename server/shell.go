@@ -50,7 +50,7 @@ func (shell *Shell) StartTermSSH() {
 		},
 	}
 
-	privateBytes, err := ioutil.ReadFile("server_rsa")
+	privateBytes, err := ioutil.ReadFile("cert/server_rsa")
 	if err != nil {
 		panic("Failed to load private key")
 	}
