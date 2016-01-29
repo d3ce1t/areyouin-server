@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"log"
 	"net"
 	proto "peeple/areyouin/protocol"
@@ -231,12 +232,19 @@ func (s *AyiSession) startTicker() (stop chan bool) {
 
 // Do a read and blocks until its done or an error happens
 func (s *AyiSession) doRead() {
+
 	packet, err := proto.ReadPacket(s.Conn) // Blocked here
+
 	if err == nil {
 		s.lastRecvMsg = time.Now()
 		s.pingTime = s.lastRecvMsg.Add(PING_INTERVAL_MS)
-		s.eventChan <- &SessionEvent{Id: READ_MESSAGE_EVENT, Object: packet}
+
+		if !s.manageSessionMsg(packet) {
+			s.eventChan <- &SessionEvent{Id: READ_MESSAGE_EVENT, Object: packet}
+		}
+
 	} else {
+		log.Println(err)
 		if err == proto.ErrConnectionClosed || s.closed {
 			peer := !s.closed
 			if peer {
@@ -248,6 +256,25 @@ func (s *AyiSession) doRead() {
 
 		}
 	}
+}
+
+// Manage session messages. Returns true if message has been
+// managed or false otherwise
+func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
+
+	if packet.Header.Type == proto.M_USE_TLS {
+		log.Printf("> (%v) USE TLS\n", s)
+		if tlsconn, ok := s.Conn.(*tls.Conn); !ok {
+			log.Printf("Changing to use TLS for session %v\n", s)
+			if tlsconn = tls.Server(s.Conn, s.Server.TLSConfig); tlsconn != nil {
+				s.Conn = tlsconn
+				//defer conn.Close()
+			}
+		}
+		return true
+	}
+
+	return false
 }
 
 func (s *AyiSession) keepAlive() {

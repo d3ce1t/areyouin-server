@@ -75,12 +75,15 @@ func ReadPacket(conn net.Conn) (*AyiPacket, error) {
 	}
 
 	// Read Payload
-	packet.Data = make([]uint8, packet.Header.Size-6)
-	_, err = conn.Read(packet.Data)
+	payload_size := packet.Header.Size - 6
 
-	if err != nil {
-		protoerror := getError(err)
-		return nil, protoerror
+	if payload_size > 0 {
+		packet.Data = make([]uint8, payload_size)
+		_, err = conn.Read(packet.Data)
+		if err != nil {
+			protoerror := getError(err)
+			return nil, protoerror
+		}
 	}
 
 	return packet, nil

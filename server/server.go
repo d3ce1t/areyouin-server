@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/gocql/gocql"
@@ -47,6 +48,7 @@ func NewTestServer() *Server {
 type Callback func(proto.PacketType, proto.Message, *AyiSession)
 
 type Server struct {
+	TLSConfig     *tls.Config
 	sessions      *SessionsMap
 	task_executor *TaskExecutor
 	id_gen_ch     chan uint64
@@ -68,6 +70,19 @@ func (s *Server) DbSession() *gocql.Session {
 // Setup server components
 func (s *Server) init() {
 
+	// Init TLS config
+	cert, err := tls.LoadX509KeyPair("cert/fullchain.pem", "cert/privkey.pem")
+	if err != nil {
+		panic(err)
+	}
+
+	s.TLSConfig = &tls.Config{
+		ClientAuth:   tls.NoClientCert,
+		Certificates: []tls.Certificate{cert},
+		ServerName:   "service.peeple.es",
+	}
+
+	// Init sessions holder
 	s.sessions = NewSessionsMap()
 	s.callbacks = make(map[proto.PacketType]Callback)
 
@@ -121,6 +136,8 @@ func (s *Server) Run() {
 	if err != nil {
 		panic("Couldn't start listening: " + err.Error())
 	}
+
+	defer listener.Close()
 
 	// Main Loop
 	for {
@@ -195,6 +212,7 @@ func (server *Server) handleSession(session *AyiSession) {
 		if r := recover(); r != nil {
 			log.Printf("Session %v Panic: %v\n", session, r)
 		}
+		session.Exit()
 	}()
 
 	log.Println("New connection from", session)
@@ -260,7 +278,7 @@ func (s *Server) generatorTask(gid uint16) {
 
 func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err error) {
 
-	message := packet.DecodeMessage()
+	message := packet.DecodeMessage() // Decodes payload
 	err = nil
 
 	if message != nil {

@@ -18,6 +18,7 @@ const (
 	M_USER_CREATE_ACCOUNT
 	M_USER_NEW_AUTH_TOKEN
 	M_USER_AUTH
+	M_USE_TLS = 0x3F
 )
 
 // Notifications
