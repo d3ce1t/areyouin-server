@@ -3,7 +3,6 @@ package protocol
 import (
 	"github.com/twinj/uuid"
 	core "peeple/areyouin/common"
-	"time"
 )
 
 type MessageBuilder struct {
@@ -223,7 +222,7 @@ func (mb *MessageBuilder) Error(msg_type PacketType, error_code int32) *AyiPacke
 // Requests
 func (mb *MessageBuilder) Ping() *AyiPacket {
 	mb.message.Header.Type = M_PING
-	mb.message.SetMessage(&Ping{time.Now().Unix()})
+	mb.message.SetMessage(&TimeInfo{core.GetCurrentTimeMillis()})
 	return mb.message
 }
 
@@ -278,7 +277,7 @@ func (mb *MessageBuilder) UserFriends() *AyiPacket {
 // Responses
 func (mb *MessageBuilder) Pong() *AyiPacket {
 	mb.message.Header.Type = M_PONG
-	mb.message.SetMessage(&Pong{time.Now().Unix()})
+	mb.message.SetMessage(&TimeInfo{core.GetCurrentTimeMillis()})
 	return mb.message
 }
 
@@ -299,5 +298,11 @@ func (mb *MessageBuilder) EventsList(events_list []*core.Event) *AyiPacket {
 func (mb *MessageBuilder) FriendsList(friends_list []*core.Friend) *AyiPacket {
 	mb.message.Header.Type = M_FRIENDS_LIST
 	mb.message.SetMessage(&FriendsList{Friends: friends_list})
+	return mb.message
+}
+
+func (mb *MessageBuilder) ClockResponse() *AyiPacket {
+	mb.message.Header.Type = M_CLOCK_RESPONSE
+	mb.message.SetMessage(&TimeInfo{core.GetCurrentTimeMillis()})
 	return mb.message
 }

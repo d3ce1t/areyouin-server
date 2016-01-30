@@ -133,7 +133,7 @@ func createEmptyMessage(packet_type PacketType) Message {
 
 	// Requests
 	case M_PING:
-		message = &Ping{}
+		message = &TimeInfo{}
 	case M_READ_EVENT:
 		message = &ReadEvent{}
 	case M_LIST_AUTHORED_EVENTS:
@@ -151,7 +151,7 @@ func createEmptyMessage(packet_type PacketType) Message {
 		///case M_USER_FRIENDS: UserFriends has no payload
 	// Replies
 	case M_PONG:
-		message = &Pong{}
+		message = &TimeInfo{}
 	}
 
 	return message

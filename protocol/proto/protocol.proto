@@ -197,8 +197,8 @@ message Error {
 // Requests
 //
 
-// PING
-message Ping {
+// PING/PONG/CLOCK_RESPONSE
+message TimeInfo {
   int64 current_time = 1;
 }
 
@@ -233,9 +233,9 @@ message ListPublicEvents {
 //
 
 // PONG
-message Pong {
+/*message Pong {
   int64 current_time = 1;
-}
+}*/
 
 // EVENTS LIST
 message EventsList {

@@ -278,31 +278,30 @@ func (s *Server) generatorTask(gid uint16) {
 
 func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err error) {
 
-	message := packet.DecodeMessage() // Decodes payload
-	err = nil
+	var message proto.Message
 
-	if message != nil {
-
-		// Defer recovery
-		defer func() {
-			if r := recover(); r != nil {
-				if err_tmp, ok := r.(error); ok {
-					err = err_tmp
-				} else {
-					err = errors.New(fmt.Sprintf("%v", r))
-				}
-			}
-		}()
-
-		// Call function to manage this message
-		if f, ok := s.callbacks[packet.Type()]; ok {
-			f(packet.Type(), message, session)
-		} else {
-			err = ErrUnhandledMessage
+	if packet.HasPayload() {
+		if message = packet.DecodeMessage(); message == nil { // Decodes payload
+			return ErrUnknownMessage
 		}
+	}
 
+	// Defer recovery
+	defer func() {
+		if r := recover(); r != nil {
+			if err_tmp, ok := r.(error); ok {
+				err = err_tmp
+			} else {
+				err = errors.New(fmt.Sprintf("%v", r))
+			}
+		}
+	}()
+
+	// Call function to manage this message
+	if f, ok := s.callbacks[packet.Type()]; ok {
+		f(packet.Type(), message, session)
 	} else {
-		err = ErrUnknownMessage
+		err = ErrUnhandledMessage
 	}
 
 	return
@@ -619,6 +618,7 @@ func main() {
 	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
 	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
+	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)
 
 	shell := NewShell(server)
 	go shell.StartTermSSH()

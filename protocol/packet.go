@@ -96,3 +96,7 @@ func (packet *AyiPacket) Marshal() []byte {
 
 	return buf.Bytes()
 }
+
+func (packet *AyiPacket) HasPayload() bool {
+	return packet.Header.Size > 6
+}

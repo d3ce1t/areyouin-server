@@ -491,16 +491,25 @@ func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSessi
 
 }
 
+func onClockRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+	log.Printf("> (%v) CLOCK REQUEST\n", session.UserId)
+	checkAuthenticated(session)
+	reply := proto.NewMessage().ClockResponse().Marshal()
+	session.Write(reply)
+	log.Printf("< (%v) CLOCK RESPONSE\n", session.UserId)
+}
+
 func onPing(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-	msg := message.(*proto.Ping)
+	msg := message.(*proto.TimeInfo)
 	log.Printf("> (%v) PING %v\n", session.UserId, msg.CurrentTime)
 	checkAuthenticated(session)
 	reply := proto.NewMessage().Pong().Marshal()
 	session.Write(reply)
+	log.Printf("< (%v) PONG\n", session.UserId)
 }
 
 func onPong(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-	msg := message.(*proto.Pong)
+	msg := message.(*proto.TimeInfo)
 	checkAuthenticated(session)
 	log.Printf("> (%v) PONG %v\n", session.UserId, msg.CurrentTime)
 }
