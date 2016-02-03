@@ -20,6 +20,11 @@ func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 		return
 	}
 
+	if len(t.ParticipantsChanged) == 0 {
+		log.Println("NotifyParticipantChange. Task doesn't have changes to notify")
+		return
+	}
+
 	// Build list with participants that have changed
 	participant_list := make([]*core.EventParticipant, 0, len(t.ParticipantsChanged))
 
@@ -31,10 +36,13 @@ func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 	server := ex.server
 
 	for _, participant_dst := range t.Event.Participants {
-		privacy_participant_list := server.filterParticipantsSlice(participant_dst.UserId, participant_list)
-		msg := proto.NewMessage().AttendanceStatus(t.Event.EventId, privacy_participant_list).Marshal()
+
 		session := server.GetSession(participant_dst.UserId)
+
 		if session != nil {
+			privacy_participant_list := server.filterParticipantsSlice(participant_dst.UserId, participant_list)
+			msg := proto.NewMessage().AttendanceStatus(t.Event.EventId, privacy_participant_list).Marshal()
+
 			if session.Write(msg) {
 				log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", participant_dst.UserId, t.Event.EventId, len(privacy_participant_list))
 			} else {
@@ -136,7 +144,8 @@ func (task *SendUserFriends) Run(ex *TaskExecutor) {
 // task is used whenever a new event is created and participants have not been
 // notified yet.
 type NotifyEventInvitation struct {
-	Event *core.Event
+	Event              *core.Event
+	TargetParticipants map[uint64]*core.EventParticipant
 }
 
 func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
@@ -144,11 +153,25 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 	server := ex.server
 	light_event := t.Event.GetEventWithoutParticipants()
 	futures := make(map[uint64]chan bool)
+	participants_changed := make([]uint64, 0, len(t.TargetParticipants))
 
-	// Send event and its attendance status to all of the participants
-	for _, participant := range t.Event.Participants {
+	if len(t.TargetParticipants) == 0 {
+		log.Println("NotifyEventInvitation: There aren't targetted participants to send notification")
+		return
+	}
 
+	// Send event and its attendance status to all of the target participants
+	for _, participant := range t.TargetParticipants {
+
+		// Add participant to participants changed because if NotifyEventInvitation is being
+		// called, it is because the participant didn't exist before in the participant list,
+		// so it can be considered that this participant has changed from the perspective
+		// of the existing participants
+		participants_changed = append(participants_changed, participant.UserId)
+
+		// Notify participant about the invitation only if it's connected.
 		session := server.GetSession(participant.UserId)
+
 		if session == nil {
 			continue
 		}
@@ -177,7 +200,6 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 	}
 
 	// Update invitation delivery status
-	participants_changed := make([]uint64, 0, len(futures))
 	eventDAO := ex.server.NewEventDAO()
 
 	for participant_id, c := range futures {
@@ -187,16 +209,13 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 			err := eventDAO.SetParticipantStatus(participant_id, t.Event.EventId, core.MessageStatus_CLIENT_DELIVERED) // participant changed
 			if err == nil {
 				t.Event.Participants[participant_id].Delivered = core.MessageStatus_CLIENT_DELIVERED
-				participants_changed = append(participants_changed, participant_id)
 			} else {
-				log.Println("NotifyEventInvitation:Callback:", err)
+				log.Println("NotifyEventInvitation Err:", err)
 			}
-		} else {
-			delete(futures, participant_id)
 		}
 	}
 
-	// Update send
+	// Notify changes to the rest of participants
 	task := &NotifyParticipantChange{
 		Event:               t.Event,
 		ParticipantsChanged: participants_changed,

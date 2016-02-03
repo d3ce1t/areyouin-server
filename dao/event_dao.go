@@ -125,7 +125,7 @@ func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *core.E
 	return q.Exec()
 }
 
-func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []*core.EventParticipant) error {
+func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList map[uint64]*core.EventParticipant) error {
 
 	dao.checkSession()
 
@@ -142,7 +142,37 @@ func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList []
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event) error {
+// Adds an event to participant inbox and also adds the participant into the event participant list.
+// If participant already exists, it is replaced. If not, participant is created
+func (dao *EventDAO) AddOrUpdateEventToUserInbox(participant *core.EventParticipant, event *core.Event) error {
+
+	dao.checkSession()
+
+	stmt_insert := `INSERT INTO events_by_user (user_id, event_bucket, start_date, event_id, author_id, author_name, message, response)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+
+	stmt_event_update := `INSERT INTO event (event_id, guest_id, guest_name, guest_response, guest_status) VALUES (?, ?, ?, ?, ?)`
+
+	if event.AuthorId == participant.UserId {
+		participant.Response = core.AttendanceResponse_ASSIST
+	}
+
+	participant.Delivered = core.MessageStatus_SERVER_DELIVERED
+	batch := dao.session.NewBatch(gocql.LoggedBatch)
+	event_bucket := 1 // TODO: Implement bucket logic properly
+
+	batch.Query(stmt_insert, participant.UserId, event_bucket, event.StartDate, event.EventId, event.AuthorId,
+		event.AuthorName, event.Message, participant.Response)
+	batch.Query(stmt_event_update, event.EventId, participant.UserId, participant.Name, participant.Response, participant.Delivered)
+
+	return dao.session.ExecuteBatch(batch)
+}
+
+// Adds an event to participant inbox and also updates the participant delivery info in the event participant list.
+// Whereas the above function is used whenever a new participant is invited to an existing event. This one is used
+// when the event is first created. Despite that, the difference is that the second statement only updates guest_status,
+// whereas this same second statement in the above function, updates all of the existing fields.
+func (dao *EventDAO) InsertEventToUserInbox(participant *core.EventParticipant, event *core.Event) error {
 
 	dao.checkSession()
 
@@ -151,20 +181,20 @@ func (dao *EventDAO) AddEventToUserInbox(user_id uint64, event *core.Event) erro
 
 	stmt_update := `UPDATE event SET guest_status = ? WHERE event_id = ? AND guest_id = ?`
 
-	var response core.AttendanceResponse
-
-	if event.AuthorId == user_id {
-		response = core.AttendanceResponse_ASSIST
+	if event.AuthorId == participant.UserId {
+		participant.Response = core.AttendanceResponse_ASSIST
 	} else {
-		response = core.AttendanceResponse_NO_RESPONSE
+		participant.Response = core.AttendanceResponse_NO_RESPONSE
 	}
+
+	participant.Delivered = core.MessageStatus_SERVER_DELIVERED
 
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 	event_bucket := 1 // TODO: Implement bucket logic properly
 
-	batch.Query(stmt_insert, user_id, event_bucket, event.StartDate, event.EventId, event.AuthorId,
-		event.AuthorName, event.Message, response)
-	batch.Query(stmt_update, core.MessageStatus_SERVER_DELIVERED, event.EventId, user_id)
+	batch.Query(stmt_insert, participant.UserId, event_bucket, event.StartDate, event.EventId, event.AuthorId,
+		event.AuthorName, event.Message, participant.Response)
+	batch.Query(stmt_update, core.MessageStatus_SERVER_DELIVERED, event.EventId, participant.UserId)
 
 	return dao.session.ExecuteBatch(batch)
 }

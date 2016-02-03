@@ -12,6 +12,7 @@ import (
 	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
 	wh "peeple/areyouin/webhook"
+	"strings"
 )
 
 const (
@@ -141,6 +142,7 @@ func (s *Server) Run() {
 
 	// Main Loop
 	for {
+		log.Println("Waiting for connections...")
 		client, err := listener.Accept()
 
 		if err != nil {
@@ -230,8 +232,15 @@ func (server *Server) handleSession(session *AyiSession) {
 	}
 
 	session.OnError = func(s *AyiSession, err error) {
-		if err != proto.ErrTimeout {
-			log.Println("Session Error:", err)
+		if err == proto.ErrTimeout {
+			return
+		}
+
+		log.Println("Session Error:", err)
+
+		// HACK: Compare error string because there is no ErrTlsXXXXX or alike
+		if strings.Contains(err.Error(), "tls: first record does not look like a TLS handshake") {
+			s.Exit()
 		}
 	}
 
@@ -372,6 +381,16 @@ func (s *Server) GetSession(user_id uint64) *AyiSession {
 	}
 }
 
+func (s *Server) GetNewParticipants(participants_id []uint64, event *core.Event) []uint64 {
+	result := make([]uint64, 0, len(participants_id))
+	for _, id := range participants_id {
+		if _, ok := event.Participants[id]; !ok {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
 // Insert an event into database, add participants to it and send it to users' inbox.
 func (s *Server) PublishEvent(event *core.Event) error {
 
@@ -405,7 +424,8 @@ func (s *Server) PublishEvent(event *core.Event) error {
 	}
 
 	notification := &NotifyEventInvitation{
-		Event: event,
+		Event:              event,
+		TargetParticipants: event.Participants,
 	}
 
 	s.task_executor.Submit(notification)
@@ -417,12 +437,11 @@ func (s *Server) inviteParticipantToEvent(event *core.Event, participant *core.E
 
 	eventDAO := s.NewEventDAO()
 
-	if err := eventDAO.AddEventToUserInbox(participant.UserId, event); err != nil {
+	if err := eventDAO.InsertEventToUserInbox(participant, event); err != nil {
 		log.Println("Coudn't deliver event", event.EventId, err)
 		return err
 	}
 
-	participant.Delivered = core.MessageStatus_SERVER_DELIVERED
 	log.Println("Event", event.EventId, "delivered to user", participant.UserId)
 	return nil
 }
@@ -442,13 +461,13 @@ func (s *Server) createParticipantsList(author_id uint64, participants_id []uint
 
 		if ok, err := userDAO.IsFriend(p_id, author_id); ok {
 
-			if uac, err := userDAO.Load(p_id); err == dao.ErrNotFound { // FIXME: Load several participants in one operation
+			if uac, err := userDAO.Load(p_id); err == nil { // FIXME: Load several participants in one operation
+				result[uac.Id] = uac.AsParticipant()
+			} else if err == dao.ErrNotFound {
 				last_warning = ErrUnregisteredFriendsIgnored
 				log.Printf("createParticipantList() Warning at userid %v: %v\n", p_id, err)
-			} else if err != nil {
-				return nil, nil, err
 			} else {
-				result[uac.Id] = uac.AsParticipant()
+				return nil, nil, err
 			}
 
 		} else if err != nil {
@@ -616,6 +635,7 @@ func main() {
 	server.RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
 	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
 	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
+	server.RegisterCallback(proto.M_INVITE_USERS, onInviteUsers)
 	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
 	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)

@@ -305,7 +305,100 @@ func onCancelEvent(packet_type proto.PacketType, message proto.Message, session 
 
 func onInviteUsers(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
+	server := session.Server
+	msg := message.(*proto.InviteUsers)
+	log.Printf("> (%v) INVITE USERS %v\n", session.UserId, msg)
+
 	checkAuthenticated(session)
+
+	eventDAO := server.NewEventDAO()
+	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
+	var reply []byte
+
+	// Operation failed
+	if err != nil {
+		reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v): %v\n", session.UserId, msg.EventId, err)
+		session.Write(reply)
+		return
+	}
+
+	// Event does not exist
+	if len(events) == 0 {
+		reply = proto.NewMessage().Error(packet_type, proto.E_INVALID_EVENT).Marshal()
+		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v): EVENT DOES NOT EXIST\n", session.UserId, msg.EventId)
+		session.Write(reply)
+		return
+	}
+
+	// Author mismath
+	event := events[0]
+	author_id := session.UserId
+	if event.AuthorId != author_id {
+		reply = proto.NewMessage().Error(packet_type, proto.E_EVENT_AUTHOR_MISMATCH).Marshal()
+		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v, author_id=%v): AUTHOR MISMATCH\n", session.UserId, msg.EventId, event.AuthorId)
+		session.Write(reply)
+		return
+	}
+
+	// Event started or finished
+	current_time := core.GetCurrentTimeMillis()
+
+	if event.StartDate < current_time {
+		reply = proto.NewMessage().Error(packet_type, proto.E_EVENT_CANNOT_BE_MODIFIED).Marshal()
+		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) EVENT CANNOT BE MODIFIED\n", session.UserId, msg.EventId)
+		session.Write(reply)
+		return
+	}
+
+	// Prepare participants
+	if len(msg.Participants) == 0 {
+		session.Write(proto.NewMessage().Error(packet_type, proto.E_EVENT_PARTICIPANTS_REQUIRED).Marshal())
+		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) PARTICIPANTS REQUIRED\n", session.UserId, msg.EventId)
+		return
+	}
+
+	participants_id := server.GetNewParticipants(msg.Participants, event)
+	participantsList, warning, err := server.createParticipantsList(author_id, participants_id)
+
+	if err != nil {
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)).Marshal())
+		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) %v\n", session.UserId, msg.EventId, err)
+		return
+	}
+
+	if len(participantsList) == 0 {
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(warning, proto.E_INVALID_PARTICIPANT)).Marshal())
+		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) INVALID PARTICIPANTS %v\n", session.UserId, msg.EventId, warning)
+		return
+	}
+
+	// After check all of the possible erros, finally participants are inserted into the event
+	// and users inboxes
+	var succeedCounter int
+	for _, participant := range participantsList {
+		err = eventDAO.AddOrUpdateEventToUserInbox(participant, event)
+		if err == nil {
+			event.Participants[participant.UserId] = participant
+			succeedCounter++
+		} else {
+			log.Printf("Error inviting participant %v: %v\n", participant.UserId, err)
+			delete(participantsList, participant.UserId) // Keep only succesfully added participants
+		}
+	}
+
+	if succeedCounter > 0 {
+		session.Write(proto.NewMessage().Ok(packet_type).Marshal())
+		log.Printf("< (%v) INVITE USERS OK (event_id=%v, invitations_send=%v, total=%v)\n", session.UserId, msg.EventId, succeedCounter, len(participantsList))
+		notification := &NotifyEventInvitation{
+			Event:              event,
+			TargetParticipants: participantsList,
+		}
+		server.task_executor.Submit(notification)
+	} else {
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)).Marshal())
+		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) Couldn't invite at least one participant\n", session.UserId, msg.EventId)
+	}
 
 }
 

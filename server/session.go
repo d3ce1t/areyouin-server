@@ -244,7 +244,6 @@ func (s *AyiSession) doRead() {
 		}
 
 	} else {
-		log.Println(err)
 		if err == proto.ErrConnectionClosed || s.closed {
 			peer := !s.closed
 			if peer {
@@ -253,7 +252,6 @@ func (s *AyiSession) doRead() {
 			s.eventChan <- &SessionEvent{Id: CONNECTION_CLOSED_EVENT, Object: peer}
 		} else {
 			s.eventChan <- &SessionEvent{Id: ERROR_EVENT, Object: err}
-
 		}
 	}
 }
