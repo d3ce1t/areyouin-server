@@ -126,7 +126,7 @@ func (s *AyiSession) RunLoop() {
 		exit = s.eventLoop() // if panic returns false
 	}
 
-	log.Println("Event loop stopped")
+	//log.Println("Event loop stopped")
 }
 
 func (s *AyiSession) eventLoop() (exit bool) {
@@ -223,7 +223,7 @@ func (s *AyiSession) startTicker() (stop chan bool) {
 			}
 		}
 
-		log.Println("Ticker stopped")
+		//log.Println("Ticker stopped")
 
 	}()
 

@@ -227,6 +227,33 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	}
 }
 
+func onIIDTokenReceived(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.InstanceIDToken)
+	log.Printf("> (%v) IID TOKEN %v\n", session.UserId, msg)
+
+	checkAuthenticated(session)
+
+	if msg.Token == "" || len(msg.Token) < 10 {
+		reply := proto.NewMessage().Error(packet_type, proto.E_INVALID_INPUT).Marshal()
+		log.Printf("< (%v) IID TOKEN ERROR: INVALID INPUT\n", session.UserId)
+		session.Write(reply)
+		return
+	}
+
+	userDAO := server.NewUserDAO()
+	if err := userDAO.SetIIDToken(session.UserId, msg.Token); err != nil {
+		reply := proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+		log.Printf("< (%v) IID TOKEN ERROR: %v\n", session.UserId, err)
+		session.Write(reply)
+		return
+	}
+
+	session.Write(proto.NewMessage().Ok(packet_type).Marshal())
+	log.Printf("< (%v) IID TOKEN OK\n", session.UserId)
+}
+
 func onCreateEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	server := session.Server

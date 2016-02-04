@@ -94,6 +94,7 @@ type UserAccount struct {
 	phone_verified bool
 	Fbid           string // Facebook ID
 	Fbtoken        string // Facebook User Access token
+	IIDtoken       string // Instance ID token
 	LastConnection int64
 	CreatedDate    int64
 }

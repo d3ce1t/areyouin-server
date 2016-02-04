@@ -42,6 +42,7 @@ CREATE TABLE user_account (
 	phone_verified boolean,
 	fb_id text,
 	fb_token text,
+	iid_token text,
 	last_connection timestamp,
 	created_date timestamp,
 	PRIMARY KEY (user_id)

@@ -100,6 +100,12 @@ func (mb *MessageBuilder) UserAuthencation(user_id uint64, auth_token uuid.UUID)
 	return mb.message
 }
 
+func (mb *MessageBuilder) IIDToken(token string) *AyiPacket {
+	mb.message.Header.Type = M_IID_TOKEN
+	mb.message.SetMessage(&InstanceIDToken{Token: token})
+	return mb.message
+}
+
 // Notifications
 func (mb *MessageBuilder) EventCreated(event *core.Event) *AyiPacket {
 	mb.message.Header.Type = M_EVENT_CREATED

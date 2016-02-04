@@ -99,6 +99,11 @@ message UserAuthentication {
   string auth_token = 2;
 }
 
+// INSTANCE ID TOKEN
+message InstanceIDToken {
+  string token = 1;
+}
+
 //
 // Notifications
 //

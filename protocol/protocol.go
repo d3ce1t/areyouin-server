@@ -130,6 +130,8 @@ func createEmptyMessage(packet_type PacketType) Message {
 		message = &NewAuthToken{}
 	case M_USER_AUTH:
 		message = &UserAuthentication{}
+	case M_IID_TOKEN:
+		message = &InstanceIDToken{}
 
 	// Requests
 	case M_PING:

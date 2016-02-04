@@ -51,6 +51,7 @@ type UserDAO interface {
 	SetLastConnection(user_id uint64, time int64) error
 	SetFacebookAccessToken(user_id uint64, fb_id string, fb_token string) error
 	SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID, fb_id string, fb_token string) error
+	SetIIDToken(user_id uint64, iid_token string) error
 	GetIDByEmail(email string) (uint64, error)
 	GetIDByFacebookID(fb_id string) (uint64, error)
 	MakeFriends(user1 UserFriend, user2 UserFriend) error

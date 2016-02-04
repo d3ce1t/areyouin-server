@@ -17,6 +17,7 @@ import (
 
 const (
 	ALL_CONTACTS_GROUP = 0 // Id for the main friend group of a user
+	GCM_API_KEY        = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 )
 
@@ -142,7 +143,6 @@ func (s *Server) Run() {
 
 	// Main Loop
 	for {
-		log.Println("Waiting for connections...")
 		client, err := listener.Accept()
 
 		if err != nil {
@@ -639,6 +639,7 @@ func main() {
 	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
 	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)
+	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
 
 	shell := NewShell(server)
 	go shell.StartTermSSH()

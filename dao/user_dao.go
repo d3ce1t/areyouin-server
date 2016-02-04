@@ -401,12 +401,22 @@ func (dao *UserDAO) SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID,
 	return dao.session.ExecuteBatch(batch)
 }
 
+func (dao *UserDAO) SetIIDToken(user_id uint64, iid_token string) error {
+
+	dao.checkSession()
+
+	stmt := `UPDATE user_account SET iid_token = ?
+						WHERE user_id = ?`
+
+	return dao.session.Query(stmt, iid_token, user_id).Exec()
+}
+
 func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 
 	dao.checkSession()
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						last_connection, created_date
+						iid_token, last_connection, created_date
 						FROM user_account`
 
 	iter := dao.session.Query(stmt).Iter()
@@ -423,11 +433,12 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 	var name string
 	var fbid string
 	var fbtoken string
+	var iidtoken string
 	var last_connection int64
 	var created int64
 
 	for iter.Scan(&user_id, &auth_token, &email, &email_verified, &name,
-		&fbid, &fbtoken, &last_connection, &created) {
+		&fbid, &fbtoken, &iidtoken, &last_connection, &created) {
 		user := &core.UserAccount{
 			Id:             user_id,
 			AuthToken:      uuid.New(auth_token.Bytes()),
@@ -436,6 +447,7 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 			Name:           name,
 			Fbid:           fbid,
 			Fbtoken:        fbtoken,
+			IIDtoken:       iidtoken,
 			LastConnection: last_connection,
 			CreatedDate:    created,
 		}
@@ -454,7 +466,7 @@ func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 	dao.checkSession()
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						last_connection, created_date
+						iid_token, last_connection, created_date
 						FROM user_account
 						WHERE user_id = ? LIMIT 1`
 
@@ -464,7 +476,7 @@ func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 	var auth_token gocql.UUID
 
 	err := q.Scan(&user.Id, &auth_token, &user.Email, &user.EmailVerified, &user.Name,
-		&user.Fbid, &user.Fbtoken, &user.LastConnection, &user.CreatedDate)
+		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection, &user.CreatedDate)
 
 	if err != nil {
 		log.Println("UserDAO.Load:", err)
