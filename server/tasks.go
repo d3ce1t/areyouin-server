@@ -102,6 +102,11 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 			continue
 		}
 
+		friend, err := user_dao.Load(friend_id)
+		if err != nil {
+			log.Println("ImportFacebookFriends Error:", err)
+		}
+
 		log.Printf("ImportFacebookFriends: %v and %v are Facebook Friends\n", current_user.GetUserId(), friend_id)
 
 		// Assume that if friend_id isn't in stored friends, then current user id isn't either
@@ -109,6 +114,7 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 		if _, ok := storedFriends[friend_id]; !ok {
 			user_dao.MakeFriends(current_user, &core.Friend{UserId: friend_id, Name: fbFriend.Name})
 			ex.Submit(&SendUserFriends{UserId: friend_id})
+			task.sendGcmNotification(friend.Id, friend.IIDtoken, current_user.Name)
 			counter++
 		}
 	}
@@ -116,6 +122,20 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 	if counter > 0 {
 		ex.Submit(&SendUserFriends{UserId: task.UserId})
 	}
+}
+
+func (t *ImportFacebookFriends) sendGcmNotification(user_id uint64, token string, friend_name string) {
+
+	gcm_message := gcm.HttpMessage{
+		To: token,
+		Data: gcm.Data{
+			"msg_type":    "notification",
+			"notify_type": GCM_NEW_FRIEND_MESSAGE,
+			"friend_name": friend_name,
+		},
+	}
+
+	sendGcmMessage(user_id, token, gcm_message)
 }
 
 type SendUserFriends struct {
@@ -168,9 +188,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 		session := server.GetSession(user.Id)
 
 		if session == nil {
-			if user.IIDtoken != "" {
-				t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
-			}
+			t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
 			continue
 		}
 
@@ -194,9 +212,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 			futures[user.Id] = future.C
 			log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id, t.Event.EventId)
 		} else {
-			if user.IIDtoken != "" {
-				t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
-			}
+			t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
 		}
 	}
 
@@ -221,12 +237,8 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 			}
 
 		} else { // timeout or error
-
 			user := t.Target[participant_id]
-			if user.IIDtoken != "" {
-				t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
-			}
-
+			t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
 		}
 	}
 
@@ -251,13 +263,23 @@ func (t *NotifyEventInvitation) sendGcmNotification(user_id uint64, token string
 		To:         token,
 		TimeToLive: uint(ttl),
 		Data: gcm.Data{
-			"msg_type": uint8(proto.M_INVITATION_RECEIVED),
-			"event_id": event.EventId,
+			"msg_type":    "notification",
+			"notify_type": GCM_NEW_EVENT_MESSAGE,
+			"event_id":    event.EventId,
 		},
 	}
 
-	log.Printf("Sending GCM notifcation to %v (user is offline)\n", user_id)
-	response, err := gcm.SendHttp(GCM_API_KEY, gcm_message)
+	sendGcmMessage(user_id, token, gcm_message)
+}
+
+func sendGcmMessage(user_id uint64, token string, message gcm.HttpMessage) {
+
+	if token == "" {
+		return
+	}
+
+	log.Printf("Sending GCM notifcation to %v\n", user_id)
+	response, err := gcm.SendHttp(GCM_API_KEY, message)
 
 	if err != nil {
 		log.Println("SendGCMNotification Error:", err)
@@ -267,5 +289,4 @@ func (t *NotifyEventInvitation) sendGcmNotification(user_id uint64, token string
 	} else {
 		log.Printf("SendGCMNotifcation Response %v\n", response)
 	}
-
 }

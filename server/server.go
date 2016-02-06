@@ -19,7 +19,8 @@ const (
 	ALL_CONTACTS_GROUP     = 0 // Id for the main friend group of a user
 	GCM_API_KEY            = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
 	GCM_MAX_TTL            = 2419200
-	GCM_NEW_EVENTS_MESSAGE = "GCM_NEW_EVENTS_MESSAGE"
+	GCM_NEW_EVENT_MESSAGE  = 1
+	GCM_NEW_FRIEND_MESSAGE = 2
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 )
 
