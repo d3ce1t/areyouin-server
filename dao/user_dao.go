@@ -479,7 +479,7 @@ func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection, &user.CreatedDate)
 
 	if err != nil {
-		log.Println("UserDAO.Load:", err)
+		log.Println("UserDAO Load:", err)
 		return nil, err
 	}
 

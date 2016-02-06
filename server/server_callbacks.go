@@ -28,7 +28,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// Check if its a valid user, so the input was correct
 	if _, err := user.IsValid(); err != nil {
 		error_code := getNetErrorCode(err, proto.E_INVALID_INPUT)
-		session.Write(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, error_code).Marshal())
+		session.Write(proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, error_code))
 		log.Printf("< (%v) CREATE ACCOUNT INVALID USER: %v\n", session, err)
 		return
 	}
@@ -39,7 +39,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	time.Sleep(SECURITY_WAIT_TIME)
 
 	userDAO := server.NewUserDAO()
-	var reply []byte
+	var reply *proto.AyiPacket
 
 	// If it's a Facebook account (fbid and fbtoken are not empty) check token
 	if user.HasFacebookCredentials() {
@@ -47,7 +47,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 		fbsession := fb.NewSession(user.Fbtoken)
 
 		if _, err := fb.CheckAccess(user.Fbid, fbsession); err != nil {
-			reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_FB_INVALID_ACCESS).Marshal()
+			reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_FB_INVALID_ACCESS)
 			session.Write(reply)
 			log.Printf("< (%v) CREATE ACCOUNT FB ERROR: %v\n", session, fb.GetErrorMessage(err))
 			return
@@ -64,14 +64,14 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// FAILED message is sent so far. 	Read UserDAO.insert for more info.
 	if err := userDAO.Insert(user); err != nil {
 		err_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
-		reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, err_code).Marshal()
+		reply = proto.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, err_code)
 		session.Write(reply)
 		log.Printf("< (%v) CREATE ACCOUNT INSERT ERROR: %v\n", session, err)
 		return
 	}
 
 	// Insert OK
-	reply = proto.NewMessage().UserAccessGranted(user.Id, user.AuthToken).Marshal()
+	reply = proto.NewMessage().UserAccessGranted(user.Id, user.AuthToken)
 
 	// Import Facebook friends that uses AreYouIN if needed
 	if user.HasFacebookCredentials() {
@@ -98,10 +98,10 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 	checkUnauthenticated(session)
 
-	var reply []byte
+	var reply *proto.AyiPacket
 
 	if msg.Type != proto.AuthType_A_NATIVE && msg.Type != proto.AuthType_A_FACEBOOK {
-		reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_MALFORMED_MESSAGE).Marshal()
+		reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_MALFORMED_MESSAGE)
 		session.Write(reply)
 		log.Printf("< (%v) USER NEW AUTH TOKEN MALFORMED MESSAGE\n", session)
 		return
@@ -116,17 +116,17 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		if user_id, err := userDAO.CheckEmailCredentials(msg.Pass1, msg.Pass2); err == nil {
 			new_auth_token := uuid.NewV4()
 			if err := userDAO.SetAuthToken(user_id, new_auth_token); err == nil {
-				reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token).Marshal()
+				reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token)
 				log.Printf("< (%v) USER NEW AUTH ACCESS GRANTED\n", session)
 			} else {
-				reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+				reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
 				log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			}
 		} else if err == dao.ErrNotFound {
-			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD\n", session)
 		} else {
-			reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+			reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 		}
 
@@ -140,7 +140,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		fbsession := fb.NewSession(msg.Pass2)
 
 		if _, err := fb.CheckAccess(msg.Pass1, fbsession); err != nil {
-			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_FB_INVALID_ACCESS).Marshal()
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_FB_INVALID_ACCESS)
 			session.Write(reply)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID FB ACCESS %v\n", session, fb.GetErrorMessage(err))
 			return
@@ -149,12 +149,12 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		user_id, err := userDAO.GetIDByFacebookID(msg.Pass1)
 
 		if err == dao.ErrNotFound {
-			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD", session)
 			session.Write(reply)
 			return
 		} else if err != nil {
-			reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+			reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			session.Write(reply)
 			return
@@ -166,7 +166,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		// this state is found, something had have to be wrong. Under normal conditions, that state should have never
 		// happened. So, at this point only existence of e-mail are checked (credentials are ignored).
 		if _, err := userDAO.CheckValidAccount(user_id, false); err != nil {
-			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD).Marshal()
+			reply = proto.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD)
 			session.Write(reply)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			return
@@ -175,13 +175,13 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		new_auth_token := uuid.NewV4()
 
 		if err := userDAO.SetAuthTokenAndFBToken(user_id, new_auth_token, msg.Pass1, msg.Pass2); err != nil {
-			reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+			reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			session.Write(reply)
 			return
 		}
 
-		reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token).Marshal()
+		reply = proto.NewMessage().UserAccessGranted(user_id, new_auth_token)
 		session.Write(reply)
 		log.Printf("< (%v) USER NEW AUTH TOKEN ACCESS GRANTED\n", session)
 	}
@@ -196,35 +196,28 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	checkUnauthenticated(session)
 
 	userDAO := server.NewUserDAO()
-
 	user_id := msg.UserId
-	auth_token, _ := uuid.Parse(msg.AuthToken)
 
-	ok, err := userDAO.CheckAuthToken(user_id, auth_token)
-
-	if err != nil {
-		if err == dao.ErrNotFound {
-			sendAuthError(session)
-		} else {
-			session.Write(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal())
-			log.Printf("< (%v) AUTH FAILED %v\n", session, err)
-		}
+	user_account, err := userDAO.Load(user_id)
+	if err == dao.ErrNotFound || (err == nil && user_account.AuthToken.String() != msg.AuthToken) {
+		sendAuthError(session)
+		return
+	} else if err != nil {
+		session.Write(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
+		log.Printf("< (%v) AUTH ERROR %v\n", session, err)
 		return
 	}
 
-	if ok {
-		session.IsAuth = true
-		session.UserId = user_id
-		session.Write(proto.NewMessage().Ok(packet_type).Marshal())
-		log.Printf("< (%v) AUTH OK\n", session.UserId)
-		server.RegisterSession(session)
-		server.NewUserDAO().SetLastConnection(session.UserId, core.GetCurrentTimeMillis())
-		server.task_executor.Submit(&SendUserFriends{UserId: user_id})
-		// FIXME: Do not send all of the private events, but limit to a fixed number
-		sendPrivateEvents(session)
-	} else {
-		sendAuthError(session)
-	}
+	session.IsAuth = true
+	session.UserId = user_id
+	session.IIDToken = user_account.IIDtoken
+	session.Write(proto.NewMessage().Ok(packet_type))
+	log.Printf("< (%v) AUTH OK\n", session.UserId)
+	server.RegisterSession(session)
+	server.NewUserDAO().SetLastConnection(session.UserId, core.GetCurrentTimeMillis())
+	server.task_executor.Submit(&SendUserFriends{UserId: user_id})
+	// FIXME: Do not send all of the private events, but limit to a fixed number
+	sendPrivateEvents(session)
 }
 
 func onIIDTokenReceived(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
@@ -236,7 +229,7 @@ func onIIDTokenReceived(packet_type proto.PacketType, message proto.Message, ses
 	checkAuthenticated(session)
 
 	if msg.Token == "" || len(msg.Token) < 10 {
-		reply := proto.NewMessage().Error(packet_type, proto.E_INVALID_INPUT).Marshal()
+		reply := proto.NewMessage().Error(packet_type, proto.E_INVALID_INPUT)
 		log.Printf("< (%v) IID TOKEN ERROR: INVALID INPUT\n", session.UserId)
 		session.Write(reply)
 		return
@@ -244,13 +237,13 @@ func onIIDTokenReceived(packet_type proto.PacketType, message proto.Message, ses
 
 	userDAO := server.NewUserDAO()
 	if err := userDAO.SetIIDToken(session.UserId, msg.Token); err != nil {
-		reply := proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+		reply := proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
 		log.Printf("< (%v) IID TOKEN ERROR: %v\n", session.UserId, err)
 		session.Write(reply)
 		return
 	}
 
-	session.Write(proto.NewMessage().Ok(packet_type).Marshal())
+	session.Write(proto.NewMessage().Ok(packet_type))
 	log.Printf("< (%v) IID TOKEN OK\n", session.UserId)
 }
 
@@ -266,13 +259,13 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 
 	author, err := userDAO.Load(session.UserId)
 	if err != nil {
-		session.Write(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal())
+		session.Write(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
 		log.Printf("< (%v) CREATE EVENT AUTHOR ERROR %v\n", session.UserId, err)
 		return
 	}
 
 	if _, err := author.IsValid(); err != nil {
-		session.Write(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal())
+		session.Write(proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
 		log.Printf("< (%v) CREATE EVENT AUTHOR ERROR %v\n", session.UserId, err)
 		return
 	}
@@ -282,7 +275,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	createdDate := core.UnixMillisToTime(msg.CreatedDate)
 
 	if createdDate.Before(currentDate.Add(-time.Minute)) || createdDate.After(currentDate.Add(time.Minute)) {
-		session.Write(proto.NewMessage().Error(packet_type, proto.E_EVENT_OUT_OF_CREATE_WINDOW).Marshal())
+		session.Write(proto.NewMessage().Error(packet_type, proto.E_EVENT_OUT_OF_CREATE_WINDOW))
 		log.Printf("< (%v) CREATE EVENT ERROR OUT OF WINDOW\n", session.UserId)
 		return
 	}
@@ -290,36 +283,53 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	event := core.CreateNewEvent(server.GetNewID(), author.Id, author.Name, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
 
 	if _, err := event.IsValid(); err != nil {
-		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_INVALID_INPUT)).Marshal())
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_INVALID_INPUT)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session.UserId, err)
 		return
 	}
 
-	// Prepare participants
-	participantsList, warning, err := server.createParticipantsList(author.Id, msg.Participants)
-
+	// Load users participants
+	userParticipants, warning, err := server.loadUserParticipants(author.Id, msg.Participants)
 	if err != nil {
-		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)).Marshal())
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session.UserId, err)
+		return
+	}
+
+	if len(userParticipants) == 0 {
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(warning, proto.E_EVENT_PARTICIPANTS_REQUIRED)))
+		log.Printf("< (%v) CREATE EVENT ERROR %v %v\n", session.UserId, err, warning)
 		return
 	}
 
 	// Add author as another participant of the event and assume he or she
 	// will assist by default
-	participant := author.AsParticipant()
-	participant.SetFields(core.AttendanceResponse_ASSIST, core.MessageStatus_NO_DELIVERED)
-	participantsList[author.Id] = participant
+	participantsList := server.createParticipantList(userParticipants)
+	authorParticipant := author.AsParticipant()
+	authorParticipant.SetFields(core.AttendanceResponse_ASSIST, core.MessageStatus_NO_DELIVERED) // Assume it's delivered because author created it
+	participantsList[author.Id] = authorParticipant
 
 	event.SetParticipants(participantsList)
 
 	if err := server.PublishEvent(event); err == nil {
-		session.Write(proto.NewMessage().Ok(packet_type).Marshal())
+
+		ok_msg := proto.NewMessage().Ok(packet_type)
+		session.Write(ok_msg)
 		log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session.UserId, event.EventId, len(event.Participants))
-	} else if err == ErrParticipantsRequired {
-		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(warning, proto.E_EVENT_PARTICIPANTS_REQUIRED)).Marshal())
-		log.Printf("< (%v) CREATE EVENT ERROR %v %v\n", session.UserId, err, warning)
+
+		event_created_msg := proto.NewMessage().EventCreated(event.GetEventWithoutParticipants())
+		status_msg := proto.NewMessage().AttendanceStatus(event.EventId, server.createParticipantListFromMap(event.Participants))
+		session.Write(event_created_msg, status_msg)
+		log.Printf("< (%v) SEND NEW EVENT %v\n", author.Id, event.EventId)
+
+		notification := &NotifyEventInvitation{
+			Event:  event,
+			Target: userParticipants,
+		}
+		server.task_executor.Submit(notification)
+
 	} else {
-		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)).Marshal())
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session.UserId, err)
 	}
 }
@@ -340,11 +350,11 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 
 	eventDAO := server.NewEventDAO()
 	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
-	var reply []byte
+	var reply *proto.AyiPacket
 
 	// Operation failed
 	if err != nil {
-		reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED).Marshal()
+		reply = proto.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v): %v\n", session.UserId, msg.EventId, err)
 		session.Write(reply)
 		return
@@ -352,7 +362,7 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 
 	// Event does not exist
 	if len(events) == 0 {
-		reply = proto.NewMessage().Error(packet_type, proto.E_INVALID_EVENT).Marshal()
+		reply = proto.NewMessage().Error(packet_type, proto.E_INVALID_EVENT)
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v): EVENT DOES NOT EXIST\n", session.UserId, msg.EventId)
 		session.Write(reply)
 		return
@@ -362,7 +372,7 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 	event := events[0]
 	author_id := session.UserId
 	if event.AuthorId != author_id {
-		reply = proto.NewMessage().Error(packet_type, proto.E_EVENT_AUTHOR_MISMATCH).Marshal()
+		reply = proto.NewMessage().Error(packet_type, proto.E_EVENT_AUTHOR_MISMATCH)
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v, author_id=%v): AUTHOR MISMATCH\n", session.UserId, msg.EventId, event.AuthorId)
 		session.Write(reply)
 		return
@@ -372,30 +382,30 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 	current_time := core.GetCurrentTimeMillis()
 
 	if event.StartDate < current_time {
-		reply = proto.NewMessage().Error(packet_type, proto.E_EVENT_CANNOT_BE_MODIFIED).Marshal()
+		reply = proto.NewMessage().Error(packet_type, proto.E_EVENT_CANNOT_BE_MODIFIED)
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) EVENT CANNOT BE MODIFIED\n", session.UserId, msg.EventId)
 		session.Write(reply)
 		return
 	}
 
-	// Prepare participants
+	// Load user participants
 	if len(msg.Participants) == 0 {
-		session.Write(proto.NewMessage().Error(packet_type, proto.E_EVENT_PARTICIPANTS_REQUIRED).Marshal())
+		session.Write(proto.NewMessage().Error(packet_type, proto.E_EVENT_PARTICIPANTS_REQUIRED))
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) PARTICIPANTS REQUIRED\n", session.UserId, msg.EventId)
 		return
 	}
 
 	participants_id := server.GetNewParticipants(msg.Participants, event)
-	participantsList, warning, err := server.createParticipantsList(author_id, participants_id)
+	userParticipants, warning, err := server.loadUserParticipants(author_id, participants_id)
 
 	if err != nil {
-		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)).Marshal())
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) %v\n", session.UserId, msg.EventId, err)
 		return
 	}
 
-	if len(participantsList) == 0 {
-		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(warning, proto.E_INVALID_PARTICIPANT)).Marshal())
+	if len(userParticipants) == 0 {
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(warning, proto.E_INVALID_PARTICIPANT)))
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) INVALID PARTICIPANTS %v\n", session.UserId, msg.EventId, warning)
 		return
 	}
@@ -403,30 +413,46 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 	// After check all of the possible erros, finally participants are inserted into the event
 	// and users inboxes
 	var succeedCounter int
-	for _, participant := range participantsList {
+	new_participants := make([]uint64, 0, len(userParticipants))
+	old_participants := core.GetParticipantsIdSlice(event.Participants)
+
+	for _, user := range userParticipants {
+		participant := user.AsParticipant()
 		err = eventDAO.AddOrUpdateEventToUserInbox(participant, event)
 		if err == nil {
-			event.Participants[participant.UserId] = participant
+			event.Participants[participant.UserId] = participant // Change event
+			new_participants = append(new_participants, user.Id)
 			succeedCounter++
 		} else {
 			log.Printf("Error inviting participant %v: %v\n", participant.UserId, err)
-			delete(participantsList, participant.UserId) // Keep only succesfully added participants
+			delete(userParticipants, user.Id) // Keep only succesfully added participants
 		}
 	}
 
 	if succeedCounter > 0 {
-		session.Write(proto.NewMessage().Ok(packet_type).Marshal())
-		log.Printf("< (%v) INVITE USERS OK (event_id=%v, invitations_send=%v, total=%v)\n", session.UserId, msg.EventId, succeedCounter, len(participantsList))
-		notification := &NotifyEventInvitation{
-			Event:              event,
-			TargetParticipants: participantsList,
+
+		session.Write(proto.NewMessage().Ok(packet_type))
+		log.Printf("< (%v) INVITE USERS OK (event_id=%v, invitations_send=%v, total=%v)\n", session.UserId, msg.EventId, succeedCounter, len(msg.Participants))
+
+		// Notify previous participants of the new ones added
+		notify_event_changed := &NotifyParticipantChange{
+			Event:               event,
+			ParticipantsChanged: new_participants,
+			Target:              old_participants,
 		}
-		server.task_executor.Submit(notification)
+
+		server.task_executor.Submit(notify_event_changed)
+
+		notify_invitation := &NotifyEventInvitation{
+			Event:  event,
+			Target: userParticipants,
+		}
+		server.task_executor.Submit(notify_invitation)
+
 	} else {
-		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)).Marshal())
+		session.Write(proto.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) Couldn't invite at least one participant\n", session.UserId, msg.EventId)
 	}
-
 }
 
 func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
@@ -452,14 +478,14 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	// Preconditions: User must have received the invitationm, so user must be in the event participant list
 	// or user has the event in his inbox
 	participant, err := event_dao.LoadParticipant(msg.EventId, session.UserId)
-	var reply []byte
+	var reply *proto.AyiPacket
 
 	if err != nil {
 		if err == dao.ErrNotFound {
-			reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_INVALID_EVENT_OR_PARTICIPANT).Marshal()
+			reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_INVALID_EVENT_OR_PARTICIPANT)
 			log.Printf("< (%v) CONFIRM ATTENDANCE %v INVALID_EVENT_OR_PARTICIPANT\n", session.UserId, msg.EventId)
 		} else {
-			reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED).Marshal()
+			reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED)
 			log.Printf("< (%v) CONFIRM ATTENDANCE %v ERROR %v\n", session.UserId, msg.EventId, err)
 		}
 		session.Write(reply)
@@ -469,7 +495,7 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	current_time := core.GetCurrentTimeMillis()
 
 	if participant.EventStartDate < current_time {
-		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_EVENT_CANNOT_BE_MODIFIED).Marshal()
+		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_EVENT_CANNOT_BE_MODIFIED)
 		log.Printf("< (%v) CONFIRM ATTENDANCE %v EVENT CANNOT BE MODIFIED\n", session.UserId, msg.EventId)
 		session.Write(reply)
 		return
@@ -477,13 +503,13 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 
 	// If the stored response is the same as the provided, send OK response inmediately
 	if participant.Response == msg.ActionCode {
-		reply = proto.NewMessage().Ok(packet_type).Marshal()
+		reply = proto.NewMessage().Ok(packet_type)
 		session.Write(reply)
 		return
 	}
 
 	if err := event_dao.SetParticipantResponse(participant, msg.ActionCode); err != nil {
-		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED).Marshal()
+		reply = proto.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED)
 		session.Write(reply)
 		log.Printf("< (%v) CONFIRM ATTENDANCE %v ERROR %v\n", session.UserId, msg.EventId, err)
 		return
@@ -491,17 +517,20 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 
 	// Send OK Response
 	participant.Response = msg.ActionCode
-	reply = proto.NewMessage().Ok(packet_type).Marshal()
+	reply = proto.NewMessage().Ok(packet_type)
 	session.Write(reply)
 	log.Printf("< (%v) CONFIRM ATTENDANCE %v OK\n", session.UserId, msg.EventId)
 
 	// Notify participants
-	if event, err := event_dao.LoadEventAndParticipants(msg.EventId); err == nil && len(event) > 0 {
+	if event, err := event_dao.LoadEventAndParticipants(msg.EventId); err == nil && len(event) == 1 {
 		task := &NotifyParticipantChange{
-			Event: event[0],
+			Event:               event[0],
+			ParticipantsChanged: []uint64{session.UserId},
+			Target:              core.GetParticipantsIdSlice(event[0].Participants),
 		}
-		task.ParticipantsChanged = append(task.ParticipantsChanged, session.UserId)
+
 		server.task_executor.Submit(task)
+
 	} else {
 		log.Println("onConfirmAttendance:", err)
 	}
@@ -614,8 +643,7 @@ func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSessi
 func onClockRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 	log.Printf("> (%v) CLOCK REQUEST\n", session.UserId)
 	checkAuthenticated(session)
-	reply := proto.NewMessage().ClockResponse().Marshal()
-	session.Write(reply)
+	session.Write(proto.NewMessage().ClockResponse())
 	log.Printf("< (%v) CLOCK RESPONSE\n", session.UserId)
 }
 
@@ -623,8 +651,7 @@ func onPing(packet_type proto.PacketType, message proto.Message, session *AyiSes
 	msg := message.(*proto.TimeInfo)
 	log.Printf("> (%v) PING %v\n", session.UserId, msg.CurrentTime)
 	checkAuthenticated(session)
-	reply := proto.NewMessage().Pong().Marshal()
-	session.Write(reply)
+	session.Write(proto.NewMessage().Pong())
 	log.Printf("< (%v) PONG\n", session.UserId)
 }
 

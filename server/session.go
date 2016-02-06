@@ -32,8 +32,21 @@ type SessionEvent struct {
 }
 
 type WriteMsg struct {
-	Data []byte
-	C    chan bool
+	Id     uint16
+	Data   []byte
+	Future *Future
+}
+
+type Future struct {
+	C          chan bool // Future called when the message is sent or, if required, when the message is acknowledged
+	RequireAck bool
+}
+
+func NewFuture(ack bool) *Future {
+	return &Future{
+		C:          make(chan bool, 1),
+		RequireAck: ack,
+	}
 }
 
 // Creates a new sessions with an already connected client
@@ -47,25 +60,29 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 		writeChan:   make(chan *WriteMsg, WRITE_CHANNEL_SIZE),
 		Server:      server,
 		lastRecvMsg: time.Now().UTC(),
+		pendingResp: make(map[uint16]chan bool),
 	}
 
 	return session
 }
 
 type AyiSession struct {
-	Conn        net.Conn
-	UserId      uint64
-	IsAuth      bool
-	eventChan   chan *SessionEvent
-	writeChan   chan *WriteMsg
-	ticker      *time.Ticker
-	Server      *Server
-	closed      bool
-	lastRecvMsg time.Time
-	OnRead      func(s *AyiSession, packet *proto.AyiPacket)
-	OnError     func(s *AyiSession, err error)
-	OnClosed    func(s *AyiSession, peer bool)
-	pingTime    time.Time
+	Conn             net.Conn
+	UserId           uint64
+	IsAuth           bool
+	eventChan        chan *SessionEvent
+	writeChan        chan *WriteMsg
+	ticker           *time.Ticker
+	Server           *Server
+	IIDToken         string
+	closed           bool
+	lastRecvMsg      time.Time
+	pendingResp      map[uint16]chan bool
+	outputMsgCounter uint16 // Reseat each 65535 messages
+	OnRead           func(s *AyiSession, packet *proto.AyiPacket)
+	OnError          func(s *AyiSession, err error)
+	OnClosed         func(s *AyiSession, peer bool)
+	pingTime         time.Time
 }
 
 func (s *AyiSession) IsClosed() bool {
@@ -76,27 +93,45 @@ func (s *AyiSession) String() string {
 	return s.Conn.RemoteAddr().String()
 }
 
-func (s *AyiSession) Write(data []byte) (ok bool) {
-	return s.WriteAsync(data, nil)
+// Alis for WriteAsync without indicating a future
+func (s *AyiSession) Write(packet ...*proto.AyiPacket) (ok bool) {
+	return s.WriteAsync(nil, packet...)
 }
 
-func (s *AyiSession) WriteSync(data []byte) bool {
+func (s *AyiSession) WriteSync(packet *proto.AyiPacket) bool {
 	var ok bool
-	c := make(chan bool, 1)
-	if ok = s.WriteAsync(data, c); ok {
-		ok = <-c // Block here
+	future := NewFuture(false)
+	if ok = s.WriteAsync(future, packet); ok {
+		ok = <-future.C
 	}
 	return ok
 }
 
-func (s *AyiSession) WriteAsync(data []byte, c chan bool) (ok bool) {
+func (s *AyiSession) WriteAsync(future *Future, packets ...*proto.AyiPacket) (ok bool) {
+
 	defer func() {
 		if r := recover(); r != nil {
 			ok = false
 			log.Printf("Session %v Write Error: %v\n", s, r)
 		}
 	}()
-	s.writeChan <- &WriteMsg{Data: data, C: c} // may panic if writeChan is closed
+
+	data := make([]byte, 0, packets[0].Header.Size)
+
+	for _, packet := range packets {
+		packet.Header.Token = s.outputMsgCounter
+		data = append(data, packet.Marshal()...)
+	}
+
+	// may panic if writeChan is closed
+	s.writeChan <- &WriteMsg{
+		Id:     s.outputMsgCounter,
+		Data:   data,
+		Future: future,
+	}
+
+	s.outputMsgCounter++
+
 	return true
 }
 
@@ -188,15 +223,10 @@ func (s *AyiSession) startWrite() {
 	if s.Conn != nil {
 		go func() {
 			for writeMsg := range s.writeChan {
-
-				_, err := proto.WriteBytes(writeMsg.Data, s.Conn)
-
-				if err != nil {
-					s.eventChan <- &SessionEvent{Id: ERROR_EVENT, Object: err}
-				}
-
-				if writeMsg.C != nil {
-					writeMsg.C <- err == nil
+				if writeMsg.Future != nil && writeMsg.Future.RequireAck {
+					s.doWriteWithAck(writeMsg)
+				} else {
+					s.doWrite(writeMsg)
 				}
 			}
 		}()
@@ -256,6 +286,49 @@ func (s *AyiSession) doRead() {
 	}
 }
 
+func (s *AyiSession) doWrite(msg *WriteMsg) {
+	_, err := proto.WriteBytes(msg.Data, s.Conn)
+	if err != nil {
+		s.eventChan <- &SessionEvent{Id: ERROR_EVENT, Object: err}
+	}
+	if msg.Future != nil && msg.Future.C != nil {
+		msg.Future.C <- err == nil
+	}
+}
+
+func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
+
+	waitResponse := make(chan bool, 1)
+	s.pendingResp[msg.Id] = waitResponse
+
+	defer func() {
+		delete(s.pendingResp, msg.Id)
+	}()
+
+	_, err := proto.WriteBytes(msg.Data, s.Conn)
+
+	if err != nil {
+		s.eventChan <- &SessionEvent{Id: ERROR_EVENT, Object: err}
+		msg.Future.C <- false
+		return
+	}
+
+	timeout := time.NewTicker(10 * time.Second)
+
+	select {
+	case <-waitResponse:
+	case <-timeout.C:
+		err = proto.ErrTimeout
+	}
+
+	timeout.Stop()
+	msg.Future.C <- err == nil
+
+	if err != nil {
+		s.eventChan <- &SessionEvent{Id: ERROR_EVENT, Object: err}
+	}
+}
+
 // Manage session messages. Returns true if message has been
 // managed or false otherwise
 func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
@@ -268,6 +341,14 @@ func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 				s.Conn = tlsconn
 				//defer conn.Close()
 			}
+		}
+		return true
+	}
+
+	if packet.Header.Type == proto.M_OK && packet.Header.Token != 0 {
+		if c, ok := s.pendingResp[packet.Header.Token]; ok {
+			log.Printf("> (%v) ACK %v\n", s.UserId, packet.Header.Token)
+			c <- true
 		}
 		return true
 	}
@@ -296,7 +377,6 @@ func (s *AyiSession) keepAlive() {
 }
 
 func (s *AyiSession) ping() {
-	ping_msg := proto.NewMessage().Ping().Marshal()
-	s.Write(ping_msg)
+	s.Write(proto.NewMessage().Ping())
 	s.pingTime = time.Now().Add(PING_RETRY_INTERVAL_MS)
 }

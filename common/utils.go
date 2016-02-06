@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"github.com/gocql/gocql"
 	"log"
+	"math/big"
 	"time"
 )
 
@@ -70,9 +71,22 @@ func CreateParticipantsFromFriends(author_id uint64, friends []*Friend) []*Event
 	return result
 }
 
+func GetParticipantsIdSlice(participants map[uint64]*EventParticipant) []uint64 {
+	result := make([]uint64, 0, len(participants))
+	for _, p := range participants {
+		result = append(result, p.UserId)
+	}
+	return result
+}
+
 /*func Log(message string) {
 	fmt.Println(message)
 }*/
+
+func RandUint16() (uint16, error) {
+	v, err := rand.Int(rand.Reader, big.NewInt(65536))
+	return uint16(v.Int64()), err
+}
 
 func NewRandomSalt32() (salt [32]byte, err error) {
 	_, err = rand.Read(salt[:])
@@ -86,4 +100,11 @@ func HashPasswordWithSalt(password string, salt [32]byte) [32]byte {
 	data := []byte(password)
 	data = append(data, salt[:]...)
 	return sha256.Sum256(data)
+}
+
+func MinUint32(a, b uint32) uint32 {
+	if a <= b {
+		return a
+	}
+	return b
 }

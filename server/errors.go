@@ -17,6 +17,7 @@ var (
 	ErrUnregisteredFriendsIgnored = errors.New("ignored unregistered participants")
 	ErrParticipantsRequired       = errors.New("participants required")
 	ErrAuthorDeliveryError        = errors.New("event coudn't be delivered to author")
+	ErrShellInvalidArgs           = errors.New("Invalid args")
 )
 
 func getNetErrorCode(err error, default_code int32) int32 {

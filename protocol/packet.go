@@ -11,7 +11,7 @@ import (
 
 type AyiHeader struct { // 6 bytes
 	Version uint8
-	Token   uint16
+	Token   uint16 // Message ID
 	Type    PacketType
 	Size    uint16
 }

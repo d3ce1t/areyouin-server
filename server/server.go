@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	ALL_CONTACTS_GROUP = 0 // Id for the main friend group of a user
-	GCM_API_KEY        = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
+	ALL_CONTACTS_GROUP     = 0 // Id for the main friend group of a user
+	GCM_API_KEY            = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
+	GCM_MAX_TTL            = 2419200
+	GCM_NEW_EVENTS_MESSAGE = "GCM_NEW_EVENTS_MESSAGE"
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 )
 
@@ -169,7 +171,7 @@ func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
 func (s *Server) RegisterSession(session *AyiSession) {
 	s.executeSerial(func() {
 		if oldSession, ok := s.sessions.Get(session.UserId); ok {
-			oldSession.WriteSync(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD).Marshal())
+			oldSession.WriteSync(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
 			log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", oldSession)
 			oldSession.Exit()
 			log.Printf("Closing old session %v for user %v\n", oldSession, oldSession.UserId)
@@ -227,21 +229,21 @@ func (server *Server) handleSession(session *AyiSession) {
 			} else {
 				log.Printf("< (%v) ERROR %v (panic %v)\n", session.UserId, error_code, err)
 			}
-			s.Write(proto.NewMessage().Error(packet.Type(), error_code).Marshal())
+			s.Write(proto.NewMessage().Error(packet.Type(), error_code))
 		}
 	}
 
 	session.OnError = func(s *AyiSession, err error) {
+
 		if err == proto.ErrTimeout {
-			return
+			s.Exit()
+
+			// HACK: Compare error string because there is no ErrTlsXXXXX or alike
+		} else if strings.Contains(err.Error(), "tls: first record does not look like a TLS handshake") {
+			s.Exit()
 		}
 
 		log.Println("Session Error:", err)
-
-		// HACK: Compare error string because there is no ErrTlsXXXXX or alike
-		if strings.Contains(err.Error(), "tls: first record does not look like a TLS handshake") {
-			s.Exit()
-		}
 	}
 
 	session.OnClosed = func(s *AyiSession, peer bool) {
@@ -365,12 +367,12 @@ func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 	} // End outter loop
 }
 
-func (s *Server) SendMessage(user_id uint64, message []byte) bool {
+func (s *Server) SendMessage(user_id uint64, packet *proto.AyiPacket) bool {
 	session := s.GetSession(user_id)
 	if session == nil {
 		return false
 	}
-	return session.Write(message)
+	return session.Write(packet)
 }
 
 func (s *Server) GetSession(user_id uint64) *AyiSession {
@@ -411,6 +413,7 @@ func (s *Server) PublishEvent(event *core.Event) error {
 
 	// Author is the last participant. Add it first in order to get the author receive
 	// the event to add other participants if something fails
+	event.Participants[event.AuthorId].Delivered = core.MessageStatus_CLIENT_DELIVERED
 	tmp_error := s.inviteParticipantToEvent(event, event.Participants[event.AuthorId])
 	if tmp_error != nil {
 		log.Println("PublishEvent Error:", tmp_error)
@@ -419,16 +422,10 @@ func (s *Server) PublishEvent(event *core.Event) error {
 
 	for k, participant := range event.Participants {
 		if k != event.AuthorId {
+			participant.Delivered = core.MessageStatus_SERVER_DELIVERED
 			s.inviteParticipantToEvent(event, participant) // TODO: Implement retry but do not return on error
 		}
 	}
-
-	notification := &NotifyEventInvitation{
-		Event:              event,
-		TargetParticipants: event.Participants,
-	}
-
-	s.task_executor.Submit(notification)
 
 	return nil
 }
@@ -451,10 +448,10 @@ func (s *Server) inviteParticipantToEvent(event *core.Event, participant *core.E
 // can only be current friends of the author. In this code, it is assumed that
 // participants are already friends of the author (author has-friend way). However,
 // it must be checked if participants have also the author as a friend (friend has-author way)
-func (s *Server) createParticipantsList(author_id uint64, participants_id []uint64) (participant map[uint64]*core.EventParticipant, warn error, err error) {
+func (s *Server) loadUserParticipants(author_id uint64, participants_id []uint64) (participant map[uint64]*core.UserAccount, warn error, err error) {
 
 	var last_warning error
-	result := make(map[uint64]*core.EventParticipant)
+	result := make(map[uint64]*core.UserAccount)
 	userDAO := s.NewUserDAO()
 
 	for _, p_id := range participants_id {
@@ -462,10 +459,10 @@ func (s *Server) createParticipantsList(author_id uint64, participants_id []uint
 		if ok, err := userDAO.IsFriend(p_id, author_id); ok {
 
 			if uac, err := userDAO.Load(p_id); err == nil { // FIXME: Load several participants in one operation
-				result[uac.Id] = uac.AsParticipant()
+				result[uac.Id] = uac
 			} else if err == dao.ErrNotFound {
 				last_warning = ErrUnregisteredFriendsIgnored
-				log.Printf("createParticipantList() Warning at userid %v: %v\n", p_id, err)
+				log.Printf("loadUserParticipants() Warning at userid %v: %v\n", p_id, err)
 			} else {
 				return nil, nil, err
 			}
@@ -473,12 +470,34 @@ func (s *Server) createParticipantsList(author_id uint64, participants_id []uint
 		} else if err != nil {
 			return nil, nil, err
 		} else {
-			log.Println("createParticipantList() Not friends", author_id, "and", p_id)
+			log.Println("loadUserParticipants() Not friends", author_id, "and", p_id)
 			last_warning = ErrNonFriendsIgnored
 		}
 	}
 
 	return result, last_warning, nil
+}
+
+func (s *Server) createParticipantList(users map[uint64]*core.UserAccount) map[uint64]*core.EventParticipant {
+
+	result := make(map[uint64]*core.EventParticipant)
+
+	for _, uac := range users {
+		result[uac.Id] = uac.AsParticipant()
+	}
+
+	return result
+}
+
+func (s *Server) createParticipantListFromMap(participants map[uint64]*core.EventParticipant) []*core.EventParticipant {
+
+	result := make([]*core.EventParticipant, 0, len(participants))
+
+	for _, p := range participants {
+		result = append(result, p)
+	}
+
+	return result
 }
 
 func (s *Server) createParticipantsFromFriends(author_id uint64) []*core.EventParticipant {
@@ -515,7 +534,7 @@ func sendPrivateEvents(session *AyiSession) {
 
 	// Send events list to user
 	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session.UserId, len(half_events))
-	session.Write(proto.NewMessage().EventsList(half_events).Marshal()) // TODO: Change after remove compatibility
+	session.Write(proto.NewMessage().EventsList(half_events)) // TODO: Change after remove compatibility
 
 	// Send participants info of each event, update participant status as delivered and notify
 	for _, event := range events {
@@ -523,8 +542,7 @@ func sendPrivateEvents(session *AyiSession) {
 		participants_filtered := session.Server.filterParticipantsMap(session.UserId, event.Participants)
 
 		// Send attendance info
-		msg := proto.NewMessage().AttendanceStatus(event.EventId, participants_filtered).Marshal()
-		session.Write(msg)
+		session.Write(proto.NewMessage().AttendanceStatus(event.EventId, participants_filtered))
 
 		// Update participant status of the session user
 		ownParticipant := event.Participants[session.UserId]
@@ -537,6 +555,7 @@ func sendPrivateEvents(session *AyiSession) {
 			task := &NotifyParticipantChange{
 				Event:               event,
 				ParticipantsChanged: []uint64{session.UserId},
+				Target:              core.GetParticipantsIdSlice(event.Participants),
 			}
 
 			// I'm also sending notification to the author. Could avoid this because author already knows
@@ -547,7 +566,7 @@ func sendPrivateEvents(session *AyiSession) {
 }
 
 func sendAuthError(session *AyiSession) {
-	session.Write(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD).Marshal())
+	session.Write(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
 	log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", session)
 }
 

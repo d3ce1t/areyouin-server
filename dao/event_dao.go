@@ -181,20 +181,12 @@ func (dao *EventDAO) InsertEventToUserInbox(participant *core.EventParticipant, 
 
 	stmt_update := `UPDATE event SET guest_status = ? WHERE event_id = ? AND guest_id = ?`
 
-	if event.AuthorId == participant.UserId {
-		participant.Response = core.AttendanceResponse_ASSIST
-	} else {
-		participant.Response = core.AttendanceResponse_NO_RESPONSE
-	}
-
-	participant.Delivered = core.MessageStatus_SERVER_DELIVERED
-
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 	event_bucket := 1 // TODO: Implement bucket logic properly
 
 	batch.Query(stmt_insert, participant.UserId, event_bucket, event.StartDate, event.EventId, event.AuthorId,
 		event.AuthorName, event.Message, participant.Response)
-	batch.Query(stmt_update, core.MessageStatus_SERVER_DELIVERED, event.EventId, participant.UserId)
+	batch.Query(stmt_update, participant.Delivered, event.EventId, participant.UserId)
 
 	return dao.session.ExecuteBatch(batch)
 }
