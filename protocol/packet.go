@@ -2,22 +2,32 @@ package protocol
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	proto "github.com/golang/protobuf/proto"
 	"log"
 	"runtime/debug"
 )
 
-type AyiHeader struct { // 6 bytes
-	Version uint8
-	Token   uint16 // Message ID
-	Type    PacketType
-	Size    uint16
+func newPacketV2() *AyiPacket {
+	packet := &AyiPacket{
+		Header: &AyiHeaderV2{},
+	}
+	packet.Header.SetVersion(1)
+	packet.Header.SetToken(0)
+	packet.Header.SetType(M_ERROR)
+	packet.Header.SetSize(0) // Payload size
+	return packet
 }
 
-func (h *AyiHeader) String() string {
-	return fmt.Sprint("Version:", h.Version, "Token:", h.Token, "Type:", h.Type, "Size:", h.Size)
+func newPacketV1() *AyiPacket {
+	packet := &AyiPacket{
+		Header: &AyiHeaderV1{},
+	}
+	packet.Header.SetVersion(0)
+	packet.Header.SetToken(0)
+	packet.Header.SetType(M_ERROR)
+	packet.Header.SetSize(0) // Payload size (internally stores header + payload size)
+	return packet
 }
 
 // An AyiPacket is a network container for a message
@@ -32,7 +42,11 @@ func (packet *AyiPacket) String() string {
 }
 
 func (packet *AyiPacket) Type() PacketType {
-	return packet.Header.Type
+	return packet.Header.GetType()
+}
+
+func (packet *AyiPacket) Version() uint32 {
+	return packet.Header.GetVersion()
 }
 
 // Decodes a packet in order to get a message. If the message
@@ -45,8 +59,6 @@ func (packet *AyiPacket) DecodeMessage() Message {
 		err := proto.Unmarshal(packet.Data, message)
 
 		if err != nil {
-			log.Println("Unmarshaling error: ", err)
-			log.Println(packet)
 			return nil
 		}
 	}
@@ -71,7 +83,7 @@ func (packet *AyiPacket) SetMessage(message Message) {
 	}
 
 	packet.Data = data
-	packet.Header.Size = 6 + uint16(size)
+	packet.Header.SetSize(uint(size))
 }
 
 // FIXME: Change this function to use directly a write stream (avoid copy)
@@ -80,10 +92,11 @@ func (packet *AyiPacket) Marshal() []byte {
 	buf := &bytes.Buffer{}
 
 	// Write Header
-	err := binary.Write(buf, binary.BigEndian, packet.Header) // X86 is LittleEndian, whereas ARM is BigEndian / Bi-Endian
+	_, err := buf.Write(packet.Header.Marshall())
+
 	if err != nil {
 		log.Println("Build message failed (1):", err)
-
+		return nil
 	}
 
 	// Write Payload
@@ -91,6 +104,7 @@ func (packet *AyiPacket) Marshal() []byte {
 		_, err = buf.Write(packet.Data)
 		if err != nil {
 			log.Fatal("Build message failed (2):", err)
+			return nil
 		}
 	}
 
@@ -98,5 +112,5 @@ func (packet *AyiPacket) Marshal() []byte {
 }
 
 func (packet *AyiPacket) HasPayload() bool {
-	return packet.Header.Size > 6
+	return packet.Header.GetSize() > 0
 }

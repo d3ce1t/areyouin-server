@@ -54,6 +54,7 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 
 	session := &AyiSession{
 		Conn:        conn,
+		Version:     0, // Use v1 by default
 		UserId:      0,
 		IsAuth:      false,
 		eventChan:   make(chan *SessionEvent, EVENT_CHANNEL_SIZE),
@@ -69,6 +70,7 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 type AyiSession struct {
 	Conn             net.Conn
 	UserId           uint64
+	Version          uint8
 	IsAuth           bool
 	eventChan        chan *SessionEvent
 	writeChan        chan *WriteMsg
@@ -93,7 +95,11 @@ func (s *AyiSession) String() string {
 	return s.Conn.RemoteAddr().String()
 }
 
-// Alis for WriteAsync without indicating a future
+func (s *AyiSession) NewMessage() proto.MessageBuilder {
+	return proto.NewPacket(s.Version)
+}
+
+// Alias for WriteAsync without indicating a future
 func (s *AyiSession) Write(packet ...*proto.AyiPacket) (ok bool) {
 	return s.WriteAsync(nil, packet...)
 }
@@ -116,10 +122,10 @@ func (s *AyiSession) WriteAsync(future *Future, packets ...*proto.AyiPacket) (ok
 		}
 	}()
 
-	data := make([]byte, 0, packets[0].Header.Size)
+	data := make([]byte, 0, packets[0].Header.GetSize())
 
 	for _, packet := range packets {
-		packet.Header.Token = s.outputMsgCounter
+		packet.Header.SetToken(s.outputMsgCounter)
 		data = append(data, packet.Marshal()...)
 	}
 
@@ -268,6 +274,7 @@ func (s *AyiSession) doRead() {
 	if err == nil {
 		s.lastRecvMsg = time.Now()
 		s.pingTime = s.lastRecvMsg.Add(PING_INTERVAL_MS)
+		s.Version = uint8(packet.Version())
 
 		if !s.manageSessionMsg(packet) {
 			s.eventChan <- &SessionEvent{Id: READ_MESSAGE_EVENT, Object: packet}
@@ -333,21 +340,23 @@ func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 // managed or false otherwise
 func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 
-	if packet.Header.Type == proto.M_USE_TLS {
+	if packet.Header.GetType() == proto.M_USE_TLS {
 		log.Printf("> (%v) USE TLS\n", s)
 		if tlsconn, ok := s.Conn.(*tls.Conn); !ok {
 			log.Printf("Changing to use TLS for session %v\n", s)
 			if tlsconn = tls.Server(s.Conn, s.Server.TLSConfig); tlsconn != nil {
+				//oldConn := s.Conn
 				s.Conn = tlsconn
+				//oldConn.Close()
 				//defer conn.Close()
 			}
 		}
 		return true
 	}
 
-	if packet.Header.Type == proto.M_OK && packet.Header.Token != 0 {
-		if c, ok := s.pendingResp[packet.Header.Token]; ok {
-			log.Printf("> (%v) ACK %v\n", s.UserId, packet.Header.Token)
+	if packet.Header.GetType() == proto.M_OK && packet.Header.GetToken() != 0 {
+		if c, ok := s.pendingResp[packet.Header.GetToken()]; ok {
+			log.Printf("> (%v) ACK %v\n", s.UserId, packet.Header.GetToken())
 			c <- true
 		}
 		return true
@@ -377,6 +386,6 @@ func (s *AyiSession) keepAlive() {
 }
 
 func (s *AyiSession) ping() {
-	s.Write(proto.NewMessage().Ping())
+	s.Write(s.NewMessage().Ping())
 	s.pingTime = time.Now().Add(PING_RETRY_INTERVAL_MS)
 }

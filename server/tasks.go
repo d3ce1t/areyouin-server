@@ -6,7 +6,6 @@ import (
 	core "peeple/areyouin/common"
 	dao "peeple/areyouin/dao"
 	fb "peeple/areyouin/facebook"
-	proto "peeple/areyouin/protocol"
 )
 
 type NotifyParticipantChange struct {
@@ -43,7 +42,7 @@ func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 
 		if session != nil {
 			privacy_participant_list := server.filterParticipantsSlice(participant_dst, participant_list)
-			msg := proto.NewMessage().AttendanceStatus(t.Event.EventId, privacy_participant_list)
+			msg := session.NewMessage().AttendanceStatus(t.Event.EventId, privacy_participant_list)
 
 			if session.Write(msg) {
 				log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", participant_dst, t.Event.EventId, len(privacy_participant_list))
@@ -155,9 +154,12 @@ func (task *SendUserFriends) Run(ex *TaskExecutor) {
 	}
 
 	if len(friends) > 0 {
-		reply := proto.NewMessage().FriendsList(friends)
-		if server.SendMessage(task.UserId, reply) {
-			log.Printf("< (%v) SEND USER FRIENDS\n", task.UserId)
+		session := server.GetSession(task.UserId)
+		if session != nil {
+			packet := session.NewMessage().FriendsList(friends)
+			if session.Write(packet) {
+				log.Printf("< (%v) SEND USER FRIENDS\n", task.UserId)
+			}
 		}
 	}
 }
@@ -193,11 +195,11 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 		}
 
 		// Create InvitationReceived message
-		notify_msg := proto.NewMessage().InvitationReceived(light_event)
+		notify_msg := session.NewMessage().InvitationReceived(light_event)
 
 		// Filter event participants to protect privacy and create message
 		filtered_participants := server.filterParticipantsMap(user.Id, t.Event.Participants)
-		attendance_status_msg := proto.NewMessage().AttendanceStatus(t.Event.EventId, filtered_participants)
+		attendance_status_msg := session.NewMessage().AttendanceStatus(t.Event.EventId, filtered_participants)
 
 		// Notify (use a channel because it is needed to know if message arrived)
 		var future *Future

@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"bufio"
 	"encoding/binary"
 	"io"
 	"net"
@@ -10,15 +11,16 @@ import (
 
 const (
 	MAX_WRITE_TIMEOUT = 15 * time.Second
+	MAX_PAYLOAD_SIZE  = 1024000 // 1 Mb
 )
 
-func NewMessage() *MessageBuilder {
-	mb := &MessageBuilder{}
-	mb.message = &AyiPacket{}
-	mb.message.Header.Version = 0
-	mb.message.Header.Token = 0
-	mb.message.Header.Type = M_ERROR
-	mb.message.Header.Size = 6
+func NewPacket(version uint8) *PacketBuilder {
+	mb := &PacketBuilder{}
+	if version == 0 {
+		mb.message = newPacketV1()
+	} else {
+		mb.message = newPacketV2()
+	}
 	return mb
 }
 
@@ -56,30 +58,38 @@ func WriteBytes(data []byte, conn net.Conn) (int, error) {
 	return n, err
 }
 
-// Reads a message from an io.Reader
+// Reads a packet from net.Conn. This function reads packets with header formated
+// as v1 or v2.
 func ReadPacket(conn net.Conn) (*AyiPacket, error) {
 
 	if conn == nil {
 		return nil, ErrInvalidSocket
 	}
 
-	// FIXME: // I'm creating a lot of memory each time GC will have to work hard
+	reader := bufio.NewReaderSize(conn, 1500)
+
+	// FIXME: // I'm creating a lot of memory each time. GC will have to work hard
 	packet := &AyiPacket{}
 
 	// Read header
-	err := binary.Read(conn, binary.BigEndian, &packet.Header)
-
+	header, err := readHeader(reader)
 	if err != nil {
 		protoerror := getError(err)
 		return nil, protoerror
 	}
 
+	packet.Header = header
+
 	// Read Payload
-	payload_size := packet.Header.Size - 6
+	payload_size := packet.Header.GetSize()
+
+	if payload_size > MAX_PAYLOAD_SIZE {
+		return nil, ErrMaxPayloadExceeded
+	}
 
 	if payload_size > 0 {
 		packet.Data = make([]uint8, payload_size)
-		_, err = conn.Read(packet.Data)
+		err := readLimit(reader, payload_size, packet.Data)
 		if err != nil {
 			protoerror := getError(err)
 			return nil, protoerror
@@ -87,6 +97,64 @@ func ReadPacket(conn net.Conn) (*AyiPacket, error) {
 	}
 
 	return packet, nil
+}
+
+func readLimit(reader io.Reader, limit uint, data []byte) error {
+
+	var total_read uint
+
+	for total_read != limit {
+		n, err := reader.Read(data[total_read:])
+		if err != nil {
+			protoerror := getError(err)
+			return protoerror
+		}
+		total_read += uint(n)
+	}
+
+	return nil
+}
+
+func readHeader(reader *bufio.Reader) (AyiHeader, error) {
+
+	packet_version, err := reader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := reader.UnreadByte(); err != nil {
+		return nil, err
+	}
+
+	if packet_version == 0 {
+		return readHeaderV1(reader)
+	} else {
+		return readHeaderV2(reader)
+	}
+}
+
+func readHeaderV1(reader *bufio.Reader) (AyiHeader, error) {
+
+	header := &AyiHeaderV1{}
+
+	err := binary.Read(reader, binary.BigEndian, header)
+	if err != nil {
+		return nil, err
+	}
+
+	return header, nil
+}
+
+func readHeaderV2(reader *bufio.Reader) (AyiHeader, error) {
+
+	header := &AyiHeaderV2{}
+
+	err := header.ParseHeader(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return header, nil
 }
 
 type Message interface {
@@ -130,6 +198,8 @@ func createEmptyMessage(packet_type PacketType) Message {
 		message = &NewAuthToken{}
 	case M_USER_AUTH:
 		message = &UserAuthentication{}
+	case M_CHANGE_PROFILE_PICTURE:
+		message = &UserAccount{}
 	case M_IID_TOKEN:
 		message = &InstanceIDToken{}
 

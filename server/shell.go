@@ -465,7 +465,7 @@ func (shell *Shell) pingClient(args []string) {
 	server := shell.server
 	if session, ok := server.sessions.Get(user_id); ok {
 		for i := uint64(0); i < repeat_times; i++ {
-			session.Write(proto.NewMessage().Ping())
+			session.Write(session.NewMessage().Ping())
 		}
 	}
 }

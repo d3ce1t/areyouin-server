@@ -6,6 +6,14 @@ option java_package = "es.peeple.areyouin.protocol";
 
 import "core.proto";
 
+// Header
+message AyiHeaderV2 {
+  uint32 version = 1;
+  uint32 token = 2;
+  uint32 type = 3;
+  uint32 payloadSize = 4;
+}
+
 //
 // Modifiers
 //
@@ -129,11 +137,6 @@ message EventModified {
   string message = 4;
 }
 
-// INVITATION RECEIVED
-/*message InvitationReceived {
-  Event event = 1;
-}*/
-
 // INVITATION CANCELLED
 message InvitationCancelled {
   uint64 event_id = 1;
@@ -228,19 +231,10 @@ message ListPublicEvents {
   ListCursor cursor = 3;
 }
 
-// USER FRIENDS
-/*message UserFriends {
-
-}*/
 
 //
 // Responses
 //
-
-// PONG
-/*message Pong {
-  int64 current_time = 1;
-}*/
 
 // EVENTS LIST
 message EventsList {
@@ -251,4 +245,11 @@ message EventsList {
 // FRIENDS LIST
 message FriendsList {
   repeated common.Friend friends = 1;
+}
+
+// USER ACCOUNT
+message UserAccount {
+  string name = 1;
+  string email = 2;
+  bytes picture = 3;
 }
