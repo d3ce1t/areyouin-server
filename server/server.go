@@ -13,6 +13,7 @@ import (
 	proto "peeple/areyouin/protocol"
 	wh "peeple/areyouin/webhook"
 	"strings"
+	"time"
 )
 
 const (
@@ -172,7 +173,7 @@ func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
 func (s *Server) RegisterSession(session *AyiSession) {
 	s.executeSerial(func() {
 		if oldSession, ok := s.sessions.Get(session.UserId); ok {
-			oldSession.WriteSync(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
+			oldSession.WriteSync(oldSession.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
 			log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", oldSession)
 			oldSession.Exit()
 			log.Printf("Closing old session %v for user %v\n", oldSession, oldSession.UserId)
@@ -229,23 +230,39 @@ func (server *Server) handleSession(session *AyiSession) {
 				log.Printf("< (%v) AUTH REQUIRED\n", session)
 			} else {
 				log.Printf("< (%v) ERROR %v (panic %v)\n", session.UserId, error_code, err)
+				log.Printf("Involved Packet: %v\n", packet)
 			}
-			s.Write(proto.NewMessage().Error(packet.Type(), error_code))
+			s.Write(s.NewMessage().Error(packet.Type(), error_code))
 		}
 	}
 
-	session.OnError = func(s *AyiSession, err error) {
+	session.OnError = func() func(s *AyiSession, err error) {
+		num_errors := 0
+		last_error_time := time.Now()
+		return func(s *AyiSession, err error) {
 
-		if err == proto.ErrTimeout {
-			s.Exit()
+			if err == proto.ErrTimeout {
+				s.Exit()
 
-			// HACK: Compare error string because there is no ErrTlsXXXXX or alike
-		} else if strings.Contains(err.Error(), "tls: first record does not look like a TLS handshake") {
-			s.Exit()
+				// HACK: Compare error string because there is no ErrTlsXXXXX or alike
+			} else if strings.Contains(err.Error(), "tls: first record does not look like a TLS handshake") {
+				s.Exit()
+			}
+
+			log.Println("Session Error:", err)
+
+			current_time := time.Now()
+			if last_error_time.Add(1 * time.Second).Before(current_time) {
+				last_error_time = current_time
+				num_errors = 1
+			} else {
+				num_errors++
+				if num_errors == 10 {
+					s.Exit()
+				}
+			}
 		}
-
-		log.Println("Session Error:", err)
-	}
+	}()
 
 	session.OnClosed = func(s *AyiSession, peer bool) {
 		if s.IsAuth {
@@ -366,14 +383,6 @@ func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 			}
 		} // End inner loop
 	} // End outter loop
-}
-
-func (s *Server) SendMessage(user_id uint64, packet *proto.AyiPacket) bool {
-	session := s.GetSession(user_id)
-	if session == nil {
-		return false
-	}
-	return session.Write(packet)
 }
 
 func (s *Server) GetSession(user_id uint64) *AyiSession {
@@ -535,7 +544,7 @@ func sendPrivateEvents(session *AyiSession) {
 
 	// Send events list to user
 	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session.UserId, len(half_events))
-	session.Write(proto.NewMessage().EventsList(half_events)) // TODO: Change after remove compatibility
+	session.Write(session.NewMessage().EventsList(half_events)) // TODO: Change after remove compatibility
 
 	// Send participants info of each event, update participant status as delivered and notify
 	for _, event := range events {
@@ -543,7 +552,7 @@ func sendPrivateEvents(session *AyiSession) {
 		participants_filtered := session.Server.filterParticipantsMap(session.UserId, event.Participants)
 
 		// Send attendance info
-		session.Write(proto.NewMessage().AttendanceStatus(event.EventId, participants_filtered))
+		session.Write(session.NewMessage().AttendanceStatus(event.EventId, participants_filtered))
 
 		// Update participant status of the session user
 		ownParticipant := event.Participants[session.UserId]
@@ -567,7 +576,7 @@ func sendPrivateEvents(session *AyiSession) {
 }
 
 func sendAuthError(session *AyiSession) {
-	session.Write(proto.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
+	session.Write(session.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
 	log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", session)
 }
 
@@ -660,6 +669,8 @@ func main() {
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
 	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)
 	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
+	server.RegisterCallback(proto.M_GET_USER_ACCOUNT, onGetUserAccount)
+	server.RegisterCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
 
 	shell := NewShell(server)
 	go shell.StartTermSSH()

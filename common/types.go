@@ -58,7 +58,9 @@ type UserDAO interface {
 	IsFriend(user_id uint64, other_user_id uint64) (bool, error)
 	AreFriends(user_id uint64, other_user_id uint64) (bool, error)
 	Insert(user *UserAccount) error
+	SaveProfilePicture(user_id uint64, picture []byte) error
 	//AddFriend(user_id uint64, friend *Friend, group_id int32) error
+	LoadWithPicture(user_id uint64) (*UserAccount, error)
 	Load(user_id uint64) (*UserAccount, error)
 	LoadByEmail(email string) (*UserAccount, error)
 	LoadAllUsers() ([]*UserAccount, error)

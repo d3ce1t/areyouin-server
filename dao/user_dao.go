@@ -488,6 +488,34 @@ func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 	return user, nil
 }
 
+func (dao *UserDAO) LoadWithPicture(user_id uint64) (*core.UserAccount, error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
+						iid_token, last_connection, created_date, profile_picture
+						FROM user_account
+						WHERE user_id = ? LIMIT 1`
+
+	q := dao.session.Query(stmt, user_id)
+
+	user := core.NewEmptyUserAccount()
+	var auth_token gocql.UUID
+
+	err := q.Scan(&user.Id, &auth_token, &user.Email, &user.EmailVerified, &user.Name,
+		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection, &user.CreatedDate,
+		&user.Picture)
+
+	if err != nil {
+		log.Println("UserDAO Load:", err)
+		return nil, err
+	}
+
+	user.AuthToken = uuid.New(auth_token.Bytes())
+
+	return user, nil
+}
+
 func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
 
 	dao.checkSession()
@@ -497,6 +525,12 @@ func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
 		return nil, err
 	}
 	return dao.Load(user_id)
+}
+
+func (dao *UserDAO) SaveProfilePicture(user_id uint64, picture []byte) error {
+	dao.checkSession()
+	stmt := `UPDATE user_account SET profile_picture = ? WHERE user_id = ?`
+	return dao.session.Query(stmt, picture, user_id).Exec()
 }
 
 func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err error) {

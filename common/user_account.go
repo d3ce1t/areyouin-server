@@ -97,6 +97,7 @@ type UserAccount struct {
 	IIDtoken       string // Instance ID token
 	LastConnection int64
 	CreatedDate    int64
+	Picture        []byte
 }
 
 func (ua *UserAccount) HasFacebookCredentials() bool {

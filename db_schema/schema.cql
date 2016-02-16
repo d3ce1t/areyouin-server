@@ -45,6 +45,7 @@ CREATE TABLE user_account (
 	iid_token text,
 	last_connection timestamp,
 	created_date timestamp,
+	profile_picture blob,
 	PRIMARY KEY (user_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
