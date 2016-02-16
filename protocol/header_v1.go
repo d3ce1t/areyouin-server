@@ -1,10 +1,9 @@
 package protocol
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
+	"io"
 )
 
 type AyiHeaderV1 struct { // 6 bytes
@@ -50,13 +49,10 @@ func (h *AyiHeaderV1) String() string {
 	return fmt.Sprintf("Version: %v Token: %v Type: %v Size: %v\n", h.Version, h.Token, h.Type, h.Size)
 }
 
-func (h *AyiHeaderV1) Marshall() []byte {
-	buf := &bytes.Buffer{}
-	// Write Header
-	err := binary.Write(buf, binary.BigEndian, h) // X86 is LittleEndian, whereas ARM is BigEndian / Bi-Endian
+func (h *AyiHeaderV1) Marshal(writer io.Writer) error {
+	err := binary.Write(writer, binary.BigEndian, h) // X86 is LittleEndian, whereas ARM is BigEndian / Bi-Endian
 	if err != nil {
-		log.Println("Build message failed (1):", err)
-		return nil
+		return err
 	}
-	return buf.Bytes()
+	return nil
 }

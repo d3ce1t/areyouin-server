@@ -1,5 +1,9 @@
 package protocol
 
+import (
+	"io"
+)
+
 type AyiHeader interface {
 	SetVersion(version uint32)
 	SetToken(token uint16)
@@ -10,5 +14,5 @@ type AyiHeader interface {
 	GetType() PacketType
 	GetSize() uint
 	String() string
-	Marshall() []byte
+	Marshal(writer io.Writer) error
 }

@@ -3,7 +3,6 @@ package protocol
 import (
 	proto "github.com/golang/protobuf/proto"
 	"io"
-	"log"
 )
 
 func (h *AyiHeaderV2) SetVersion(version uint32) {
@@ -38,17 +37,29 @@ func (h *AyiHeaderV2) GetSize() uint {
 	return uint(h.PayloadSize)
 }
 
-func (h *AyiHeaderV2) Marshall() []byte {
+func (h *AyiHeaderV2) Marshal(writer io.Writer) error {
 
 	header_data, err := proto.Marshal(h)
 
 	if err != nil {
-		log.Fatal("Marshaling error: ", err)
-		return nil
+		return err
 	}
 
-	header_data = append([]byte{uint8(len(header_data))}, header_data...)
-	return header_data
+	n, err := writer.Write([]byte{uint8(len(header_data))})
+	if err != nil {
+		return err
+	} else if n != 1 {
+		return ErrIncompleteWrite
+	}
+
+	n, err = writer.Write(header_data)
+	if err != nil {
+		return err
+	} else if n != len(header_data) {
+		return ErrIncompleteWrite
+	}
+
+	return nil
 }
 
 func (h *AyiHeaderV2) ParseHeader(reader io.Reader) error {

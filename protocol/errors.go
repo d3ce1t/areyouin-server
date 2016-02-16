@@ -31,6 +31,7 @@ var (
 	ErrConnectionClosed   = errors.New("connection closed")
 	ErrTimeout            = errors.New("input/output timeout")
 	ErrInvalidSocket      = errors.New("invalid connection socket")
-	ErrMaxPayloadExceeded = errors.New("Max payload exceeded")
+	ErrMaxPayloadExceeded = errors.New("max payload exceeded")
+	ErrIncompleteWrite    = errors.New("incomplete write")
 	//ErrMalformedHeader    = errors.New("Malformed header")
 )

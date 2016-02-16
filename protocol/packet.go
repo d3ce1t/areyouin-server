@@ -92,8 +92,7 @@ func (packet *AyiPacket) Marshal() []byte {
 	buf := &bytes.Buffer{}
 
 	// Write Header
-	_, err := buf.Write(packet.Header.Marshall())
-
+	err := packet.Header.Marshal(buf)
 	if err != nil {
 		log.Println("Build message failed (1):", err)
 		return nil
