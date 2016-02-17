@@ -47,4 +47,5 @@ message EventParticipant {
 message Friend {
   uint64 user_id = 1;
   string name = 2;
+  bytes picture_digest = 3;
 }

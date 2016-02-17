@@ -220,6 +220,8 @@ func createEmptyMessage(packet_type PacketType) Message {
 		fallthrough
 	case M_HISTORY_PUBLIC_EVENTS:
 		message = &ListCursor{}
+	case M_GET_THUMBNAIL:
+		message = &ThumbnailRequest{}
 		///case M_USER_FRIENDS: UserFriends has no payload
 	// Replies
 	case M_PONG:

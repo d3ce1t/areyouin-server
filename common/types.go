@@ -17,6 +17,12 @@ type EventInbox struct {
 type UserFriend interface {
 	GetName() string
 	GetUserId() uint64
+	GetPictureDigest() []byte
+}
+
+type Picture struct {
+	RawData []byte
+	Digest  []byte
 }
 
 type EventDAO interface {
@@ -54,23 +60,31 @@ type UserDAO interface {
 	SetIIDToken(user_id uint64, iid_token string) error
 	GetIDByEmail(email string) (uint64, error)
 	GetIDByFacebookID(fb_id string) (uint64, error)
-	MakeFriends(user1 UserFriend, user2 UserFriend) error
-	IsFriend(user_id uint64, other_user_id uint64) (bool, error)
-	AreFriends(user_id uint64, other_user_id uint64) (bool, error)
 	Insert(user *UserAccount) error
-	SaveProfilePicture(user_id uint64, picture []byte) error
-	//AddFriend(user_id uint64, friend *Friend, group_id int32) error
+	SaveProfilePicture(user_id uint64, picture *Picture) error
 	LoadWithPicture(user_id uint64) (*UserAccount, error)
 	Load(user_id uint64) (*UserAccount, error)
 	LoadByEmail(email string) (*UserAccount, error)
 	LoadAllUsers() ([]*UserAccount, error)
-	LoadFriends(user_id uint64, group_id int32) ([]*Friend, error)
-	LoadFriendsIndex(user_id uint64, group_id int32) (map[uint64]*Friend, error)
 	LoadEmailCredential(email string) (credent *EmailCredential, err error)
 	LoadFacebookCredential(fbid string) (credent *FacebookCredential, err error)
 	Delete(user *UserAccount) error
 	DeleteUserAccount(user_id uint64) error
 	DeleteEmailCredentials(email string) error
 	DeleteFacebookCredentials(fb_id string) error
+}
+
+type FriendDAO interface {
+	LoadFriends(user_id uint64, group_id int32) ([]*Friend, error)
+	LoadFriendsIndex(user_id uint64, group_id int32) (map[uint64]*Friend, error)
+	IsFriend(user_id uint64, other_user_id uint64) (bool, error)
+	AreFriends(user_id uint64, other_user_id uint64) (bool, error)
+	MakeFriends(user1 UserFriend, user2 UserFriend) error
+	SetPictureDigest(user_id uint64, friend_id uint64, digest []byte) error
 	DeleteFriendsGroup(user_id uint64, group_id int32) error
+}
+
+type ThumbnailDAO interface {
+	Insert(id uint64, digest []byte, thumbnails map[int32][]byte) error
+	Load(id uint64, dpi int32) ([]byte, error)
 }

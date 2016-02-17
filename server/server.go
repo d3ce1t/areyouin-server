@@ -1,11 +1,17 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/gocql/gocql"
+	"github.com/nfnt/resize"
+	"image"
+	"image/jpeg"
 	"log"
+	"math"
 	"net"
 	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
@@ -22,6 +28,12 @@ const (
 	GCM_MAX_TTL            = 2419200
 	GCM_NEW_EVENT_MESSAGE  = 1
 	GCM_NEW_FRIEND_MESSAGE = 2
+	THUMBNAIL_MDPI_SIZE    = 50               // 50 px
+	IMAGE_MDPI             = 160              // 160dpi
+	IMAGE_HDPI             = 1.5 * IMAGE_MDPI // 240dpi
+	IMAGE_XHDPI            = 2 * IMAGE_MDPI   // 320dpi
+	IMAGE_XXHDPI           = 3 * IMAGE_MDPI   // 480dpi
+	IMAGE_XXXHDPI          = 4 * IMAGE_MDPI   // 640dpi
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 )
 
@@ -64,6 +76,7 @@ type Server struct {
 	dbsession     *gocql.Session
 	Keyspace      string
 	webhook       *wh.WebHookServer
+	supportedDpi  []int32
 	DbAddress     string
 	serialChannel chan func()
 	Testing       bool
@@ -114,6 +127,10 @@ func (s *Server) init() {
 	// Task Executor
 	s.task_executor = NewTaskExecutor(s)
 	s.task_executor.Start()
+
+	// Supported Screen densities
+	s.supportedDpi = []int32{IMAGE_MDPI, IMAGE_HDPI, IMAGE_XHDPI,
+		IMAGE_XXHDPI, IMAGE_XXXHDPI}
 }
 
 func (s *Server) connectToDB() {
@@ -204,11 +221,25 @@ func (s *Server) NewUserDAO() core.UserDAO {
 	return dao.NewUserDAO(s.dbsession)
 }
 
+func (s *Server) NewFriendDAO() core.FriendDAO {
+	if s.dbsession == nil {
+		s.connectToDB()
+	}
+	return dao.NewFriendDAO(s.dbsession)
+}
+
 func (s *Server) NewEventDAO() core.EventDAO {
 	if s.dbsession == nil {
 		s.connectToDB()
 	}
 	return dao.NewEventDAO(s.dbsession)
+}
+
+func (s *Server) NewThumbnailDAO() core.ThumbnailDAO {
+	if s.dbsession == nil {
+		s.connectToDB()
+	}
+	return dao.NewThumbnailDAO(s.dbsession)
 }
 
 // Private methods
@@ -375,10 +406,8 @@ func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 		for _, changedField := range entry.ChangedFields {
 			if changedField == "friends" {
 				s.task_executor.Submit(&ImportFacebookFriends{
-					UserId: user.Id,
-					Name:   user.Name,
-					//Fbid:    user.Fbid,
-					Fbtoken: user.Fbtoken,
+					TargetUser: user,
+					Fbtoken:    user.Fbtoken,
 				})
 			}
 		} // End inner loop
@@ -463,10 +492,11 @@ func (s *Server) loadUserParticipants(author_id uint64, participants_id []uint64
 	var last_warning error
 	result := make(map[uint64]*core.UserAccount)
 	userDAO := s.NewUserDAO()
+	friend_dao := s.NewFriendDAO()
 
 	for _, p_id := range participants_id {
 
-		if ok, err := userDAO.IsFriend(p_id, author_id); ok {
+		if ok, err := friend_dao.IsFriend(p_id, author_id); ok {
 
 			if uac, err := userDAO.Load(p_id); err == nil { // FIXME: Load several participants in one operation
 				result[uac.Id] = uac
@@ -512,7 +542,7 @@ func (s *Server) createParticipantListFromMap(participants map[uint64]*core.Even
 
 func (s *Server) createParticipantsFromFriends(author_id uint64) []*core.EventParticipant {
 
-	dao := s.NewUserDAO()
+	dao := s.NewFriendDAO()
 	friends, _ := dao.LoadFriends(author_id, ALL_CONTACTS_GROUP)
 
 	if friends != nil {
@@ -626,7 +656,7 @@ func (s *Server) filterParticipantsSlice(participant uint64, participants []*cor
 
 // Tells if participant p1 can see changes of participant p2
 func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
-	dao := s.NewUserDAO()
+	dao := s.NewFriendDAO()
 	if p2.Response == core.AttendanceResponse_ASSIST ||
 		/*p2.Response == core.AttendanceResponse_CANNOT_ASSIST ||*/
 		p1 == p2.UserId {
@@ -637,27 +667,118 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 	return false
 }
 
-/*func createFbTestUsers() {
-	fb.CreateTestUser("Test User One", true)
-	fb.CreateTestUser("Test User Two", true)
-	fb.CreateTestUser("Test User Three", true)
-	fb.CreateTestUser("Test User Four", true)
-	fb.CreateTestUser("Test User Five", true)
-	fb.CreateTestUser("Test User Six", true)
-	fb.CreateTestUser("Test User Seven", true)
-	fb.CreateTestUser("Test User Eight", true)
-}*/
+func (s *Server) saveProfilePicture(user_id uint64, pictureBytes []byte) error {
+
+	// Compute digest for picture
+	digest := sha256.Sum256(pictureBytes)
+
+	// Create thumbnails
+	thumbnails, err := s.createThumbnails(pictureBytes, THUMBNAIL_MDPI_SIZE)
+	if err != nil {
+		return err
+	}
+	// Save profile picture (512x512)
+	user_dao := s.NewUserDAO()
+
+	picture := &core.Picture{
+		RawData: pictureBytes,
+		Digest:  digest[:],
+	}
+
+	err = user_dao.SaveProfilePicture(user_id, picture)
+	if err != nil {
+		return err
+	}
+
+	// Save thumbnails (50x50 to 200x200)
+	thumbDAO := s.NewThumbnailDAO()
+	err = thumbDAO.Insert(user_id, picture.Digest, thumbnails)
+	if err != nil {
+		return err
+	}
+
+	// Store digest in user's friends so that friends can know that
+	// user profile picture has been changed next time they retrieve
+	// user list
+	friend_dao := s.NewFriendDAO()
+	friends, err := friend_dao.LoadFriends(user_id, ALL_CONTACTS_GROUP)
+	if err != nil {
+		return err
+	}
+
+	for _, friend := range friends {
+		err := friend_dao.SetPictureDigest(friend.GetUserId(), user_id, digest[:])
+		if err != nil {
+			log.Printf("Error setting picture digest for user %v and friend %v\n", user_id, friend.GetUserId())
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) createThumbnails(picture []byte, width int) (map[int32][]byte, error) {
+
+	// Decode image
+	original_image, _, err := image.Decode(bytes.NewReader(picture))
+	if err != nil {
+		return nil, err
+	}
+
+	// Create thumbnails for distinct sizes
+	thumbnails := make(map[int32][]byte)
+
+	for _, dpi := range s.supportedDpi {
+		size := float32(width) * (float32(dpi) / float32(IMAGE_MDPI))
+		resized_image, err := s.resizeImage(original_image, uint(size))
+		if err != nil {
+			return nil, err
+		}
+		thumbnails[dpi] = resized_image
+	}
+
+	return thumbnails, nil
+}
+
+func (s *Server) resizeImage(picture image.Image, width uint) ([]byte, error) {
+	resize_image := resize.Resize(width, 0, picture, resize.Lanczos3)
+	bytes := &bytes.Buffer{}
+	err := jpeg.Encode(bytes, resize_image, nil)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.Bytes(), nil
+}
+
+func (s *Server) getClosestDpi(reqDpi int32) int32 {
+
+	if reqDpi <= IMAGE_MDPI {
+		return IMAGE_MDPI
+	} else if reqDpi >= IMAGE_XXXHDPI {
+		return IMAGE_XXXHDPI
+	}
+
+	min_dist := math.MaxFloat32
+	dpi_index := 0
+
+	for i, dpi := range s.supportedDpi {
+		dist := math.Abs(float64(reqDpi - dpi))
+		if dist < min_dist {
+			min_dist = dist
+			dpi_index = i
+		}
+	}
+
+	if s.supportedDpi[dpi_index] < reqDpi {
+		dpi_index++
+	}
+
+	return s.supportedDpi[dpi_index]
+}
 
 func main() {
 
 	server := NewTestServer()
 	//server := NewServer() // Server is global
-	//createFbTestUsers()
-	/*if server.DbSession() != nil {
-		core.AddFriendsToFbTestUserOne(server.NewUserDAO())
-		//core.ClearUserAccounts(server.DbSession())
-		//core.CreateFakeUsers(server.NewUserDAO())
-	}*/
 	server.RegisterCallback(proto.M_PING, onPing)
 	server.RegisterCallback(proto.M_PONG, onPong)
 	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
@@ -671,6 +792,7 @@ func main() {
 	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
 	server.RegisterCallback(proto.M_GET_USER_ACCOUNT, onGetUserAccount)
 	server.RegisterCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
+	server.RegisterCallback(proto.M_GET_THUMBNAIL, onGetThumbnail)
 
 	shell := NewShell(server)
 	go shell.StartTermSSH()

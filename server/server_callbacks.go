@@ -76,10 +76,8 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// Import Facebook friends that uses AreYouIN if needed
 	if user.HasFacebookCredentials() {
 		task := &ImportFacebookFriends{
-			UserId: user.Id,
-			Name:   user.Name,
-			//Fbid:    user.Fbid,
-			Fbtoken: user.Fbtoken,
+			TargetUser: user,
+			Fbtoken:    user.Fbtoken,
 		}
 		server.task_executor.Submit(task)
 	}
@@ -277,8 +275,6 @@ func onChangeProfilePicture(packet_type proto.PacketType, message proto.Message,
 
 	checkAuthenticated(session)
 
-	userDAO := server.NewUserDAO()
-
 	if len(msg.Picture) == 0 {
 		reply := session.NewMessage().Error(packet_type, proto.E_MALFORMED_MESSAGE)
 		log.Printf("< (%v) CHANGE PROFILE PICTURE ERROR: NO PICTURE\n", session.UserId)
@@ -286,7 +282,7 @@ func onChangeProfilePicture(packet_type proto.PacketType, message proto.Message,
 		return
 	}
 
-	err := userDAO.SaveProfilePicture(session.UserId, msg.Picture)
+	err := server.saveProfilePicture(session.UserId, msg.Picture)
 
 	if err != nil {
 		reply := session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED))
@@ -296,6 +292,43 @@ func onChangeProfilePicture(packet_type proto.PacketType, message proto.Message,
 	}
 
 	session.Write(session.NewMessage().Ok(packet_type))
+	log.Printf("< (%v) PROFILE PICTURE CHANGED\n", session.UserId)
+}
+
+func onGetThumbnail(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.ThumbnailRequest)
+	log.Printf("> (%v) GET THUMBNAIL (UserID: %v, ScreenDensity: %v)\n", session.UserId, msg.Id, msg.ScreenDensity)
+
+	checkAuthenticated(session)
+
+	friend_dao := server.NewFriendDAO()
+
+	ok, err := friend_dao.IsFriend(msg.Id, session.UserId)
+	if err != nil {
+		reply := session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED))
+		session.Write(reply)
+		log.Printf("< (%v) GET THUMBNAIL ERROR: %v\n", session.UserId, err)
+		return
+	} else if !ok {
+		reply := session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_ACCESS_DENIED))
+		session.Write(reply)
+		log.Printf("< (%v) GET THUMBNAIL ERROR: ACCESS DMOED\n", session.UserId)
+		return
+	}
+
+	thumbnail_dao := server.NewThumbnailDAO()
+	dpi := server.getClosestDpi(msg.ScreenDensity)
+	thumbnail, err := thumbnail_dao.Load(msg.Id, dpi)
+	if err != nil {
+		reply := session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED))
+		session.Write(reply)
+		log.Printf("< (%v) GET THUMBNAIL ERROR: %v\n", session.UserId, err)
+	}
+
+	session.Write(session.NewMessage().Thumbnail(msg.Id, dpi, thumbnail))
+	log.Printf("< (%v) SEND THUMBNAIL (%v bytes)\n", session.UserId, len(thumbnail))
 }
 
 func onCreateEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
@@ -688,7 +721,6 @@ func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSessi
 	case proto.M_INVITATION_RECEIVED:
 
 	}*/
-
 }
 
 func onClockRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {

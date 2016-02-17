@@ -38,12 +38,27 @@ func NewUserAccount(id uint64, name string, email string, password string, phone
 	return user
 }
 
-func (user *UserAccount) GetName() string {
-	return user.Name
+func IsValidEmail(email string) bool {
+	return validEmail.MatchString(email)
 }
 
-func (user *UserAccount) GetUserId() uint64 {
-	return user.Id
+type UserAccount struct {
+	Id             uint64 // AreYouIN ID
+	AuthToken      uuid.UUID
+	Email          string
+	EmailVerified  bool
+	Password       string
+	salt           [32]byte
+	Name           string
+	phone          string
+	phone_verified bool
+	Fbid           string // Facebook ID
+	Fbtoken        string // Facebook User Access token
+	IIDtoken       string // Instance ID token
+	LastConnection int64
+	CreatedDate    int64
+	Picture        []byte
+	PictureDigest  []byte
 }
 
 // A valid user account always has an id, name and email, and at least one
@@ -78,26 +93,16 @@ func (user *UserAccount) IsValid() (bool, error) {
 	return true, nil
 }
 
-func IsValidEmail(email string) bool {
-	return validEmail.MatchString(email)
+func (user *UserAccount) GetName() string {
+	return user.Name
 }
 
-type UserAccount struct {
-	Id             uint64 // AreYouIN ID
-	AuthToken      uuid.UUID
-	Email          string
-	EmailVerified  bool
-	Password       string
-	salt           [32]byte
-	Name           string
-	phone          string
-	phone_verified bool
-	Fbid           string // Facebook ID
-	Fbtoken        string // Facebook User Access token
-	IIDtoken       string // Instance ID token
-	LastConnection int64
-	CreatedDate    int64
-	Picture        []byte
+func (user *UserAccount) GetUserId() uint64 {
+	return user.Id
+}
+
+func (user *UserAccount) GetPictureDigest() []byte {
+	return user.PictureDigest
 }
 
 func (ua *UserAccount) HasFacebookCredentials() bool {

@@ -54,25 +54,23 @@ func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 }
 
 type ImportFacebookFriends struct {
-	UserId  uint64
-	Name    string
-	Fbtoken string // Facebook User Access token
+	TargetUser core.UserFriend
+	Fbtoken    string // Facebook User Access token
 }
 
 func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 
 	server := ex.server
+
 	fbsession := fb.NewSession(task.Fbtoken)
 	fbFriends, err := fb.GetFriends(fbsession)
-
 	if err != nil {
 		fb.LogError(err)
 		return
 	}
 
-	user_dao := server.NewUserDAO()
-	storedFriends, err := user_dao.LoadFriendsIndex(task.UserId, ALL_CONTACTS_GROUP)
-
+	friend_dao := server.NewFriendDAO()
+	storedFriends, err := friend_dao.LoadFriendsIndex(task.TargetUser.GetUserId(), ALL_CONTACTS_GROUP)
 	if err != nil {
 		log.Println("ImportFacebookFriends Error:", err)
 		return
@@ -80,12 +78,7 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 
 	log.Printf("ImportFacebookFriends: %v friends found\n", len(fbFriends))
 
-	// Create a friend object with the info from the user that initiated the import
-	current_user := &core.Friend{
-		UserId: task.UserId,
-		Name:   task.Name,
-	}
-
+	user_dao := server.NewUserDAO()
 	counter := 0
 
 	for _, fbFriend := range fbFriends {
@@ -101,25 +94,27 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 			continue
 		}
 
-		friend, err := user_dao.Load(friend_id)
+		friendUser, err := user_dao.Load(friend_id)
 		if err != nil {
 			log.Println("ImportFacebookFriends Error:", err)
 		}
 
-		log.Printf("ImportFacebookFriends: %v and %v are Facebook Friends\n", current_user.GetUserId(), friend_id)
+		log.Printf("ImportFacebookFriends: %v and %v are Facebook Friends\n", task.TargetUser.GetUserId(), friend_id)
 
 		// Assume that if friend_id isn't in stored friends, then current user id isn't either
 		// in the other user friends list
 		if _, ok := storedFriends[friend_id]; !ok {
-			user_dao.MakeFriends(current_user, &core.Friend{UserId: friend_id, Name: fbFriend.Name})
+			friendUser.Name = fbFriend.Name // Use Facebook name because is familiar to user
+			friend_dao.MakeFriends(task.TargetUser, friendUser)
 			ex.Submit(&SendUserFriends{UserId: friend_id})
-			task.sendGcmNotification(friend.Id, friend.IIDtoken, current_user.Name)
+			task.sendGcmNotification(friendUser.Id, friendUser.IIDtoken, task.TargetUser.GetName())
 			counter++
 		}
+
 	}
 
 	if counter > 0 {
-		ex.Submit(&SendUserFriends{UserId: task.UserId})
+		ex.Submit(&SendUserFriends{UserId: task.TargetUser.GetUserId()})
 	}
 }
 
@@ -144,9 +139,9 @@ type SendUserFriends struct {
 func (task *SendUserFriends) Run(ex *TaskExecutor) {
 
 	server := ex.server
-	dao := server.NewUserDAO()
+	friend_dao := server.NewFriendDAO()
 
-	friends, err := dao.LoadFriends(task.UserId, ALL_CONTACTS_GROUP)
+	friends, err := friend_dao.LoadFriends(task.UserId, ALL_CONTACTS_GROUP)
 
 	if err != nil {
 		log.Println("SendUserFriends Error:", err)

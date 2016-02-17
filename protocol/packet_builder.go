@@ -327,3 +327,13 @@ func (mb *PacketBuilder) UserAccount(user *core.UserAccount) *AyiPacket {
 		Picture: user.Picture})
 	return mb.message
 }
+
+func (mb *PacketBuilder) Thumbnail(id uint64, screen_density int32, thumbnail []byte) *AyiPacket {
+	mb.message.Header.SetType(M_THUMBNAIL)
+	mb.message.SetMessage(&Thumbnail{
+		Id:            id,
+		ScreenDensity: screen_density,
+		Thumbnail:     thumbnail,
+	})
+	return mb.message
+}

@@ -46,6 +46,7 @@ CREATE TABLE user_account (
 	last_connection timestamp,
 	created_date timestamp,
 	profile_picture blob,
+	picture_digest blob,
 	PRIMARY KEY (user_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
@@ -60,24 +61,27 @@ CREATE TABLE user_friends (
 	group_name text STATIC,
 	friend_id bigint,
 	name text,
+	picture_digest blob,
 	PRIMARY KEY ((user_id, group_id), friend_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-/*CREATE TABLE friend_by_user (
+/*CREATE TABLE friends_by_user (
    user_id bigint,
-   friend_id bigint,
+	 friend_id bigint,
    friend_name text,
-   group_id UUID,
-   PRIMARY KEY (user_id, group_id, friend_id)
+	 picture_digest blob,
+   PRIMARY KEY (user_id, friend_id)
 )*/
 
-/*CREATE TABLE group_by_user {
-	user_id bigint,
-	group_id UUID,
-	group_name text,
-	PRIMARY KEY (user_id, group_id)
-}*/
+/*CREATE TABLE friends_by_group (
+   user_id bigint,
+	 group_id int,
+	 group_name text STATIC,
+	 group_size int STATIC,
+	 friend_id bigint,
+   PRIMARY KEY ((user_id, group_id), friend_id)
+)*/
 
 // Q5: Find events a user has been invited to and range by start_date (order by start_date ASC)
 DROP TABLE IF EXISTS events_by_user;
@@ -121,10 +125,22 @@ CREATE TABLE event (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
+// Q7: Find a user or event thumbnail by his or her id and dpi
+DROP TABLE IF EXISTS thumbnails;
+CREATE TABLE thumbnails (
+	id bigint,
+	digest blob STATIC,
+	dpi int,
+	thumbnail blob,
+	created_date timestamp,
+	PRIMARY KEY (id, dpi)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
+
 //
 // Stats
 //
-// Q7: Find number of users registered each day and be able of aggregating
+// Q8: Find number of users registered each day and be able of aggregating
 // by month and year quickly
 CREATE TABLE users_registered_by_day (
 	year int,

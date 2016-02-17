@@ -1,7 +1,7 @@
 package common
 
 import (
-	"strconv"
+//"strconv"
 )
 
 func DeleteFakeusers(dao UserDAO) {
@@ -27,7 +27,7 @@ func DeleteFakeusers(dao UserDAO) {
 	dao.Delete(user9)
 }
 
-func CreateFakeUsers(dao UserDAO) {
+func CreateFakeUsers(userDAO UserDAO, friendDAO FriendDAO) {
 
 	user1 := NewUserAccount(15918606474806281, "User 1", "user1@foo.com", "12345", "", "", "")
 	user2 := NewUserAccount(15918606642578452, "User 2", "user2@foo.com", "12345", "", "FBID2", "FBTOKEN2")
@@ -39,31 +39,31 @@ func CreateFakeUsers(dao UserDAO) {
 	user8 := NewUserAccount(15919019823465498, "User 8", "user8@foo.com", "12345", "", "FBID8", "FBTOKEN8")
 	user9 := NewUserAccount(15919019823465559, "User 9", "user9@foo.com", "", "", "FBID9", "FBTOKEN9")
 
-	dao.Insert(user1)
-	dao.Insert(user2)
-	dao.Insert(user3)
-	dao.Insert(user4)
-	dao.Insert(user5)
-	dao.Insert(user6)
-	dao.Insert(user7)
-	dao.Insert(user8)
-	dao.Insert(user9)
+	userDAO.Insert(user1)
+	userDAO.Insert(user2)
+	userDAO.Insert(user3)
+	userDAO.Insert(user4)
+	userDAO.Insert(user5)
+	userDAO.Insert(user6)
+	userDAO.Insert(user7)
+	userDAO.Insert(user8)
+	userDAO.Insert(user9)
 
-	dao.MakeFriends(user1, user2)
-	dao.MakeFriends(user1, user3)
-	dao.MakeFriends(user1, user4)
-	dao.MakeFriends(user1, user5)
-	dao.MakeFriends(user1, user6)
-	dao.MakeFriends(user1, user7)
-	dao.MakeFriends(user1, user8)
+	friendDAO.MakeFriends(user1, user2)
+	friendDAO.MakeFriends(user1, user3)
+	friendDAO.MakeFriends(user1, user4)
+	friendDAO.MakeFriends(user1, user5)
+	friendDAO.MakeFriends(user1, user6)
+	friendDAO.MakeFriends(user1, user7)
+	friendDAO.MakeFriends(user1, user8)
 
-	dao.MakeFriends(user2, user3)
-	dao.MakeFriends(user2, user4)
+	friendDAO.MakeFriends(user2, user3)
+	friendDAO.MakeFriends(user2, user4)
 
-	dao.MakeFriends(user3, user4)
+	friendDAO.MakeFriends(user3, user4)
 }
 
-func Create100Users(dao UserDAO) {
+/*func Create100Users(dao UserDAO) {
 
 	idgen := NewIDGen(1)
 
@@ -77,11 +77,11 @@ func Create100Users(dao UserDAO) {
 	}
 
 	//dao.AddFriend(user1.Id, user2.AsFriend(), 0)
-}
+}*/
 
-func Delete100Users(dao UserDAO) {
+/*func Delete100Users(dao UserDAO) {
 	for i := 10; i < 110; i++ {
 		user, _ := dao.LoadByEmail("user" + strconv.Itoa(i) + "@foo.com")
 		dao.Delete(user)
 	}
-}
+}*/

@@ -416,7 +416,7 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 	dao.checkSession()
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, last_connection, created_date
+						iid_token, last_connection, created_date, picture_digest
 						FROM user_account`
 
 	iter := dao.session.Query(stmt).Iter()
@@ -436,9 +436,10 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 	var iidtoken string
 	var last_connection int64
 	var created int64
+	var digest []byte
 
 	for iter.Scan(&user_id, &auth_token, &email, &email_verified, &name,
-		&fbid, &fbtoken, &iidtoken, &last_connection, &created) {
+		&fbid, &fbtoken, &iidtoken, &last_connection, &created, &digest) {
 		user := &core.UserAccount{
 			Id:             user_id,
 			AuthToken:      uuid.New(auth_token.Bytes()),
@@ -450,6 +451,7 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 			IIDtoken:       iidtoken,
 			LastConnection: last_connection,
 			CreatedDate:    created,
+			PictureDigest:  digest,
 		}
 		users = append(users, user)
 	}
@@ -466,7 +468,7 @@ func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 	dao.checkSession()
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, last_connection, created_date
+						iid_token, last_connection, created_date, picture_digest
 						FROM user_account
 						WHERE user_id = ? LIMIT 1`
 
@@ -476,7 +478,8 @@ func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 	var auth_token gocql.UUID
 
 	err := q.Scan(&user.Id, &auth_token, &user.Email, &user.EmailVerified, &user.Name,
-		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection, &user.CreatedDate)
+		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection, &user.CreatedDate,
+		&user.PictureDigest)
 
 	if err != nil {
 		log.Println("UserDAO Load:", err)
@@ -493,7 +496,7 @@ func (dao *UserDAO) LoadWithPicture(user_id uint64) (*core.UserAccount, error) {
 	dao.checkSession()
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, last_connection, created_date, profile_picture
+						iid_token, last_connection, created_date, profile_picture, picture_digest
 						FROM user_account
 						WHERE user_id = ? LIMIT 1`
 
@@ -504,7 +507,7 @@ func (dao *UserDAO) LoadWithPicture(user_id uint64) (*core.UserAccount, error) {
 
 	err := q.Scan(&user.Id, &auth_token, &user.Email, &user.EmailVerified, &user.Name,
 		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection, &user.CreatedDate,
-		&user.Picture)
+		&user.Picture, &user.PictureDigest)
 
 	if err != nil {
 		log.Println("UserDAO Load:", err)
@@ -527,10 +530,11 @@ func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
 	return dao.Load(user_id)
 }
 
-func (dao *UserDAO) SaveProfilePicture(user_id uint64, picture []byte) error {
+func (dao *UserDAO) SaveProfilePicture(user_id uint64, picture *core.Picture) error {
 	dao.checkSession()
-	stmt := `UPDATE user_account SET profile_picture = ? WHERE user_id = ?`
-	return dao.session.Query(stmt, picture, user_id).Exec()
+	stmt := `UPDATE user_account SET profile_picture = ?, picture_digest = ?
+						WHERE user_id = ?`
+	return dao.session.Query(stmt, picture.RawData, picture.Digest, user_id).Exec()
 }
 
 func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err error) {
@@ -680,26 +684,36 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 
 	dao.checkSession()
 
-	friends, err := dao.LoadFriends(user.Id, 0)
+	friendDAO := NewFriendDAO(dao.session)
+
+	friends, err := friendDAO.LoadFriends(user.Id, 0)
 	if err != nil {
 		return err
 	}
 
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
+	// Delete email_credential
 	batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email) // Now account is invalid
 
+	// Delete user from his user's friends
 	for _, friend := range friends {
 		batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ? AND friend_id = ?`,
 			friend.UserId, 0, user.Id)
 	}
 
+	// Delete user friends
 	batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`, user.Id, 0) // Always after delete itself from other friends
 
+	// Delete Facebook credential
 	if user.HasFacebookCredentials() {
 		batch.Query(`DELETE FROM user_facebook_credentials WHERE fb_id = ?`, user.Fbid)
 	}
 
+	// Delete Thumbnails
+	batch.Query(`DELETE FROM thumbnails WHERE id = ?`, user.Id)
+
+	// Delete account
 	batch.Query(`DELETE FROM user_account WHERE user_id = ?`, user.Id) // Always last
 
 	return dao.session.ExecuteBatch(batch)
@@ -727,125 +741,6 @@ func (dao *UserDAO) DeleteFacebookCredentials(fb_id string) error {
 		return ErrInvalidArg
 	}
 	return dao.session.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, fb_id).Exec()
-}
-
-func (dao *UserDAO) MakeFriends(user1 core.UserFriend, user2 core.UserFriend) error {
-
-	dao.checkSession()
-
-	batch := dao.session.NewBatch(gocql.LoggedBatch)
-
-	batch.Query(`INSERT INTO user_friends (user_id, group_id, group_name, friend_id, name)
-							VALUES (?, ?, ?, ?, ?)`, user1.GetUserId(), 0, "All Friends", user2.GetUserId(), user2.GetName())
-
-	batch.Query(`INSERT INTO user_friends (user_id, group_id, group_name, friend_id, name)
-							VALUES (?, ?, ?, ?, ?)`, user2.GetUserId(), 0, "All Friends", user1.GetUserId(), user1.GetName())
-
-	return dao.session.ExecuteBatch(batch)
-}
-
-func (dao *UserDAO) DeleteFriendsGroup(user_id uint64, group_id int32) error {
-
-	dao.checkSession()
-
-	if user_id == 0 {
-		return ErrInvalidArg
-	}
-
-	return dao.session.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`,
-		user_id, group_id).Exec()
-}
-
-func (dao *UserDAO) LoadFriendsIndex(user_id uint64, group_id int32) (map[uint64]*core.Friend, error) {
-
-	dao.checkSession()
-
-	stmt := `SELECT friend_id, name FROM user_friends
-						WHERE user_id = ? AND group_id = ? LIMIT ?`
-
-	iter := dao.session.Query(stmt, user_id, group_id, MAX_NUM_FRIENDS).Iter()
-
-	friend_map := make(map[uint64]*core.Friend)
-
-	var friend_id uint64
-	var friend_name string
-
-	for iter.Scan(&friend_id, &friend_name) {
-		friend_map[friend_id] = &core.Friend{UserId: friend_id, Name: friend_name}
-	}
-
-	if err := iter.Close(); err != nil {
-		log.Println("LoadFriendsIndex:", err)
-		return nil, err
-	}
-
-	return friend_map, nil
-}
-
-func (dao *UserDAO) LoadFriends(user_id uint64, group_id int32) ([]*core.Friend, error) {
-
-	dao.checkSession()
-
-	stmt := `SELECT friend_id, name FROM user_friends
-						WHERE user_id = ? AND group_id = ? LIMIT ?`
-
-	iter := dao.session.Query(stmt, user_id, group_id, MAX_NUM_FRIENDS).Iter()
-
-	friend_list := make([]*core.Friend, 0, 10)
-
-	var friend_id uint64
-	var friend_name string
-
-	for iter.Scan(&friend_id, &friend_name) {
-		friend_list = append(friend_list, &core.Friend{UserId: friend_id, Name: friend_name})
-	}
-
-	if err := iter.Close(); err != nil {
-		log.Println("LoadFriends:", err)
-		return nil, err
-	}
-
-	return friend_list, nil
-}
-
-// Since makeFriends() is bidirectional (adds the friend to user1 and user2). It can
-// be assumed that if first user is friend of the second one, then second user must also
-// have the first user in his/her friend list.
-func (dao *UserDAO) IsFriend(user_id uint64, other_user_id uint64) (bool, error) {
-
-	dao.checkSession()
-
-	stmt := `SELECT user_id FROM user_friends
-		WHERE user_id = ? AND group_id = ? AND friend_id = ?`
-
-	err := dao.session.Query(stmt, user_id, 0, other_user_id).Scan(nil)
-
-	if err != nil { // HACK: 0 group contains ALL_CONTACTS
-		if err == ErrNotFound {
-			return false, nil
-		} else {
-			return false, err
-		}
-	}
-
-	return true, nil
-}
-
-// Check if two users are friends. In contrast to IsFriend. This function perform checking
-// in two ways.
-func (dao *UserDAO) AreFriends(user_id uint64, other_user_id uint64) (bool, error) {
-
-	var one_way bool
-	var err error
-	var two_way bool
-
-	if one_way, err = dao.IsFriend(user_id, other_user_id); one_way {
-		if two_way, err = dao.IsFriend(other_user_id, user_id); two_way {
-			return true, nil
-		}
-	}
-
-	return false, err
 }
 
 func (dao *UserDAO) checkSession() {

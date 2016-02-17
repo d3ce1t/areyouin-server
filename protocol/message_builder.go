@@ -54,4 +54,5 @@ type MessageBuilder interface {
 	FriendsList(friends_list []*core.Friend) *AyiPacket
 	ClockResponse() *AyiPacket
 	UserAccount(user *core.UserAccount) *AyiPacket
+	Thumbnail(id uint64, screen_density int32, thumbnail []byte) *AyiPacket
 }
