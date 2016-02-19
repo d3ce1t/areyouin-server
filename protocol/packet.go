@@ -76,9 +76,8 @@ func (packet *AyiPacket) SetMessage(message Message) {
 
 	size := len(data)
 
-	if size > 65530 {
-		debug.PrintStack()
-		log.Fatal("Message exceeds max.size of 65530 bytes")
+	if size > MAX_PAYLOAD_SIZE {
+		log.Printf("WARNING: Message exceeds max.size of %v bytes\n", MAX_PAYLOAD_SIZE)
 	}
 
 	packet.Data = data
