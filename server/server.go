@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
 	fb "peeple/areyouin/facebook"
+	imgserv "peeple/areyouin/images_server"
 	proto "peeple/areyouin/protocol"
 	wh "peeple/areyouin/webhook"
 	"strings"
@@ -138,7 +138,6 @@ func (s *Server) connectToDB() {
 		s.dbsession = session
 	} else {
 		log.Println("Error connecting to cassandra:", err)
-		return
 	}
 }
 
@@ -338,13 +337,8 @@ func (s *Server) generatorTask(gid uint16) {
 
 func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err error) {
 
-	var message proto.Message
-
-	if packet.HasPayload() {
-		if message = packet.DecodeMessage(); message == nil { // Decodes payload
-			return ErrUnknownMessage
-		}
-	}
+	// Decodes payload
+	message := packet.DecodeMessage()
 
 	// Defer recovery
 	defer func() {
@@ -361,7 +355,7 @@ func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err
 	if f, ok := s.callbacks[packet.Type()]; ok {
 		f(packet.Type(), message, session)
 	} else {
-		err = ErrUnhandledMessage
+		err = ErrUnknownMessage
 	}
 
 	return
@@ -667,23 +661,16 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 	return false
 }
 
-func (s *Server) saveProfilePicture(user_id uint64, pictureBytes []byte) error {
-
-	// Compute digest for picture
-	digest := sha256.Sum256(pictureBytes)
+func (s *Server) saveProfilePicture(user_id uint64, picture *core.Picture) error {
 
 	// Create thumbnails
-	thumbnails, err := s.createThumbnails(pictureBytes, THUMBNAIL_MDPI_SIZE)
+	thumbnails, err := s.createThumbnails(picture.RawData, THUMBNAIL_MDPI_SIZE)
 	if err != nil {
 		return err
 	}
+
 	// Save profile picture (512x512)
 	user_dao := s.NewUserDAO()
-
-	picture := &core.Picture{
-		RawData: pictureBytes,
-		Digest:  digest[:],
-	}
 
 	err = user_dao.SaveProfilePicture(user_id, picture)
 	if err != nil {
@@ -707,7 +694,41 @@ func (s *Server) saveProfilePicture(user_id uint64, pictureBytes []byte) error {
 	}
 
 	for _, friend := range friends {
-		err := friend_dao.SetPictureDigest(friend.GetUserId(), user_id, digest[:])
+		err := friend_dao.SetPictureDigest(friend.GetUserId(), user_id, picture.Digest)
+		if err != nil {
+			log.Printf("Error setting picture digest for user %v and friend %v\n", user_id, friend.GetUserId())
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) removeProfilePicture(user_id uint64, picture *core.Picture) error {
+
+	// Save empty profile picture
+	user_dao := s.NewUserDAO()
+
+	err := user_dao.SaveProfilePicture(user_id, picture)
+	if err != nil {
+		return err
+	}
+
+	// Remove thumbnails
+	thumbDAO := s.NewThumbnailDAO()
+	err = thumbDAO.Remove(user_id)
+	if err != nil {
+		return err
+	}
+
+	// Update digest in user's friends
+	friend_dao := s.NewFriendDAO()
+	friends, err := friend_dao.LoadFriends(user_id, ALL_CONTACTS_GROUP)
+	if err != nil {
+		return err
+	}
+
+	for _, friend := range friends {
+		err := friend_dao.SetPictureDigest(friend.GetUserId(), user_id, picture.Digest)
 		if err != nil {
 			log.Printf("Error setting picture digest for user %v and friend %v\n", user_id, friend.GetUserId())
 		}
@@ -777,8 +798,11 @@ func (s *Server) getClosestDpi(reqDpi int32) int32 {
 
 func main() {
 
+	// Create and init server
 	server := NewTestServer()
 	//server := NewServer() // Server is global
+
+	// Register callbacks
 	server.RegisterCallback(proto.M_PING, onPing)
 	server.RegisterCallback(proto.M_PONG, onPong)
 	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
@@ -792,10 +816,15 @@ func main() {
 	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
 	server.RegisterCallback(proto.M_GET_USER_ACCOUNT, onGetUserAccount)
 	server.RegisterCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
-	server.RegisterCallback(proto.M_GET_THUMBNAIL, onGetThumbnail)
 
+	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)
 	go shell.StartTermSSH()
 
-	server.Run() // start server loop
+	// Create images HTTP server and start
+	images_server := imgserv.NewServer("192.168.1.10", "areyouin")
+	images_server.Run()
+
+	// start server loop
+	server.Run()
 }

@@ -50,7 +50,7 @@ type UserDAO interface {
 	CheckValidAccount(user_id uint64, check_credentials bool) (bool, error)
 	CheckValidCredentials(user_id uint64, email string, fb_id string) (bool, error)
 	CheckEmailCredentials(email string, password string) (uint64, error)
-	CheckAuthToken(user_id uint64, auth_token uuid.UUID) (bool, error)
+	CheckAuthToken(user_id uint64, auth_token string) (bool, error)
 	ExistEmail(email string) (bool, error)
 	//ExistsUserAccount(user_id uint64) (bool, error)
 	SetAuthToken(user_id uint64, auth_token uuid.UUID) error
@@ -87,4 +87,5 @@ type FriendDAO interface {
 type ThumbnailDAO interface {
 	Insert(id uint64, digest []byte, thumbnails map[int32][]byte) error
 	Load(id uint64, dpi int32) ([]byte, error)
+	Remove(id uint64) error
 }

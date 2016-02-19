@@ -225,6 +225,12 @@ func (mb *PacketBuilder) Ok(msg_type PacketType) *AyiPacket {
 	return mb.message
 }
 
+func (mb *PacketBuilder) OkWithPayload(msg_type PacketType, payload []byte) *AyiPacket {
+	mb.message.Header.SetType(M_OK)
+	mb.message.SetMessage(&Ok{Type: int32(msg_type), Payload: payload})
+	return mb.message
+}
+
 func (mb *PacketBuilder) Error(msg_type PacketType, error_code int32) *AyiPacket {
 	mb.message.Header.SetType(M_ERROR)
 	mb.message.SetMessage(&Error{Type: int32(msg_type), Error: error_code})
@@ -322,18 +328,9 @@ func (mb *PacketBuilder) ClockResponse() *AyiPacket {
 func (mb *PacketBuilder) UserAccount(user *core.UserAccount) *AyiPacket {
 	mb.message.Header.SetType(M_USER_ACCOUNT)
 	mb.message.SetMessage(&UserAccount{
-		Name:    user.Name,
-		Email:   user.Email,
-		Picture: user.Picture})
-	return mb.message
-}
-
-func (mb *PacketBuilder) Thumbnail(id uint64, screen_density int32, thumbnail []byte) *AyiPacket {
-	mb.message.Header.SetType(M_THUMBNAIL)
-	mb.message.SetMessage(&Thumbnail{
-		Id:            id,
-		ScreenDensity: screen_density,
-		Thumbnail:     thumbnail,
-	})
+		Name:          user.Name,
+		Email:         user.Email,
+		Picture:       user.Picture,
+		PictureDigest: user.PictureDigest})
 	return mb.message
 }

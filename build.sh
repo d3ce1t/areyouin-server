@@ -9,5 +9,7 @@ cd ../facebook
 go build && go install
 cd ../webhook
 go build && go install
+cd ../images_server
+go build && go install
 cd ../server
 go build

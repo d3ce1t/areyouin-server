@@ -331,7 +331,7 @@ func (dao *UserDAO) CheckEmailCredentials(email string, password string) (user_i
 	return
 }
 
-func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token uuid.UUID) (bool, error) {
+func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token string) (bool, error) {
 
 	dao.checkSession()
 
@@ -344,7 +344,7 @@ func (dao *UserDAO) CheckAuthToken(user_id uint64, auth_token uuid.UUID) (bool, 
 		return false, err_tmp
 	}
 
-	if auth_token.String() != stored_token.String() {
+	if auth_token != stored_token.String() {
 		return false, nil
 	}
 

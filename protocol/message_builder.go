@@ -38,6 +38,7 @@ type MessageBuilder interface {
 	EventChangeProposed(event_id uint64, change_id uint32, message string, start_date int64, end_date int64) *AyiPacket
 	UserAccessGranted(user_id uint64, auth_token uuid.UUID) *AyiPacket
 	Ok(msg_type PacketType) *AyiPacket
+	OkWithPayload(msg_type PacketType, payload []byte) *AyiPacket
 	Error(msg_type PacketType, error_code int32) *AyiPacket
 	Ping() *AyiPacket
 	ReadEvent(event_id uint64) *AyiPacket
@@ -54,5 +55,4 @@ type MessageBuilder interface {
 	FriendsList(friends_list []*core.Friend) *AyiPacket
 	ClockResponse() *AyiPacket
 	UserAccount(user *core.UserAccount) *AyiPacket
-	Thumbnail(id uint64, screen_density int32, thumbnail []byte) *AyiPacket
 }

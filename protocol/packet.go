@@ -55,9 +55,8 @@ func (packet *AyiPacket) DecodeMessage() Message {
 
 	message := createEmptyMessage(packet.Type())
 
-	if message != nil {
+	if message != nil && packet.HasPayload() {
 		err := proto.Unmarshal(packet.Data, message)
-
 		if err != nil {
 			return nil
 		}

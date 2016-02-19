@@ -193,6 +193,7 @@ message AccessGranted {
 // OK
 message Ok {
   int32 type = 1;
+  bytes payload = 2;
 }
 
 // ERROR
@@ -231,11 +232,6 @@ message ListPublicEvents {
   ListCursor cursor = 3;
 }
 
-message ThumbnailRequest {
-  uint64 id = 1;
-  int32 screen_density = 2;
-}
-
 //
 // Responses
 //
@@ -256,10 +252,5 @@ message UserAccount {
   string name = 1;
   string email = 2;
   bytes picture = 3;
-}
-
-message Thumbnail {
-  uint64 id = 1;
-  int32 screen_density = 2;
-  bytes thumbnail = 3;
+  bytes picture_digest = 4;
 }

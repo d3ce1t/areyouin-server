@@ -49,6 +49,11 @@ func (dao *ThumbnailDAO) Load(id uint64, dpi int32) ([]byte, error) {
 	return thumbnail, nil
 }
 
+func (dao *ThumbnailDAO) Remove(id uint64) error {
+	dao.checkSession()
+	return dao.session.Query(`DELETE FROM thumbnails WHERE id = ?`, id).Exec()
+}
+
 func (dao *ThumbnailDAO) checkSession() {
 	if dao.session == nil {
 		panic(ErrNoSession)
