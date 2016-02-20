@@ -2,14 +2,19 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"crypto/sha256"
 	"fmt"
 	gcm "github.com/google/go-gcm"
 	"golang.org/x/crypto/ssh"
+	"image"
+	_ "image/jpeg"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	core "peeple/areyouin/common"
+	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
 	"sort"
 	"strconv"
@@ -187,6 +192,7 @@ func (shell *Shell) init() {
 		"close_session":   shell.closeSession,
 		"show_user":       shell.showUser,
 		"ping":            shell.pingClient,
+		"reset_picture":   shell.resetPicture,
 	}
 }
 
@@ -507,6 +513,46 @@ func (shell *Shell) sendMsg(args []string) {
 	response, err := gcm.SendHttp(GCM_API_KEY, gcm_message)
 	manageShellError(err)
 	fmt.Fprintf(shell.io, "Response %v\n", response)
+}
+
+// reset_picture
+func (shell *Shell) resetPicture(args []string) {
+
+	user_id, err := strconv.ParseUint(args[1], 10, 64)
+	manageShellError(err)
+
+	server := shell.server
+	userDAO := server.NewUserDAO()
+
+	// Load user
+	user_account, err := userDAO.Load(user_id)
+	manageShellError(err)
+
+	// Get profile picture
+	fbsession := fb.NewSession(user_account.Fbtoken)
+	picture_bytes, err := fb.GetProfilePicture(fbsession)
+	manageShellError(err)
+
+	// Decode image
+	original_image, _, err := image.Decode(bytes.NewReader(picture_bytes))
+	manageShellError(err)
+
+	// Resize image to 512x512
+	picture_bytes, err = server.resizeImage(original_image, 512)
+	manageShellError(err)
+
+	// Save profile Picture
+	digest := sha256.Sum256(picture_bytes)
+
+	picture := &core.Picture{
+		RawData: picture_bytes,
+		Digest:  digest[:],
+	}
+
+	err = server.saveProfilePicture(user_id, picture)
+	manageShellError(err)
+
+	fmt.Fprintf(shell.io, "Picture size %v bytes\n", len(picture_bytes))
 }
 
 func ff(text interface{}, lenght int) string {

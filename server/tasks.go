@@ -275,7 +275,7 @@ func sendGcmMessage(user_id uint64, token string, message gcm.HttpMessage) {
 		return
 	}
 
-	log.Printf("Sending GCM notifcation to %v\n", user_id)
+	log.Printf("Sending GCM notification to %v\n", user_id)
 	response, err := gcm.SendHttp(GCM_API_KEY, message)
 
 	if err != nil {

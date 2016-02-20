@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	fb "github.com/huandu/facebook"
+	"io/ioutil"
 	"log"
+	"net/http"
 )
 
 const (
@@ -162,6 +164,44 @@ get_data:
 	}
 
 	return friends, nil
+}
+
+func GetProfilePicture(session *fb.Session) ([]byte, error) {
+
+	res, err := session.Get("/me/picture", fb.Params{
+		"width":    "618",
+		"height":   "618",
+		"redirect": "false",
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var data fb.Result
+
+	err = res.DecodeField("data", &data)
+	if err != nil {
+		return nil, err
+	}
+
+	url, ok := data["url"]
+	if !ok {
+		return nil, ErrMissingFields
+	}
+
+	resp, err := http.Get(url.(string))
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	picture, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return picture, nil
 }
 
 func parseFriend(result fb.Result) (*Friend, error) {
