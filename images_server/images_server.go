@@ -1,11 +1,14 @@
 package images_server
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gocql/gocql"
 	"log"
 	"math"
 	"net/http"
+	"net/url"
+	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
 	"strconv"
 )
@@ -16,6 +19,10 @@ const (
 	IMAGE_XHDPI   = 2 * IMAGE_MDPI   // 320dpi
 	IMAGE_XXHDPI  = 3 * IMAGE_MDPI   // 480dpi
 	IMAGE_XXXHDPI = 4 * IMAGE_MDPI   // 640dpi
+)
+
+var (
+	ErrInvalidRequest = errors.New("invalid request")
 )
 
 func NewServer(db_address string, keyspace string) *ImageServer {
@@ -80,6 +87,64 @@ func (s *ImageServer) loadThumbnail(id uint64, reqDpi int32) ([]byte, error) {
 	return thumbnail_dao.Load(id, dpi)
 }
 
+// Check access and returns user_id if access is granted or
+// 0 otherwise.
+func (s *ImageServer) checkAccess(header http.Header) (uint64, error) {
+
+	user_id_str := header.Get("userid")
+	token := header.Get("token")
+
+	if user_id_str == "" || token == "" {
+		return 0, nil
+	}
+
+	user_id, err := strconv.ParseUint(user_id_str, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	access_dao := dao.NewAccessTokenDAO(s.db_session)
+	ok, err := access_dao.CheckAccessToken(user_id, token)
+	if err != nil || !ok {
+		return 0, err
+	}
+
+	access_dao.SetLastUsed(user_id, core.GetCurrentTimeMillis()) // ignore possible errors
+	return user_id, nil
+}
+
+func (s *ImageServer) parseParams(thumbnail_id *uint64, dpi *int32, values url.Values) error {
+
+	thumbnail_id_str := values.Get("thumbnail")
+	dpi_str := values.Get("dpi")
+
+	if thumbnail_id_str == "" {
+		return ErrInvalidRequest
+	}
+
+	var err error
+
+	*thumbnail_id, err = strconv.ParseUint(thumbnail_id_str, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	var dpi64 int64
+
+	if dpi_str != "" {
+		dpi64, err = strconv.ParseInt(dpi_str, 10, 32)
+		if err != nil {
+			return err
+		}
+	} else {
+		dpi64 = 160
+	}
+
+	*dpi = int32(dpi64)
+
+	return nil
+}
+
 func (s *ImageServer) handler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
@@ -88,58 +153,45 @@ func (s *ImageServer) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var user_id uint64
+
 	defer func() {
 		r := recover()
 		if r != nil {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			log.Printf("< (?) GET THUMBNAIL ERROR: %v\n", r)
+			log.Printf("< (%v) GET THUMBNAIL ERROR: %v\n", user_id, r)
 		}
 	}()
 
-	values := r.URL.Query()
-	user_id_str, ok1 := values["userid"]
-	token, ok2 := values["token"]
-	thumbnail_id_str, ok3 := values["thumbnail"]
-	dpi_str, ok4 := values["dpi"]
+	log.Printf("> (%v) GET THUMBNAIL (UserID: %v, ScreenDensity: %v)\n",
+		r.Header.Get("userid"), r.URL.Query().Get("thumbnail"), r.URL.Query().Get("dpi"))
 
-	if !ok1 || !ok2 || !ok3 || len(user_id_str) == 0 || len(token) == 0 || len(thumbnail_id_str) == 0 {
-		http.Error(w, "Invalid request received", http.StatusBadRequest)
-		log.Printf("< (?) GET THUMBNAIL ERROR: Invalid Request\n")
+	user_id, err := s.checkAccess(r.Header)
+	manageError(err)
+	if user_id == 0 {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		log.Printf("< (%v) GET THUMBNAIL ERROR: ACCESS DENIED", r.Header.Get("userid"))
 		return
 	}
 
-	user_id, err := strconv.ParseUint(user_id_str[0], 10, 64)
-	manageError(err)
+	var thumbnail_id uint64
+	var dpi int32
 
-	thumbnail_id, err := strconv.ParseUint(thumbnail_id_str[0], 10, 64)
-	manageError(err)
-
-	var dpi int64
-	if ok4 {
-		dpi, err = strconv.ParseInt(dpi_str[0], 10, 32)
-		manageError(err)
-	} else {
-		dpi = 160
+	err = s.parseParams(&thumbnail_id, &dpi, r.URL.Query())
+	if err != nil {
+		http.Error(w, "Invalid request received", http.StatusBadRequest)
+		log.Printf("< (%v) GET THUMBNAIL ERROR: %v\n", user_id, err)
+		return
 	}
 
-	log.Printf("> (%v) GET THUMBNAIL (UserID: %v, ScreenDensity: %v)\n", user_id, thumbnail_id, dpi)
-
-	user_dao := dao.NewUserDAO(s.db_session)
-	ok, err := user_dao.CheckAuthToken(user_id, token[0])
-	manageError(err)
-
-	if !ok {
-		http.Error(w, "Authentication required", http.StatusForbidden)
-		log.Printf("< (%v) GET THUMBNAIL ERROR: ACCESS DENIED", user_id)
-	}
+	// Everything OK
 
 	data, err := s.loadThumbnail(thumbnail_id, int32(dpi))
 	manageError(err)
 
 	n, err := w.Write(data)
 	manageError(err)
-
-	log.Printf("< (%v) SEND THUMBNAIL (%v/%v bytes)\n", user_id, n, len(data))
+	log.Printf("< (%v) SEND THUMBNAIL (%v/%v bytes, %v dpi)\n", user_id, n, len(data), dpi)
 }
 
 func (s *ImageServer) connectToDB() {

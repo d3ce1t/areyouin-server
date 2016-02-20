@@ -19,6 +19,7 @@ type MessageBuilder interface {
 	UserPosition(latitude float32, longitude float32, estimation_error float32) *AyiPacket
 	UserPositionRange(range_in_meters float32) *AyiPacket
 	CreateUserAccount(name string, email string, password string, phone string, fbid string, fbtoken string) *AyiPacket
+	NewAccessToken(user_id uint64, auth_token uuid.UUID) *AyiPacket
 	NewAuthTokenByEmail(email string, password string) *AyiPacket
 	NewAuthTokenByFacebook(fbid string, fbtoken string) *AyiPacket
 	UserAuthencation(user_id uint64, auth_token uuid.UUID) *AyiPacket

@@ -189,7 +189,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 func onUserAuthentication(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	server := session.Server
-	msg := message.(*proto.UserAuthentication)
+	msg := message.(*proto.AccessToken)
 	log.Printf("> (%v) USER AUTH %v\n", session, msg)
 
 	checkUnauthenticated(session)
@@ -217,6 +217,29 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	server.task_executor.Submit(&SendUserFriends{UserId: user_id})
 	// FIXME: Do not send all of the private events, but limit to a fixed number
 	sendPrivateEvents(session)
+}
+
+func onNewAccessToken(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	log.Printf("> (%v) REQUEST NEW ACCESS TOKEN\n", session.UserId)
+
+	checkAuthenticated(session)
+
+	accessTokenDAO := server.NewAccessTokenDAO()
+	new_access_token := uuid.NewV4()
+
+	// Overwrites previous one if exists
+	err := accessTokenDAO.Insert(session.UserId, new_access_token.String())
+	if err != nil {
+		reply := session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
+		log.Printf("< (%v) REQUEST NEW ACCESS TOKEN ERROR: %v\n", session.UserId, err)
+		session.Write(reply)
+		return
+	}
+
+	session.Write(session.NewMessage().NewAccessToken(session.UserId, new_access_token))
+	log.Printf("< (%v) ACCESS TOKEN: %v\n", session.UserId, new_access_token)
 }
 
 func onIIDTokenReceived(packet_type proto.PacketType, message proto.Message, session *AyiSession) {

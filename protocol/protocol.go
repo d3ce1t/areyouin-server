@@ -197,7 +197,7 @@ func createEmptyMessage(packet_type PacketType) Message {
 	case M_USER_NEW_AUTH_TOKEN:
 		message = &NewAuthToken{}
 	case M_USER_AUTH:
-		message = &UserAuthentication{}
+		message = &AccessToken{}
 	case M_CHANGE_PROFILE_PICTURE:
 		message = &UserAccount{}
 	case M_IID_TOKEN:

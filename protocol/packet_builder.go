@@ -96,7 +96,13 @@ func (mb *PacketBuilder) NewAuthTokenByFacebook(fbid string, fbtoken string) *Ay
 
 func (mb *PacketBuilder) UserAuthencation(user_id uint64, auth_token uuid.UUID) *AyiPacket {
 	mb.message.Header.SetType(M_USER_AUTH)
-	mb.message.SetMessage(&UserAuthentication{UserId: user_id, AuthToken: auth_token.String()})
+	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token.String()})
+	return mb.message
+}
+
+func (mb *PacketBuilder) NewAccessToken(user_id uint64, auth_token uuid.UUID) *AyiPacket {
+	mb.message.Header.SetType(M_ACCESS_TOKEN)
+	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token.String()})
 	return mb.message
 }
 
@@ -215,7 +221,7 @@ func (mb *PacketBuilder) ChangeDiscarded(event_id uint64, change_id uint32) *Ayi
 
 func (mb *PacketBuilder) UserAccessGranted(user_id uint64, auth_token uuid.UUID) *AyiPacket {
 	mb.message.Header.SetType(M_ACCESS_GRANTED)
-	mb.message.SetMessage(&AccessGranted{UserId: user_id, AuthToken: auth_token.String()})
+	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token.String()})
 	return mb.message
 }
 

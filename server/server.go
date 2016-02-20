@@ -241,6 +241,13 @@ func (s *Server) NewThumbnailDAO() core.ThumbnailDAO {
 	return dao.NewThumbnailDAO(s.dbsession)
 }
 
+func (s *Server) NewAccessTokenDAO() core.AccessTokenDAO {
+	if s.dbsession == nil {
+		s.connectToDB()
+	}
+	return dao.NewAccessTokenDAO(s.dbsession)
+}
+
 // Private methods
 func (server *Server) handleSession(session *AyiSession) {
 
@@ -816,6 +823,7 @@ func main() {
 	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
 	server.RegisterCallback(proto.M_GET_USER_ACCOUNT, onGetUserAccount)
 	server.RegisterCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
+	server.RegisterCallback(proto.M_GET_ACCESS_TOKEN, onNewAccessToken)
 
 	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)

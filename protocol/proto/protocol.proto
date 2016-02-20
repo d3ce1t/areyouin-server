@@ -101,8 +101,8 @@ message NewAuthToken {
   AuthType type = 3;
 }
 
-// USER AUTH
-message UserAuthentication {
+// ACCESS GRANTED / USER AUTH / GET ACCESS TOKEN
+message AccessToken {
   uint64 user_id = 1;
   string auth_token = 2;
 }
@@ -185,10 +185,10 @@ message ChangeDiscarded {
 }
 
 // ACCESS GRANTED
-message AccessGranted {
+/*message AccessGranted {
   uint64 user_id = 1;
   string auth_token = 2;
-}
+}*/
 
 // OK
 message Ok {

@@ -89,3 +89,10 @@ type ThumbnailDAO interface {
 	Load(id uint64, dpi int32) ([]byte, error)
 	Remove(id uint64) error
 }
+
+type AccessTokenDAO interface {
+	Insert(user_id uint64, token string) error
+	CheckAccessToken(user_id uint64, access_token string) (bool, error)
+	SetLastUsed(user_id uint64, time int64) error
+	Remove(user_id uint64) error
+}

@@ -5,6 +5,7 @@ CREATE KEYSPACE areyouin WITH REPLICATION = { 'class' : 'SimpleStrategy', 'repli
 // Create the schema
 USE areyouin;
 
+
 // Q1: Find a user with a known e-mail address
 // Used by: NewAuthToken
 DROP TABLE IF EXISTS user_email_credentials;
@@ -137,10 +138,21 @@ CREATE TABLE thumbnails (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
+// Q9: Find user access token by user_id
+DROP TABLE IF EXISTS user_access_token;
+CREATE TABLE user_access_token (
+	user_id bigint,
+	access_token UUID,
+	last_used timestamp,
+	created_date timestamp,
+	PRIMARY KEY (user_id)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
+
 //
 // Stats
 //
-// Q8: Find number of users registered each day and be able of aggregating
+// Q10: Find number of users registered each day and be able of aggregating
 // by month and year quickly
 CREATE TABLE users_registered_by_day (
 	year int,
