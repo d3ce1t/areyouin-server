@@ -141,11 +141,11 @@ func (s *Server) init() {
 func (s *Server) connectToDB() error {
 	if session, err := s.cluster.CreateSession(); err == nil {
 		s.dbsession = session
-		return err
+		return nil
 	} else {
 		log.Println("Error connecting to cassandra:", err)
+		return err
 	}
-	return nil
 }
 
 func (s *Server) executeSerial(f func()) {
