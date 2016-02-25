@@ -1,6 +1,7 @@
 [Unit]
 Description=AreYouIN Service
-After=network.target
+After=network.target cassandra.service
+Wants=cassandra.service
 
 [Service]
 Type=simple

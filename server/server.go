@@ -118,12 +118,6 @@ func (s *Server) init() {
 	s.id_gen_ch = make(chan uint64)
 	go s.generatorTask(1)
 
-	// Connect to Cassandra
-	s.cluster = gocql.NewCluster(s.DbAddress /*"192.168.1.3"*/)
-	s.cluster.Keyspace = s.Keyspace
-	s.cluster.Consistency = gocql.LocalQuorum
-	s.connectToDB()
-
 	// Task Executor
 	s.task_executor = NewTaskExecutor(s)
 	s.task_executor.Start()
@@ -131,14 +125,27 @@ func (s *Server) init() {
 	// Supported Screen densities
 	s.supportedDpi = []int32{IMAGE_MDPI, IMAGE_HDPI, IMAGE_XHDPI,
 		IMAGE_XXHDPI, IMAGE_XXXHDPI}
+
+	// Connect to Cassandra
+	s.cluster = gocql.NewCluster(s.DbAddress /*"192.168.1.3"*/)
+	s.cluster.Keyspace = s.Keyspace
+	s.cluster.Consistency = gocql.LocalQuorum
+
+	for s.connectToDB() != nil {
+		time.Sleep(5 * time.Second)
+	}
+
+	log.Println("Connected to Cassandra successfully")
 }
 
-func (s *Server) connectToDB() {
+func (s *Server) connectToDB() error {
 	if session, err := s.cluster.CreateSession(); err == nil {
 		s.dbsession = session
+		return err
 	} else {
 		log.Println("Error connecting to cassandra:", err)
 	}
+	return nil
 }
 
 func (s *Server) executeSerial(f func()) {
@@ -214,35 +221,35 @@ func (s *Server) UnregisterSession(session *AyiSession) {
 }
 
 func (s *Server) NewUserDAO() core.UserDAO {
-	if s.dbsession == nil {
+	if s.dbsession == nil || s.dbsession.Closed() {
 		s.connectToDB()
 	}
 	return dao.NewUserDAO(s.dbsession)
 }
 
 func (s *Server) NewFriendDAO() core.FriendDAO {
-	if s.dbsession == nil {
+	if s.dbsession == nil || s.dbsession.Closed() {
 		s.connectToDB()
 	}
 	return dao.NewFriendDAO(s.dbsession)
 }
 
 func (s *Server) NewEventDAO() core.EventDAO {
-	if s.dbsession == nil {
+	if s.dbsession == nil || s.dbsession.Closed() {
 		s.connectToDB()
 	}
 	return dao.NewEventDAO(s.dbsession)
 }
 
 func (s *Server) NewThumbnailDAO() core.ThumbnailDAO {
-	if s.dbsession == nil {
+	if s.dbsession == nil || s.dbsession.Closed() {
 		s.connectToDB()
 	}
 	return dao.NewThumbnailDAO(s.dbsession)
 }
 
 func (s *Server) NewAccessTokenDAO() core.AccessTokenDAO {
-	if s.dbsession == nil {
+	if s.dbsession == nil || s.dbsession.Closed() {
 		s.connectToDB()
 	}
 	return dao.NewAccessTokenDAO(s.dbsession)
