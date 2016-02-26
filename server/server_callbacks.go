@@ -131,11 +131,14 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 		session.Write(reply)
 
-		// Get new token by Facebook User ID and Facebook Access Token
 	} else if msg.Type == proto.AuthType_A_FACEBOOK {
 
+		// Get new token by Facebook User ID and Facebook Access Token
 		// In this context, E_FB_INVALID_USER_OR_PASSWORD means that account does not exist or
 		// it is an invalid account.
+
+		// Use Facebook servers to check if the id and token are valid
+
 		fbsession := fb.NewSession(msg.Pass2)
 
 		if _, err := fb.CheckAccess(msg.Pass1, fbsession); err != nil {
@@ -145,18 +148,33 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 			return
 		}
 
+		// Check if Facebook user exists also in AreYouIN, i.e. there is a Fbid pointing
+		// to a user id
+
 		user_id, err := userDAO.GetIDByFacebookID(msg.Pass1)
 
 		if err == dao.ErrNotFound {
-			reply = session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD", session)
-			session.Write(reply)
+			session.Write(session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD))
 			return
 		} else if err != nil {
-			reply = session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
-			session.Write(reply)
+			session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
 			return
+		}
+
+		// Moreover, check if this user.fbid match provided fb id
+
+		user, err := userDAO.Load(user_id)
+		if err != nil {
+			session.Write(session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD))
+			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
+			return
+		}
+
+		if user.Fbid != msg.Pass1 {
+			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD", session)
+			session.Write(session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD))
 		}
 
 		// Check that account linked to given Facebook ID is valid, i.e. it has user_email_credentials (with or without
@@ -164,7 +182,8 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		// it may not have Facebook either and it would still be valid. This behaviour is preferred because if
 		// this state is found, something had have to be wrong. Under normal conditions, that state should have never
 		// happened. So, at this point only existence of e-mail are checked (credentials are ignored).
-		if _, err := userDAO.CheckValidAccount(user_id, false); err != nil {
+
+		if _, err := userDAO.CheckValidAccountObject(user.Id, user.Email, user.Fbid, false); err != nil {
 			reply = session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD)
 			session.Write(reply)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
