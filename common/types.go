@@ -47,8 +47,8 @@ type EventDAO interface {
 }
 
 type UserDAO interface {
+	CheckValidAccountObject(user_id uint64, email string, fb_id string, check_credentials bool) (bool, error)
 	CheckValidAccount(user_id uint64, check_credentials bool) (bool, error)
-	CheckValidCredentials(user_id uint64, email string, fb_id string) (bool, error)
 	GetIDByEmailAndPassword(email string, password string) (uint64, error)
 	GetIDByFacebookID(fb_id string) (uint64, error)
 	LoadWithPicture(user_id uint64) (*UserAccount, error)

@@ -17,4 +17,5 @@ var (
 	ErrGracePeriod           = errors.New("Grace period due to old and new conflict")
 	ErrUnexpected            = errors.New("Unexpected error")
 	ErrNilPointer            = errors.New("Nil pointer")
+	ErrAccountMismatch       = errors.New("account mismatch")
 )

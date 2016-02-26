@@ -20,20 +20,15 @@ func NewUserDAO(session *gocql.Session) core.UserDAO {
 	return &UserDAO{session: session}
 }
 
-// Checks if the given user_id belongs to an existing and valid account. Returns true
-// if the account is valid or false otherwise. If account isn't found or something
-// unexpected happens, it returns also an error.
-func (dao *UserDAO) CheckValidAccount(user_id uint64, check_credentials bool) (bool, error) {
+// Checks that email exists and belongs to user_id. If fb_id exists, then check it also
+// This function assumes that a row belonging to user_id exists in user_account table
+func (dao *UserDAO) CheckValidAccountObject(user_id uint64, email string, fb_id string, check_credentials bool) (bool, error) {
 
-	stmt_user := `SELECT email, fb_id FROM user_account WHERE user_id = ? LIMIT 1`
-	query_user := dao.session.Query(stmt_user, user_id)
-	var email string
-	var fb_id string
-
-	if err := query_user.Scan(&email, &fb_id); err != nil || email == "" {
-		return false, err
+	if user_id == 0 || email == "" {
+		return false, ErrInvalidArg
 	}
 
+	// First, check if it is a valid account, i.e. it has an email (with or without password)
 	email_credential, err := dao.LoadEmailCredential(email)
 
 	if err == ErrNotFound {
@@ -42,59 +37,40 @@ func (dao *UserDAO) CheckValidAccount(user_id uint64, check_credentials bool) (b
 		return false, err
 	}
 
+	// Most important, check that e_mail credential belongs to given user_id
 	if user_id != email_credential.UserId {
 		return false, nil
 	}
 
+	// Now check if this user account has at least one valid credential
 	if check_credentials {
-
-		// First, check e-mail credential
-		if email_credential.Password != core.EMPTY_ARRAY_32B && email_credential.Salt != core.EMPTY_ARRAY_32B {
+		if dao.checkEmailCredentialObject(user_id, email_credential, false) {
 			return true, nil
-		}
-
-		// If e-mail credential isn't set, check Facebook
-		if fb_credential, err := dao.LoadFacebookCredential(fb_id); err == nil && user_id == fb_credential.UserId {
-			return true, nil
-		} else if err == ErrNotFound {
-			return false, nil
 		} else {
-			return false, err
+			return dao.checkFacebookCredential(user_id, fb_id)
 		}
+	} else {
+		return true, nil
 	}
-
-	return true, nil
 }
 
-// Returns if given crentials for the given user are valid or not. If credential does not exist then
-// user is invalid (ErrNotFound error managed by the function and therefore it's never returned)
-func (dao *UserDAO) CheckValidCredentials(user_id uint64, email string, fb_id string) (bool, error) {
+// Checks if the given user_id belongs to an existing and valid account. Returns true
+// if the account is valid or false otherwise. If account isn't found or something
+// unexpected happens, it returns also an error.
+func (dao *UserDAO) CheckValidAccount(user_id uint64, check_credentials bool) (bool, error) {
 
-	email_credential, err := dao.LoadEmailCredential(email)
+	// Load user with only credentials
+	stmt_user := `SELECT email, fb_id FROM user_account WHERE user_id = ? LIMIT 1`
+	query_user := dao.session.Query(stmt_user, user_id)
+	var email string
+	var fb_id string
 
-	if err == ErrNotFound || err == ErrInvalidEmail {
-		return false, nil
-	} else if err != nil {
+	if err := query_user.Scan(&email, &fb_id); err != nil {
 		return false, err
 	}
 
-	if user_id != email_credential.UserId {
-		return false, nil
-	}
-
-	// First, check e-mail credential
-	if email_credential.Password != core.EMPTY_ARRAY_32B && email_credential.Salt != core.EMPTY_ARRAY_32B {
-		return true, nil
-	}
-
-	// If e-mail credential isn't set, check Facebook
-	if fb_credential, err := dao.LoadFacebookCredential(fb_id); err == nil && user_id == fb_credential.UserId {
-		return true, nil
-	} else if err == ErrNotFound {
-		return false, nil
-	} else {
-		return false, err
-	}
+	// Check if account is valid
+	return dao.CheckValidAccountObject(user_id, email, fb_id, check_credentials)
 }
 
 // Find a user_id matching the given e-mail and password. Returns user_id if
@@ -146,6 +122,7 @@ func (dao *UserDAO) GetIDByFacebookID(fb_id string) (uint64, error) {
 	return user_id, nil
 }
 
+// Load a user from database and includes profile picture
 func (dao *UserDAO) LoadWithPicture(user_id uint64) (*core.UserAccount, error) {
 
 	dao.checkSession()
@@ -174,6 +151,7 @@ func (dao *UserDAO) LoadWithPicture(user_id uint64) (*core.UserAccount, error) {
 	return user, nil
 }
 
+// Load a user from database but do not include profile picture
 func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 
 	dao.checkSession()
@@ -466,12 +444,37 @@ func (dao *UserDAO) SetIIDToken(user_id uint64, iid_token string) error {
 
 // User information is spread in three tables: user_account, user_email_credentials
 // and user_facebook_credentials. So, in order to delete a user, it's needed an
-// user_id, e-mail and, likely, a Facebook ID
-// FIXME: I should also delete this user to all of their friends
+// user_id, e-mail and, likely, a Facebook ID. For the sake of safety, a read is
+// perform before delete in order to perform a security checks between data provided as
+// argument and data stored in database. If all of the security checks passed, then user
+// is removed.
 func (dao *UserDAO) Delete(user *core.UserAccount) error {
 
 	dao.checkSession()
 
+	// Read
+
+	// Security barriers
+	var can_remove_email bool
+	var can_remove_facebook bool
+
+	// Read email_credential for later
+	email_credential, err := dao.LoadEmailCredential(user.Email)
+	if err != nil {
+		return err
+	}
+
+	can_remove_email = email_credential.UserId == user.Id
+
+	if user.HasFacebookCredentials() {
+		facebook_credentials, err := dao.LoadFacebookCredential(user.Fbid)
+		if err != nil {
+			return err
+		}
+		can_remove_facebook = facebook_credentials.UserId == user.Id
+	}
+
+	// Read friens for deleting
 	friendDAO := NewFriendDAO(dao.session)
 
 	friends, err := friendDAO.LoadFriends(user.Id, 0)
@@ -479,10 +482,14 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 		return err
 	}
 
+	// Prepare Delete batch
+
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
-	// Delete email_credential
-	batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email) // Now account is invalid
+	// Delete email_credential. Only delete if this credential belongs to the same user
+	if can_remove_email {
+		batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email) // Now account is invalid
+	}
 
 	// Delete user from his user's friends
 	for _, friend := range friends {
@@ -494,7 +501,7 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 	batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`, user.Id, 0) // Always after delete itself from other friends
 
 	// Delete Facebook credential
-	if user.HasFacebookCredentials() {
+	if user.HasFacebookCredentials() && can_remove_facebook {
 		batch.Query(`DELETE FROM user_facebook_credentials WHERE fb_id = ?`, user.Fbid)
 	}
 

@@ -317,7 +317,7 @@ func (shell *Shell) listUserAccounts(args []string) {
 
 	for _, user := range users {
 		status_info := " "
-		if valid, err := dao.CheckValidCredentials(user.Id, user.Email, user.Fbid); err != nil {
+		if valid, err := dao.CheckValidAccountObject(user.Id, user.Email, user.Fbid, true); err != nil {
 			log.Println("ListUserAccountsError:", err)
 			status_info = "?"
 		} else if !valid {
@@ -429,25 +429,39 @@ func (shell *Shell) deleteUser(args []string) {
 		}
 	} else if len(args) > 2 {
 
+		if args[2] != "--force" {
+			manageShellError(ErrShellInvalidArgs)
+		}
+
 		// Try remove user account
-		if err := dao.DeleteUserAccount(user_id); err != nil {
-			fmt.Fprintln(shell.io, "Removing user account error:", err)
-		} else {
+		if err := dao.DeleteUserAccount(user_id); err == nil {
 			fmt.Fprintln(shell.io, "User account removed")
+		} else {
+			fmt.Fprintln(shell.io, "Removing user account error:", err)
 		}
 
 		// Try remove e-mail credential
-		if err := dao.DeleteEmailCredentials(user.Email); err != nil {
-			fmt.Fprintln(shell.io, "Removing e-mail credential error:", err)
-		} else {
-			fmt.Fprintln(shell.io, "E-mail credential removed")
+		if user.Email != "" {
+			email_credential, err := dao.LoadEmailCredential(user.Email)
+			if err == nil && email_credential.UserId == user.Id {
+				if err := dao.DeleteEmailCredentials(user.Email); err == nil {
+					fmt.Fprintln(shell.io, "E-mail credential removed")
+				} else {
+					fmt.Fprintln(shell.io, "Removing e-mail credential error:", err)
+				}
+			}
 		}
 
 		// Try remove facebook credential
-		if err := dao.DeleteFacebookCredentials(user.Fbid); err != nil {
-			fmt.Fprintln(shell.io, "Removing facebook credential error:", err)
-		} else {
-			fmt.Fprintln(shell.io, "Facebook credential removed")
+		if user.Fbid != "" {
+			facebook_credential, err := dao.LoadFacebookCredential(user.Fbid)
+			if err == nil && facebook_credential.UserId == user.Id {
+				if err := dao.DeleteFacebookCredentials(user.Fbid); err == nil {
+					fmt.Fprintln(shell.io, "Facebook credential removed")
+				} else {
+					fmt.Fprintln(shell.io, "Removing facebook credential error:", err)
+				}
+			}
 		}
 
 	}
