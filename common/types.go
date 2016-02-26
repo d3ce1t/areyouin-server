@@ -49,25 +49,21 @@ type EventDAO interface {
 type UserDAO interface {
 	CheckValidAccount(user_id uint64, check_credentials bool) (bool, error)
 	CheckValidCredentials(user_id uint64, email string, fb_id string) (bool, error)
-	CheckEmailCredentials(email string, password string) (uint64, error)
-	CheckAuthToken(user_id uint64, auth_token string) (bool, error)
-	ExistEmail(email string) (bool, error)
-	//ExistsUserAccount(user_id uint64) (bool, error)
-	SetAuthToken(user_id uint64, auth_token uuid.UUID) error
-	SetLastConnection(user_id uint64, time int64) error
-	SetFacebookAccessToken(user_id uint64, fb_id string, fb_token string) error
-	SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID, fb_id string, fb_token string) error
-	SetIIDToken(user_id uint64, iid_token string) error
-	GetIDByEmail(email string) (uint64, error)
+	GetIDByEmailAndPassword(email string, password string) (uint64, error)
 	GetIDByFacebookID(fb_id string) (uint64, error)
-	Insert(user *UserAccount) error
-	SaveProfilePicture(user_id uint64, picture *Picture) error
 	LoadWithPicture(user_id uint64) (*UserAccount, error)
 	Load(user_id uint64) (*UserAccount, error)
 	LoadByEmail(email string) (*UserAccount, error)
 	LoadAllUsers() ([]*UserAccount, error)
 	LoadEmailCredential(email string) (credent *EmailCredential, err error)
 	LoadFacebookCredential(fbid string) (credent *FacebookCredential, err error)
+	Insert(user *UserAccount) error
+	SaveProfilePicture(user_id uint64, picture *Picture) error
+	SetAuthToken(user_id uint64, auth_token uuid.UUID) error
+	SetLastConnection(user_id uint64, time int64) error
+	SetFacebookAccessToken(user_id uint64, fb_id string, fb_token string) error
+	SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID, fb_id string, fb_token string) error
+	SetIIDToken(user_id uint64, iid_token string) error
 	Delete(user *UserAccount) error
 	DeleteUserAccount(user_id uint64) error
 	DeleteEmailCredentials(email string) error

@@ -62,7 +62,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// grace period has not elapsed, an ErrGracePeriod error is triggered. A different
 	// error message could be sent to the client whenever this happens. This way client
 	// could be notified to wait grace period seconds and retry. However, an OPERATION
-	// FAILED message is sent so far. 	Read UserDAO.insert for more info.
+	// FAILED message is sent so far. Read UserDAO.insert for more info.
 	if err := userDAO.Insert(user); err != nil {
 		err_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
 		reply = session.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, err_code)
@@ -112,7 +112,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 	// NOTE: Review
 	if msg.Type == proto.AuthType_A_NATIVE {
 
-		if user_id, err := userDAO.CheckEmailCredentials(msg.Pass1, msg.Pass2); err == nil {
+		if user_id, err := userDAO.GetIDByEmailAndPassword(msg.Pass1, msg.Pass2); err == nil {
 			new_auth_token := uuid.NewV4()
 			if err := userDAO.SetAuthToken(user_id, new_auth_token); err == nil {
 				reply = session.NewMessage().UserAccessGranted(user_id, new_auth_token)
@@ -160,7 +160,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		}
 
 		// Check that account linked to given Facebook ID is valid, i.e. it has user_email_credentials (with or without
-		// password). It may happen that row in user_email_credentials exists but does not have set a password. Moreover,
+		// password). It may happen that a row in user_email_credentials exists but does not have set a password. Moreover,
 		// it may not have Facebook either and it would still be valid. This behaviour is preferred because if
 		// this state is found, something had have to be wrong. Under normal conditions, that state should have never
 		// happened. So, at this point only existence of e-mail are checked (credentials are ignored).
