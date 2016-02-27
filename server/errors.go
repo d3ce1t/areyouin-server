@@ -17,6 +17,10 @@ var (
 	ErrParticipantsRequired       = errors.New("participants required")
 	ErrAuthorDeliveryError        = errors.New("event coudn't be delivered to author")
 	ErrShellInvalidArgs           = errors.New("Invalid args")
+	ErrNotWritableEvent           = errors.New("event isn't writable")
+	ErrAuthorMismatch             = errors.New("author mismatch")
+	ErrOperationFailed            = errors.New("operation failed")
+	ErrEventNotFound              = errors.New("event not found")
 )
 
 func getNetErrorCode(err error, default_code int32) int32 {
@@ -40,12 +44,20 @@ func getNetErrorCode(err error, default_code int32) int32 {
 		err_code = proto.E_FB_EXISTS
 	case dao.ErrGracePeriod:
 		err_code = proto.E_OPERATION_FAILED
+	case dao.ErrNotFoundEventOrParticipant:
+		err_code = proto.E_INVALID_EVENT_OR_PARTICIPANT
 	case ErrParticipantsRequired:
 		err_code = proto.E_EVENT_PARTICIPANTS_REQUIRED
 	case ErrNonFriendsIgnored:
 		err_code = proto.E_INVALID_PARTICIPANT
 	case ErrUnregisteredFriendsIgnored:
 		err_code = proto.E_INVALID_PARTICIPANT
+	case ErrNotWritableEvent:
+		err_code = proto.E_EVENT_CANNOT_BE_MODIFIED
+	case ErrAuthorMismatch:
+		err_code = proto.E_EVENT_AUTHOR_MISMATCH
+	case ErrEventNotFound:
+		err_code = proto.E_INVALID_EVENT
 	default:
 		err_code = default_code
 	}

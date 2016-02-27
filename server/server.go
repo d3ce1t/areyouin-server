@@ -270,12 +270,8 @@ func (server *Server) handleSession(session *AyiSession) {
 	session.OnRead = func(s *AyiSession, packet *proto.AyiPacket) {
 		if err := s.Server.serveMessage(packet, s); err != nil { // may block until writes are performed
 			error_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
-			if err == ErrAuthRequired {
-				log.Printf("< (%v) AUTH REQUIRED\n", session)
-			} else {
-				log.Printf("< (%v) ERROR %v (panic %v)\n", session.UserId, error_code, err)
-				log.Printf("Involved Packet: %v\n", packet)
-			}
+			log.Printf("< (%v) ERROR %v: %v\n", session.UserId, error_code, err)
+			//log.Printf("Involved Packet: %v\n", packet)
 			s.Write(s.NewMessage().Error(packet.Type(), error_code))
 		}
 	}
@@ -630,6 +626,31 @@ func checkUnauthenticated(session *AyiSession) {
 	}
 }
 
+func checkNoErrorOrPanic(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func checkAtLeastOneEventOrPanic(events []*core.Event) {
+	if len(events) == 0 {
+		panic(ErrEventNotFound)
+	}
+}
+
+func checkEventWritableOrPanic(event *core.Event) {
+	current_time := core.GetCurrentTimeMillis()
+	if event.StartDate < current_time {
+		panic(ErrNotWritableEvent)
+	}
+}
+
+func checkEventAuthorOrPanic(author_id uint64, event *core.Event) {
+	if event.AuthorId != author_id {
+		panic(ErrAuthorMismatch)
+	}
+}
+
 // Returns a participant list where users that will not assist the event or aren't
 // friends of the given user are removed */
 func (s *Server) filterParticipantsMap(participant uint64, participants map[uint64]*core.EventParticipant) []*core.EventParticipant {
@@ -822,15 +843,15 @@ func main() {
 	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
 	server.RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
 	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
+	server.RegisterCallback(proto.M_GET_ACCESS_TOKEN, onNewAccessToken)
 	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
 	server.RegisterCallback(proto.M_INVITE_USERS, onInviteUsers)
-	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
-	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)
-	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
+	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
 	server.RegisterCallback(proto.M_GET_USER_ACCOUNT, onGetUserAccount)
 	server.RegisterCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
-	server.RegisterCallback(proto.M_GET_ACCESS_TOKEN, onNewAccessToken)
+	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)
+	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
 
 	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)

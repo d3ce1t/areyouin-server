@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
 	gcm "github.com/google/go-gcm"
+	"image"
+	_ "image/jpeg"
 	"log"
 	core "peeple/areyouin/common"
 	dao "peeple/areyouin/dao"
@@ -103,9 +107,11 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 
 		// Assume that if friend_id isn't in stored friends, then current user id isn't either
 		// in the other user friends list
-		if _, ok := storedFriends[friend_id]; !ok {
+		if _, ok := storedFriends[friendUser.Id]; !ok {
 			friendUser.Name = fbFriend.Name // Use Facebook name because is familiar to user
 			friend_dao.MakeFriends(task.TargetUser, friendUser)
+			log.Printf("ImportFacebookFriends: %v and %v are now AreYouIN friends\n",
+				task.TargetUser.GetUserId(), friendUser.Id)
 			ex.Submit(&SendUserFriends{UserId: friend_id})
 			task.sendGcmNotification(friendUser.Id, friendUser.IIDtoken, task.TargetUser.GetName())
 			counter++
@@ -267,6 +273,60 @@ func (t *NotifyEventInvitation) sendGcmNotification(user_id uint64, token string
 	}
 
 	sendGcmMessage(user_id, token, gcm_message)
+}
+
+type LoadFacebookProfilePicture struct {
+	User    *core.UserAccount
+	Fbtoken string
+}
+
+func (task *LoadFacebookProfilePicture) Run(ex *TaskExecutor) {
+
+	server := ex.server
+
+	fbsession := fb.NewSession(task.Fbtoken)
+	picture_bytes, err := fb.GetProfilePicture(fbsession)
+	if err != nil {
+		log.Println("LoadFacebookProfilePicture: ", err)
+		return
+	}
+
+	// Decode image
+	original_image, _, err := image.Decode(bytes.NewReader(picture_bytes))
+	if err != nil {
+		log.Println("LoadFacebookProfilePicture: ", err)
+		return
+	}
+
+	// Resize image to 512x512
+	picture_bytes, err = server.resizeImage(original_image, 512)
+	if err != nil {
+		log.Println("LoadFacebookProfilePicture: ", err)
+		return
+	}
+
+	// Save profile Picture
+	digest := sha256.Sum256(picture_bytes)
+
+	picture := &core.Picture{
+		RawData: picture_bytes,
+		Digest:  digest[:],
+	}
+
+	if err := server.saveProfilePicture(task.User.Id, picture); err != nil {
+		log.Println("LoadFacebookProfilePicture: ", err)
+		return
+	}
+
+	task.User.Picture = picture.RawData
+	task.User.PictureDigest = picture.Digest
+	log.Printf("LoadFacebookProfilePicture: Profile picture updated (digest=%x)\n", picture.Digest)
+
+	session := server.GetSession(task.User.Id)
+	if session != nil {
+		session.Write(session.NewMessage().UserAccount(task.User))
+		log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session.UserId, len(task.User.Picture))
+	}
 }
 
 func sendGcmMessage(user_id uint64, token string, message gcm.HttpMessage) {
