@@ -337,7 +337,7 @@ func (dao *EventDAO) LoadUserEventsAndParticipants(user_id uint64, fromDate int6
 }
 
 // Compare-and-set (read-before) update operation
-func (dao *EventDAO) CompareAndSetNumGuests(event_id uint64, num_guests int32) (ok bool, err error) {
+func (dao *EventDAO) CompareAndSetNumGuests(event_id uint64, num_guests int) (ok bool, err error) {
 
 	dao.checkSession()
 

@@ -495,6 +495,11 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 
 	if succeedCounter > 0 {
 
+		_, err := eventDAO.CompareAndSetNumGuests(event.EventId, len(event.Participants))
+		if err != nil {
+			log.Println("Invite Users: Update Num. guestss Error:", err)
+		}
+
 		session.Write(session.NewMessage().Ok(packet_type))
 		log.Printf("< (%v) INVITE USERS OK (event_id=%v, invitations_send=%v, total=%v)\n", session.UserId, msg.EventId, succeedCounter, len(msg.Participants))
 

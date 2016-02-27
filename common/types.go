@@ -34,7 +34,7 @@ type EventDAO interface {
 	LoadUserEventsAndParticipants(user_id uint64, fromDate int64) ([]*Event, error)
 	InsertEventToUserInbox(participant *EventParticipant, event *Event) error
 	AddOrUpdateEventToUserInbox(participant *EventParticipant, event *Event) error
-	CompareAndSetNumGuests(event_id uint64, num_guests int32) (bool, error)
+	CompareAndSetNumGuests(event_id uint64, num_guests int) (bool, error)
 	SetNumGuests(event_id uint64, num_guests int32) error
 	CompareAndSetNumAttendees(event_id uint64, num_attendees int) (bool, error)
 	SetNumAttendees(event_id uint64, num_attendees int) error
