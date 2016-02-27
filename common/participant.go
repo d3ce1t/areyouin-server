@@ -4,6 +4,7 @@ type Participant struct {
 	EventParticipant
 	EventId        uint64
 	EventStartDate int64
+	InboxPosition  int64
 }
 
 func (p *EventParticipant) SetFields(response AttendanceResponse, status MessageStatus) {
