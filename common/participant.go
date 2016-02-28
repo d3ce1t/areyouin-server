@@ -2,9 +2,9 @@ package common
 
 type Participant struct {
 	EventParticipant
-	EventId        uint64
-	EventStartDate int64
-	InboxPosition  int64
+	EventId    uint64
+	StartDate  int64
+	EventState EventState
 }
 
 func (p *EventParticipant) SetFields(response AttendanceResponse, status MessageStatus) {

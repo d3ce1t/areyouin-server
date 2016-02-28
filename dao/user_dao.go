@@ -298,6 +298,21 @@ func (dao *UserDAO) LoadFacebookCredential(fbid string) (credent *core.FacebookC
 	return
 }
 
+func (dao *UserDAO) GetIIDToken(user_id uint64) (string, error) {
+
+	dao.checkSession()
+	stmt := `SELECT iid_token FROM user_account WHERE user_id = ?`
+	q := dao.session.Query(stmt, user_id)
+
+	var iid_token string
+
+	if err := q.Scan(&iid_token); err != nil {
+		return "", err
+	}
+
+	return iid_token, nil
+}
+
 // Insert a new user into Cassandra involving tables user_account, user_email_credentials
 // and user_facebook_credentials. It takes account race conditions like two users trying
 // to create the same account simultaneously. If user email is already used this operation

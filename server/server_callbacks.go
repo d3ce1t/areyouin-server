@@ -429,6 +429,57 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	}
 }
 
+func onCancelEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.CancelEvent)
+	log.Printf("> (%v) CANCEL EVENT %v\n", session.UserId, msg)
+
+	checkAuthenticated(session)
+
+	eventDAO := server.NewEventDAO()
+	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
+	checkNoErrorOrPanic(err)
+
+	// Event exist
+	checkAtLeastOneEventOrPanic(events)
+
+	// Author math
+	event := events[0]
+	author_id := session.UserId
+	checkEventAuthorOrPanic(author_id, event)
+
+	// Event can be modified
+	checkEventWritableOrPanic(event)
+
+	// Change event state and position in time line
+	new_inbox_position := core.GetCurrentTimeMillis()
+	err = eventDAO.SetEventStateAndInboxPosition(event.EventId, core.EventState_CANCELLED, new_inbox_position)
+	checkNoErrorOrPanic(err)
+
+	// Moreover, change event position inside user inbox so that next time client request recent events
+	// this one is ignored.
+	/*for _, participant := range event.Participants {
+		err := eventDAO.SetUserEventInboxPosition(participant, event, new_inbox_position)
+		if err != nil {
+			log.Println("onCancelEvent Error:", err) // FIXME: Add retry logic
+		}
+	}*/
+
+	// Update event object
+	event.InboxPosition = new_inbox_position
+	event.State = core.EventState_CANCELLED
+
+	log.Printf("< (%v) CANCEL EVENT OK\n", session.UserId)
+	session.Write(session.NewMessage().Ok(packet_type))
+
+	// Notify participants
+	server.task_executor.Submit(&NotifyEventCancelled{
+		CancelledBy: session.UserId,
+		Event:       event,
+	})
+}
+
 func onInviteUsers(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	server := session.Server
@@ -552,7 +603,7 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	// Event can be modified
 	current_time := core.GetCurrentTimeMillis()
 
-	if participant.EventStartDate < current_time {
+	if participant.StartDate < current_time || participant.EventState == core.EventState_CANCELLED {
 		log.Printf("< (%v) CONFIRM ATTENDANCE %v EVENT CANNOT BE MODIFIED\n", session.UserId, msg.EventId)
 		session.Write(session.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_EVENT_CANNOT_BE_MODIFIED))
 		return

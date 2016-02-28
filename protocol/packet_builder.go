@@ -125,9 +125,9 @@ func (mb *PacketBuilder) EventCreated(event *core.Event) *AyiPacket {
 	return mb.message
 }
 
-func (mb *PacketBuilder) EventCancelled(event_id uint64, reason string) *AyiPacket {
+func (mb *PacketBuilder) EventCancelled(event *core.Event) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_CANCELLED)
-	mb.message.SetMessage(&EventCancelled{EventId: event_id, Reason: reason})
+	mb.message.SetMessage(&EventCancelled{Event: event})
 	return mb.message
 }
 

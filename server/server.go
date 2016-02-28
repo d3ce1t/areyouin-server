@@ -563,7 +563,9 @@ func sendPrivateEvents(session *AyiSession) {
 
 	server := session.Server
 	dao := server.NewEventDAO()
-	events, err := dao.LoadUserEventsAndParticipants(session.UserId, core.GetCurrentTimeMillis())
+
+	current_time := core.GetCurrentTimeMillis()
+	events, err := dao.LoadUserEventsAndParticipants(session.UserId, current_time)
 
 	if err != nil {
 		log.Printf("sendPrivateEvents() to %v Error: %v\n", session.UserId, err)
@@ -583,15 +585,20 @@ func sendPrivateEvents(session *AyiSession) {
 	// Send participants info of each event, update participant status as delivered and notify
 	for _, event := range events {
 
+		if len(event.Participants) == 0 {
+			log.Printf("WARNING: Event %v has zero participants\n", event.EventId)
+			continue
+		}
+
 		participants_filtered := session.Server.filterParticipantsMap(session.UserId, event.Participants)
 
 		// Send attendance info
 		session.Write(session.NewMessage().AttendanceStatus(event.EventId, participants_filtered))
 
 		// Update participant status of the session user
-		ownParticipant := event.Participants[session.UserId]
+		ownParticipant, ok := event.Participants[session.UserId]
 
-		if ownParticipant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
+		if ok && ownParticipant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
 			ownParticipant.Delivered = core.MessageStatus_CLIENT_DELIVERED
 			dao.SetParticipantStatus(session.UserId, event.EventId, ownParticipant.Delivered)
 
@@ -640,7 +647,7 @@ func checkAtLeastOneEventOrPanic(events []*core.Event) {
 
 func checkEventWritableOrPanic(event *core.Event) {
 	current_time := core.GetCurrentTimeMillis()
-	if event.StartDate < current_time {
+	if event.StartDate < current_time || event.State == core.EventState_CANCELLED {
 		panic(ErrNotWritableEvent)
 	}
 }
@@ -845,6 +852,7 @@ func main() {
 	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
 	server.RegisterCallback(proto.M_GET_ACCESS_TOKEN, onNewAccessToken)
 	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
+	server.RegisterCallback(proto.M_CANCEL_EVENT, onCancelEvent)
 	server.RegisterCallback(proto.M_INVITE_USERS, onInviteUsers)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
 	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)

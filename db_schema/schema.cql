@@ -89,11 +89,10 @@ DROP TABLE IF EXISTS events_by_user;
 CREATE TABLE events_by_user (
 	user_id bigint,
 	event_bucket int, // add another table to store info about where buckets starts and ends and which size they have
-	position timestamp, // only used to establish a precedence order between events
+	start_date timestamp,
 	event_id bigint,
 	author_id bigint,
 	author_name text,
-	start_date timestamp,
 	message text,
 	response int, // 0) no response, 1) no assist, 2) cannot assist, 3) assist
 	PRIMARY KEY ((user_id, event_bucket), position, event_id)
@@ -111,7 +110,7 @@ CREATE TABLE event (
 	author_name text STATIC,
 	message text STATIC,
   created_date timestamp STATIC,
-	closed_date timestamp STATIC,
+	inbox_position timestamp STATIC,
 	start_date timestamp STATIC,
 	end_date timestamp STATIC,
 	public boolean STATIC,
@@ -119,13 +118,12 @@ CREATE TABLE event (
 	longitude float STATIC,
 	num_attendees int STATIC, // maybe use a counter?
 	num_guests int STATIC,
-	event_status int STATIC, // 0) Not started, 1) Ongoing, 2) Finished, 3) Cancelled
+	event_state int STATIC, // 0) Not started, 1) Ongoing, 2) Finished, 3) Cancelled
 	// Participants
 	guest_id bigint,
 	guest_name text, // participant name
 	guest_response int, // 0) no response, 1) no assist, 2) cannot assist, 3) assist
 	guest_status int, // 0) no delivered, 1) server, 2) client
-	inbox_position timestamp,
 	PRIMARY KEY (event_id, guest_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};

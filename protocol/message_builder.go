@@ -26,7 +26,7 @@ type MessageBuilder interface {
 	IIDToken(token string) *AyiPacket
 	ChangeProfilePicture(picture []byte) *AyiPacket
 	EventCreated(event *core.Event) *AyiPacket
-	EventCancelled(event_id uint64, reason string) *AyiPacket
+	EventCancelled(event *core.Event) *AyiPacket
 	EventExpired(event_id uint64) *AyiPacket
 	EventDateModified(event_id uint64, start_date int64, end_date int64) *AyiPacket
 	EventMessageModified(event_id uint64, message string) *AyiPacket

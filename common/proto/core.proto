@@ -11,6 +11,13 @@ enum AttendanceResponse {
   ASSIST = 3;
 }
 
+enum EventState {
+  NOT_STARTED = 0;
+  ONGOING = 1;
+  FINISHED = 2;
+  CANCELLED = 3;
+}
+
 enum MessageStatus {
   NO_DELIVERED = 0;
   SERVER_DELIVERED = 1;
@@ -30,6 +37,8 @@ message Event {
   int32 num_guests = 10;
   int64 created_date = 11;
   map<uint64, EventParticipant> participants = 12;
+  int64 inbox_position = 13;
+  EventState state = 14;
 }
 
 message Location {

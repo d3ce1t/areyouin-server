@@ -35,11 +35,13 @@ type EventDAO interface {
 	InsertEventToUserInbox(participant *EventParticipant, event *Event) error
 	AddOrUpdateEventToUserInbox(participant *EventParticipant, event *Event) error
 	CompareAndSetNumGuests(event_id uint64, num_guests int) (bool, error)
-	SetNumGuests(event_id uint64, num_guests int32) error
+	//SetNumGuests(event_id uint64, num_guests int32) error
 	CompareAndSetNumAttendees(event_id uint64, num_attendees int) (bool, error)
-	SetNumAttendees(event_id uint64, num_attendees int) error
+	//SetNumAttendees(event_id uint64, num_attendees int) error
 	SetParticipantStatus(user_id uint64, event_id uint64, status MessageStatus) error
 	SetParticipantResponse(participant *Participant, response AttendanceResponse) error
+	//SetUserEventInboxPosition(participant *EventParticipant, event *Event, new_position int64) error
+	SetEventStateAndInboxPosition(event_id uint64, new_status EventState, new_position int64) error
 }
 
 type UserDAO interface {
@@ -53,6 +55,7 @@ type UserDAO interface {
 	LoadAllUsers() ([]*UserAccount, error)
 	LoadEmailCredential(email string) (credent *EmailCredential, err error)
 	LoadFacebookCredential(fbid string) (credent *FacebookCredential, err error)
+	GetIIDToken(user_id uint64) (string, error)
 	Insert(user *UserAccount) error
 	SaveProfilePicture(user_id uint64, picture *Picture) error
 	SetAuthToken(user_id uint64, auth_token uuid.UUID) error

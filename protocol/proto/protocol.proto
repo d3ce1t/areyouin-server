@@ -120,6 +120,7 @@ message InstanceIDToken {
 message EventCancelled {
   uint64 event_id = 1;
   string reason = 2;
+  common.Event event = 3;
 }
 
 // EVENT EXPIRED

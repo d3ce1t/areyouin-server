@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	gcm "github.com/google/go-gcm"
 	"image"
 	_ "image/jpeg"
@@ -10,7 +11,82 @@ import (
 	core "peeple/areyouin/common"
 	dao "peeple/areyouin/dao"
 	fb "peeple/areyouin/facebook"
+	proto "peeple/areyouin/protocol"
 )
+
+type NotifyEventCancelled struct {
+	CancelledBy uint64
+	Event       *core.Event
+}
+
+func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
+
+	server := ex.server
+
+	type UserData struct {
+		Future   chan bool
+		IIDToken string
+	}
+
+	user_data := make(map[uint64]*UserData)
+
+	if len(t.Event.GetParticipants()) == 0 {
+		log.Println("NotifyEventCancelled: There aren't targetted participants to send notification")
+		return
+	}
+
+	user_dao := server.NewUserDAO()
+	lite_event := t.Event.GetEventWithoutParticipants()
+	gcm_data := proto.NewPacket(1).EventCancelled(lite_event)
+	base64_data := base64.StdEncoding.EncodeToString(gcm_data.Data)
+
+	for _, participant := range t.Event.GetParticipants() {
+
+		session := server.GetSession(participant.UserId)
+
+		if session == nil {
+
+			iid_token, err := user_dao.GetIIDToken(participant.UserId)
+			if err != nil || iid_token == "" {
+				log.Printf("NotifyEventCancelled Error: Couldn't get IID token to send notification (%v)", err)
+				continue
+			}
+
+			t.sendGcmNotification(participant.UserId, iid_token, base64_data)
+
+		} else {
+			packet := session.NewMessage().EventCancelled(lite_event)
+			future := NewFuture(true)
+			if ok := session.WriteAsync(future, packet); ok {
+				user_data[participant.UserId] = &UserData{future.C, session.IIDToken}
+				log.Printf("< (%v) EVENT CANCELLED (event_id=%v)\n", session.UserId, t.Event.EventId)
+			} else {
+				t.sendGcmNotification(participant.UserId, session.IIDToken, base64_data)
+			}
+		}
+	} // End loop
+
+	for participant_id, data := range user_data {
+		ok := <-data.Future
+		if !ok {
+			log.Printf("(%v) ACK Timeout. Fallback to GcmNotification\n", participant_id)
+			t.sendGcmNotification(participant_id, data.IIDToken, base64_data)
+		}
+	}
+}
+
+func (t *NotifyEventCancelled) sendGcmNotification(user_id uint64, token string, data string) {
+
+	gcm_message := gcm.HttpMessage{
+		To: token,
+		Data: gcm.Data{
+			"msg_type":    "packet",
+			"packet_data": data,
+		},
+	}
+
+	sendGcmMessage(user_id, token, gcm_message)
+}
 
 type NotifyParticipantChange struct {
 	Event               *core.Event
@@ -225,7 +301,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 
 	for participant_id, c := range futures {
 
-		ok := <-c
+		ok := <-c // Blocks until ACK (true) or timeout (false)
 
 		if ok {
 
@@ -335,15 +411,14 @@ func sendGcmMessage(user_id uint64, token string, message gcm.HttpMessage) {
 		return
 	}
 
-	log.Printf("Sending GCM notification to %v\n", user_id)
+	log.Printf("Send GCM notification to %v\n", user_id)
 	response, err := gcm.SendHttp(GCM_API_KEY, message)
 
-	if err != nil {
-		log.Println("SendGCMNotification Error:", err)
-		if response != nil {
-			log.Println("SendGCMNotification Response Error:", response.Error)
-		}
+	if err != nil && response != nil {
+		log.Println("GCM Error:", err, response.Error)
+	} else if err != nil {
+		log.Println("GCM Error:", err)
 	} else {
-		log.Printf("SendGCMNotifcation Response %v\n", response)
+		log.Printf("GCM  Response %v\n", response)
 	}
 }
