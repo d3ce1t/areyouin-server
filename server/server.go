@@ -23,18 +23,23 @@ import (
 )
 
 const (
-	ALL_CONTACTS_GROUP     = 0 // Id for the main friend group of a user
-	GCM_API_KEY            = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
-	GCM_MAX_TTL            = 2419200
-	GCM_NEW_EVENT_MESSAGE  = 1
-	GCM_NEW_FRIEND_MESSAGE = 2
-	THUMBNAIL_MDPI_SIZE    = 50               // 50 px
-	IMAGE_MDPI             = 160              // 160dpi
-	IMAGE_HDPI             = 1.5 * IMAGE_MDPI // 240dpi
-	IMAGE_XHDPI            = 2 * IMAGE_MDPI   // 320dpi
-	IMAGE_XXHDPI           = 3 * IMAGE_MDPI   // 480dpi
-	IMAGE_XXXHDPI          = 4 * IMAGE_MDPI   // 640dpi
+	ALL_CONTACTS_GROUP  = 0 // Id for the main friend group of a user
+	GCM_API_KEY         = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
+	GCM_MAX_TTL         = 2419200
+	THUMBNAIL_MDPI_SIZE = 50               // 50 px
+	IMAGE_MDPI          = 160              // 160dpi
+	IMAGE_HDPI          = 1.5 * IMAGE_MDPI // 240dpi
+	IMAGE_XHDPI         = 2 * IMAGE_MDPI   // 320dpi
+	IMAGE_XXHDPI        = 3 * IMAGE_MDPI   // 480dpi
+	IMAGE_XXXHDPI       = 4 * IMAGE_MDPI   // 640dpi
 	//MAX_READ_TIMEOUT   = 1 * time.Second
+)
+
+// GCM MESSAGES
+const (
+	GCM_NEW_EVENT_MESSAGE       = 1
+	GCM_NEW_FRIEND_MESSAGE      = 2
+	GCM_EVENT_CANCELLED_MESSAGE = 3
 )
 
 func NewServer() *Server {

@@ -118,9 +118,10 @@ message InstanceIDToken {
 
 // EVENT CANCELLED
 message EventCancelled {
-  uint64 event_id = 1;
-  string reason = 2;
-  common.Event event = 3;
+  uint64 who_id = 1;
+  uint64 event_id = 2;
+  string reason = 3;
+  common.Event event = 4;
 }
 
 // EVENT EXPIRED

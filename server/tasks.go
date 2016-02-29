@@ -37,8 +37,8 @@ func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 
 	user_dao := server.NewUserDAO()
 	lite_event := t.Event.GetEventWithoutParticipants()
-	gcm_data := proto.NewPacket(1).EventCancelled(lite_event)
-	base64_data := base64.StdEncoding.EncodeToString(gcm_data.Data)
+	gcm_data := proto.NewPacket(1).EventCancelled(t.CancelledBy, lite_event)
+	base64_data := base64.StdEncoding.EncodeToString(gcm_data.Marshal())
 
 	for _, participant := range t.Event.GetParticipants() {
 
@@ -48,20 +48,22 @@ func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 
 			iid_token, err := user_dao.GetIIDToken(participant.UserId)
 			if err != nil || iid_token == "" {
-				log.Printf("NotifyEventCancelled Error: Couldn't get IID token to send notification (%v)", err)
+				log.Printf("* (%v) Coudn't send event cancelled notification (%v)", participant.UserId, err)
 				continue
 			}
 
-			t.sendGcmNotification(participant.UserId, iid_token, base64_data)
+			log.Printf("* (%v) User isn't connected. Fallback to GcmNotification\n", participant.UserId)
+			t.sendGcmNotification(participant.UserId, iid_token, t.Event.StartDate, base64_data)
 
 		} else {
-			packet := session.NewMessage().EventCancelled(lite_event)
+			packet := session.NewMessage().EventCancelled(t.CancelledBy, lite_event)
 			future := NewFuture(true)
 			if ok := session.WriteAsync(future, packet); ok {
 				user_data[participant.UserId] = &UserData{future.C, session.IIDToken}
 				log.Printf("< (%v) EVENT CANCELLED (event_id=%v)\n", session.UserId, t.Event.EventId)
 			} else {
-				t.sendGcmNotification(participant.UserId, session.IIDToken, base64_data)
+				log.Printf("* (%v) Session write failed. Fallback to GcmNotification\n", participant.UserId)
+				t.sendGcmNotification(participant.UserId, session.IIDToken, t.Event.StartDate, base64_data)
 			}
 		}
 	} // End loop
@@ -69,16 +71,21 @@ func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 	for participant_id, data := range user_data {
 		ok := <-data.Future
 		if !ok {
-			log.Printf("(%v) ACK Timeout. Fallback to GcmNotification\n", participant_id)
-			t.sendGcmNotification(participant_id, data.IIDToken, base64_data)
+			log.Printf("* (%v) ACK Timeout. Fallback to GcmNotification\n", participant_id)
+			t.sendGcmNotification(participant_id, data.IIDToken, t.Event.StartDate, base64_data)
 		}
 	}
 }
 
-func (t *NotifyEventCancelled) sendGcmNotification(user_id uint64, token string, data string) {
+func (t *NotifyEventCancelled) sendGcmNotification(user_id uint64, token string, start_date int64, data string) {
+
+	time_to_start := uint32(start_date-core.GetCurrentTimeMillis()) / 1000
+	ttl := core.MinUint32(time_to_start, GCM_MAX_TTL) // Seconds
 
 	gcm_message := gcm.HttpMessage{
-		To: token,
+		To:         token,
+		Priority:   "high",
+		TimeToLive: uint(ttl),
 		Data: gcm.Data{
 			"msg_type":    "packet",
 			"packet_data": data,
@@ -203,7 +210,8 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 func (t *ImportFacebookFriends) sendGcmNotification(user_id uint64, token string, friend_name string) {
 
 	gcm_message := gcm.HttpMessage{
-		To: token,
+		To:       token,
+		Priority: "high",
 		Data: gcm.Data{
 			"msg_type":    "notification",
 			"notify_type": GCM_NEW_FRIEND_MESSAGE,
@@ -341,6 +349,7 @@ func (t *NotifyEventInvitation) sendGcmNotification(user_id uint64, token string
 	gcm_message := gcm.HttpMessage{
 		To:         token,
 		TimeToLive: uint(ttl),
+		Priority:   "high",
 		Data: gcm.Data{
 			"msg_type":    "notification",
 			"notify_type": GCM_NEW_EVENT_MESSAGE,
@@ -411,14 +420,14 @@ func sendGcmMessage(user_id uint64, token string, message gcm.HttpMessage) {
 		return
 	}
 
-	log.Printf("Send GCM notification to %v\n", user_id)
+	log.Printf("< (%v) Send GCM notification\n", user_id)
 	response, err := gcm.SendHttp(GCM_API_KEY, message)
 
 	if err != nil && response != nil {
-		log.Println("GCM Error:", err, response.Error)
+		log.Printf("* (%v) GCM Error: %v (resp.Error: %v)\n", user_id, err, response.Error)
 	} else if err != nil {
-		log.Println("GCM Error:", err)
+		log.Printf("* (%v) GCM Error: %v\n", user_id, err)
 	} else {
-		log.Printf("GCM  Response %v\n", response)
+		log.Printf("* (%v) GCM Response: %v\n", user_id, response)
 	}
 }
