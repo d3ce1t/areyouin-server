@@ -488,6 +488,13 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 
 	checkAuthenticated(session)
 
+	// First of all, check participants
+	if len(msg.Participants) == 0 {
+		session.Write(session.NewMessage().Error(packet_type, proto.E_EVENT_PARTICIPANTS_REQUIRED))
+		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) PARTICIPANTS REQUIRED\n", session.UserId, msg.EventId)
+		return
+	}
+
 	eventDAO := server.NewEventDAO()
 	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
 	checkNoErrorOrPanic(err)
@@ -504,12 +511,6 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 	checkEventWritableOrPanic(event)
 
 	// Load user participants
-	if len(msg.Participants) == 0 {
-		session.Write(session.NewMessage().Error(packet_type, proto.E_EVENT_PARTICIPANTS_REQUIRED))
-		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) PARTICIPANTS REQUIRED\n", session.UserId, msg.EventId)
-		return
-	}
-
 	participants_id := server.GetNewParticipants(msg.Participants, event)
 	userParticipants, warning, err := server.loadUserParticipants(author_id, participants_id)
 
@@ -551,6 +552,8 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 			log.Println("Invite Users: Update Num. guestss Error:", err)
 		}
 
+		event.NumGuests = int32(len(event.Participants))
+
 		session.Write(session.NewMessage().Ok(packet_type))
 		log.Printf("< (%v) INVITE USERS OK (event_id=%v, invitations_send=%v, total=%v)\n", session.UserId, msg.EventId, succeedCounter, len(msg.Participants))
 
@@ -559,6 +562,7 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 			Event:               event,
 			ParticipantsChanged: new_participants,
 			Target:              old_participants,
+			NumGuests:           event.NumGuests, // Include also total NumGuests because it's changed
 		}
 
 		server.task_executor.Submit(notify_event_changed)

@@ -148,6 +148,7 @@ message InvitationCancelled {
 message AttendanceStatus {
   uint64 event_id = 1;
   repeated common.EventParticipant attendance_status = 2;
+  int32 num_guests = 3;
 }
 
 // EVENT CHANGE DATE PROPOSED

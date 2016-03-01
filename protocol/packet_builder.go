@@ -173,6 +173,12 @@ func (mb *PacketBuilder) AttendanceStatus(event_id uint64, status []*core.EventP
 	return mb.message
 }
 
+func (mb *PacketBuilder) AttendanceStatusWithNumGuests(event_id uint64, status []*core.EventParticipant, num_guests int32) *AyiPacket {
+	mb.message.Header.SetType(M_ATTENDANCE_STATUS)
+	mb.message.SetMessage(&AttendanceStatus{EventId: event_id, AttendanceStatus: status, NumGuests: num_guests})
+	return mb.message
+}
+
 func (mb *PacketBuilder) EventChangeDateProposed(event_id uint64, change_id uint32, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_CHANGE_DATE_PROPOSED)
 	mb.message.SetMessage(&EventChangeProposed{EventId: event_id, ChangeId: change_id, StartDate: start_date, EndDate: end_date})

@@ -98,6 +98,7 @@ func (t *NotifyEventCancelled) sendGcmNotification(user_id uint64, token string,
 type NotifyParticipantChange struct {
 	Event               *core.Event
 	ParticipantsChanged []uint64 // Participants that has changed
+	NumGuests           int32
 	Target              []uint64
 }
 
@@ -129,7 +130,14 @@ func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 
 		if session != nil {
 			privacy_participant_list := server.filterParticipantsSlice(participant_dst, participant_list)
-			msg := session.NewMessage().AttendanceStatus(t.Event.EventId, privacy_participant_list)
+
+			var msg *proto.AyiPacket
+
+			if t.NumGuests > 0 {
+				msg = session.NewMessage().AttendanceStatusWithNumGuests(t.Event.EventId, privacy_participant_list, t.NumGuests)
+			} else {
+				msg = session.NewMessage().AttendanceStatus(t.Event.EventId, privacy_participant_list)
+			}
 
 			if session.Write(msg) {
 				log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", participant_dst, t.Event.EventId, len(privacy_participant_list))
