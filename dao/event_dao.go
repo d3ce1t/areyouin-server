@@ -34,7 +34,7 @@ func (dao *EventDAO) InsertEventAndParticipants(event *core.Event) error {
 	batch := dao.session.NewBatch(gocql.UnloggedBatch) // Use unlogged batches when making updates to the same partition key.
 
 	batch.Query(stmt_event, event.EventId, event.AuthorId, event.AuthorName, event.Message, event.StartDate,
-		event.EndDate, event.IsPublic, event.NumAttendees, event.NumGuests, event.CreatedDate, event.StartDate)
+		event.EndDate, event.IsPublic, event.NumAttendees, event.NumGuests, event.CreatedDate, event.InboxPosition)
 
 	for _, participant := range event.Participants {
 		batch.Query(stmt_participant, event.EventId, participant.UserId, participant.Name,

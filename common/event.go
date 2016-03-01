@@ -21,16 +21,17 @@ var (
 func CreateNewEvent(event_id uint64, author_id uint64, author_name string, created_date int64, start_date int64,
 	end_date int64, message string) *Event {
 	event := &Event{
-		EventId:      event_id,
-		AuthorId:     author_id,
-		AuthorName:   author_name,
-		CreatedDate:  created_date,
-		StartDate:    start_date,
-		EndDate:      end_date,
-		Message:      message,
-		IsPublic:     false,
-		NumAttendees: 0,
-		NumGuests:    0,
+		EventId:       event_id,
+		AuthorId:      author_id,
+		AuthorName:    author_name,
+		CreatedDate:   created_date,
+		InboxPosition: start_date,
+		StartDate:     start_date,
+		EndDate:       end_date,
+		Message:       message,
+		IsPublic:      false,
+		NumAttendees:  0,
+		NumGuests:     0,
 	}
 	return event
 }
