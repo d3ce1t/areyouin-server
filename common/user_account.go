@@ -39,7 +39,23 @@ func NewUserAccount(id uint64, name string, email string, password string, phone
 }
 
 func IsValidEmail(email string) bool {
-	return validEmail.MatchString(email)
+
+	if email == "" || len(email) > 254 {
+		return false
+	}
+
+	// Golang regex MatchString tries to match the left-most substring, not the whole
+	// string. So this is a workaround to check string matching
+	// --- start work around ---
+	match := validEmail.FindString(email)
+	result := false
+
+	if match != "" {
+		result = match == email
+	}
+	// --- end work around ---
+
+	return result
 }
 
 type UserAccount struct {
