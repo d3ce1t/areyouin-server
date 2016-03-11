@@ -708,6 +708,52 @@ func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
 	return false
 }
 
+func (s *Server) createUserAccount(user *core.UserAccount) error {
+
+	// Check if its a valid user, so the input was correct
+	if _, err := user.IsValid(); err != nil {
+		return err
+	}
+
+	userDAO := s.NewUserDAO()
+
+	// If it's a Facebook account (fbid and fbtoken are not empty) check token
+	if user.HasFacebookCredentials() {
+		fbsession := fb.NewSession(user.Fbtoken)
+		if _, err := fb.CheckAccess(user.Fbid, fbsession); err != nil {
+			return err
+		}
+	}
+
+	// Insert into users database. Insert will fail if an existing user with the same
+	// e-mail address already exists, or if the Facebook address is already being used
+	// by another user. It also controls orphaned user_facebook_credentials rows due
+	// to the way insertion is performed in Cassandra. When orphaned row is found and
+	// grace period has not elapsed, an ErrGracePeriod error is triggered. A different
+	// error message could be sent to the client whenever this happens. This way client
+	// could be notified to wait grace period seconds and retry. However, an OPERATION
+	// FAILED message is sent so far. Read UserDAO.insert for more info.
+	if err := userDAO.Insert(user); err != nil {
+		return err
+	}
+
+	// Insert OK
+	if user.HasFacebookCredentials() {
+		// Load profie picture from Facebook
+		s.task_executor.Submit(&LoadFacebookProfilePicture{
+			User:    user,
+			Fbtoken: user.Fbtoken,
+		})
+		// Import Facebook friends that uses AreYouIN if needed
+		s.task_executor.Submit(&ImportFacebookFriends{
+			TargetUser: user,
+			Fbtoken:    user.Fbtoken,
+		})
+	}
+
+	return nil
+}
+
 func (s *Server) saveProfilePicture(user_id uint64, picture *core.Picture) error {
 
 	// Create thumbnails

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	gcm "github.com/google/go-gcm"
 	"golang.org/x/crypto/ssh"
@@ -13,12 +14,14 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	core "peeple/areyouin/common"
 	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 func NewShell(server *Server) *Shell {
@@ -183,16 +186,18 @@ func (shell *Shell) Execute(channel io.ReadWriter) {
 
 func (shell *Shell) init() {
 	shell.commands = map[string]Command{
-		"help":            shell.help,
-		"list_sessions":   shell.listSessions,
-		"list_users":      shell.listUserAccounts,
-		"delete_user":     shell.deleteUser,
-		"send_auth_error": shell.sendAuthError,
-		"send_msg":        shell.sendMsg,
-		"close_session":   shell.closeSession,
-		"show_user":       shell.showUser,
-		"ping":            shell.pingClient,
-		"reset_picture":   shell.resetPicture,
+		"help":             shell.help,
+		"list_sessions":    shell.listSessions,
+		"list_users":       shell.listUserAccounts,
+		"delete_user":      shell.deleteUser,
+		"send_auth_error":  shell.sendAuthError,
+		"send_msg":         shell.sendMsg,
+		"close_session":    shell.closeSession,
+		"show_user":        shell.showUser,
+		"ping":             shell.pingClient,
+		"reset_picture":    shell.resetPicture,
+		"create_fake_user": shell.createFakeUser,
+		"make_friends":     shell.makeFriends,
 	}
 }
 
@@ -567,6 +572,103 @@ func (shell *Shell) resetPicture(args []string) {
 	manageShellError(err)
 
 	fmt.Fprintf(shell.io, "Picture size %v bytes\n", len(picture_bytes))
+}
+
+// create_fake_user
+func (shell *Shell) createFakeUser(args []string) {
+
+	// Request random user data
+	resp, err := http.Get("https://randomuser.me/api/")
+	manageShellError(err)
+
+	defer resp.Body.Close()
+
+	json_data, err := ioutil.ReadAll(resp.Body)
+	manageShellError(err)
+
+	// Decode data
+	var f interface{}
+	err = json.Unmarshal(json_data, &f)
+	manageShellError(err)
+
+	m := f.(map[string]interface{})["results"].([]interface{})[0].(map[string]interface{})
+	m = m["user"].(map[string]interface{})
+
+	firstName := []rune(m["name"].(map[string]interface{})["first"].(string))
+	lastName := []rune(m["name"].(map[string]interface{})["last"].(string))
+	firstName[0] = unicode.ToUpper(firstName[0])
+	lastName[0] = unicode.ToUpper(lastName[0])
+	name := string(firstName) + " " + string(lastName)
+
+	email := m["email"].(string)
+	password := "12345" //m["password"].(string)
+
+	pictures := m["picture"].(map[string]interface{})
+	picture_url := pictures["large"].(string)
+
+	// Download profile picture
+	resp, err = http.Get(picture_url)
+	manageShellError(err)
+
+	defer resp.Body.Close()
+	picture_bytes, err := ioutil.ReadAll(resp.Body)
+	manageShellError(err)
+
+	// Decode image
+	original_image, _, err := image.Decode(bytes.NewReader(picture_bytes))
+	manageShellError(err)
+
+	// Resize image to 512x512
+	picture_bytes, err = shell.server.resizeImage(original_image, 512)
+	manageShellError(err)
+
+	// Create new user account
+	user := core.NewUserAccount(shell.server.GetNewID(), name, email, password, "", "", "")
+	err = shell.server.createUserAccount(user)
+	manageShellError(err)
+
+	// Success
+	fmt.Fprint(shell.io, "Account created successfully\n")
+	fmt.Fprintf(shell.io, "Name: %v\nEmail: %v\nPassword: %v\nPicture: %v\n",
+		name, email, password, picture_url)
+
+	// Save profile Picture
+	digest := sha256.Sum256(picture_bytes)
+
+	picture := &core.Picture{
+		RawData: picture_bytes,
+		Digest:  digest[:],
+	}
+
+	err = shell.server.saveProfilePicture(user.Id, picture)
+	manageShellError(err)
+
+	fmt.Fprintf(shell.io, "Profile picture changed\n")
+}
+
+// make_friends user1 user2
+func (shell *Shell) makeFriends(args []string) {
+
+	friend_one_id, err := strconv.ParseUint(args[1], 10, 64)
+	manageShellError(err)
+
+	friend_two_id, err := strconv.ParseUint(args[2], 10, 64)
+	manageShellError(err)
+
+	server := shell.server
+	userDAO := server.NewUserDAO()
+	friendDAO := server.NewFriendDAO()
+
+	user1, err := userDAO.Load(friend_one_id)
+	manageShellError(err)
+
+	user2, err := userDAO.Load(friend_two_id)
+	manageShellError(err)
+
+	err = friendDAO.MakeFriends(user1, user2)
+	manageShellError(err)
+
+	fmt.Fprintf(shell.io, "%v and %v are now friends\n", user1.Id, user2.Id)
 }
 
 func ff(text interface{}, lenght int) string {

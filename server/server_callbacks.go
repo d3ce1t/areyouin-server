@@ -355,13 +355,14 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	author, err := userDAO.Load(session.UserId)
 	if err != nil {
 		session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
-		log.Printf("< (%v) CREATE EVENT AUTHOR ERROR %v\n", session.UserId, err)
+		log.Printf("< (%v) CREATE EVENT AUTHOR ERROR (1) %v\n", session.UserId, err)
 		return
 	}
 
-	if _, err := author.IsValid(); err != nil {
+	valid, err := userDAO.CheckValidAccountObject(author.Id, author.Email, author.Fbid, true)
+	if !valid || err != nil {
 		session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
-		log.Printf("< (%v) CREATE EVENT AUTHOR ERROR %v\n", session.UserId, err)
+		log.Printf("< (%v) CREATE EVENT AUTHOR ERROR (2) %v\n", session.UserId, err)
 		return
 	}
 

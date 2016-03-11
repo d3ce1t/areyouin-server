@@ -151,6 +151,7 @@ func (dao *UserDAO) LoadWithPicture(user_id uint64) (*core.UserAccount, error) {
 	return user, nil
 }
 
+// FIXME: This function does not load credential causing UserAccount.IsValid to return false
 // Load a user from database but do not include profile picture
 func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 
@@ -167,8 +168,8 @@ func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
 	var auth_token gocql.UUID
 
 	err := q.Scan(&user.Id, &auth_token, &user.Email, &user.EmailVerified, &user.Name,
-		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection, &user.CreatedDate,
-		&user.PictureDigest)
+		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection,
+		&user.CreatedDate, &user.PictureDigest)
 
 	if err != nil {
 		log.Println("UserDAO Load:", err)
