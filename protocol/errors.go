@@ -34,5 +34,7 @@ var (
 	ErrInvalidSocket      = errors.New("invalid connection socket")
 	ErrMaxPayloadExceeded = errors.New("max payload exceeded")
 	ErrIncompleteWrite    = errors.New("incomplete write")
+	ErrUnknownMessage     = errors.New("unknown message")
+	ErrNoPayload          = errors.New("packet conveys no message")
 	//ErrMalformedHeader    = errors.New("Malformed header")
 )

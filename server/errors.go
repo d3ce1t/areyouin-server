@@ -11,7 +11,7 @@ var (
 	ErrSessionNotConnected        = errors.New("session not connected")
 	ErrAuthRequired               = errors.New("auth required")
 	ErrNoAuthRequired             = errors.New("no auth required")
-	ErrUnknownMessage             = errors.New("unknown message")
+	ErrUnregisteredMessage        = errors.New("unregistered message")
 	ErrNonFriendsIgnored          = errors.New("ignored non friends participants")
 	ErrUnregisteredFriendsIgnored = errors.New("ignored unregistered participants")
 	ErrParticipantsRequired       = errors.New("participants required")

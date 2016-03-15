@@ -115,6 +115,8 @@ func readLimit(reader io.Reader, limit uint, data []byte) error {
 	return nil
 }
 
+// In header v1 first byte is version. However, this byte
+// is header size in header v2. So max.size for header is 256 bytes.
 func readHeader(reader *bufio.Reader) (AyiHeader, error) {
 
 	packet_version, err := reader.ReadByte()
@@ -200,6 +202,8 @@ func createEmptyMessage(packet_type PacketType) Message {
 		message = &AccessToken{}
 	case M_CHANGE_PROFILE_PICTURE:
 		message = &UserAccount{}
+	case M_HELLO:
+		message = &Hello{}
 	case M_IID_TOKEN:
 		message = &InstanceIDToken{}
 

@@ -12,7 +12,7 @@ func newPacketV2() *AyiPacket {
 	packet := &AyiPacket{
 		Header: &AyiHeaderV2{},
 	}
-	packet.Header.SetVersion(1)
+	packet.Header.SetVersion(1) // Protocol version starts at 0.
 	packet.Header.SetToken(0)
 	packet.Header.SetType(M_ERROR)
 	packet.Header.SetSize(0) // Payload size
@@ -51,18 +51,25 @@ func (packet *AyiPacket) Version() uint32 {
 
 // Decodes a packet in order to get a message. If the message
 // is unknown a nil message is returned
-func (packet *AyiPacket) DecodeMessage() Message {
+func (packet *AyiPacket) DecodeMessage() (Message, error) {
+
+	// Check if packet conveys payload
+	if !packet.HasPayload() {
+		return nil, ErrNoPayload
+	}
 
 	message := createEmptyMessage(packet.Type())
 
-	if message != nil && packet.HasPayload() {
-		err := proto.Unmarshal(packet.Data, message)
-		if err != nil {
-			return nil
-		}
+	if message == nil {
+		return nil, ErrUnknownMessage
 	}
 
-	return message
+	err := proto.Unmarshal(packet.Data, message)
+	if err != nil {
+		return nil, err
+	}
+
+	return message, nil
 }
 
 func (packet *AyiPacket) SetMessage(message Message) {

@@ -352,8 +352,11 @@ func (s *Server) generatorTask(gid uint16) {
 
 func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err error) {
 
-	// Decodes payload
-	message := packet.DecodeMessage()
+	// Decodes payload. If message does not have payload, ignore that
+	message, decode_err := packet.DecodeMessage()
+	if err != nil && err != proto.ErrNoPayload {
+		return decode_err
+	}
 
 	// Defer recovery
 	defer func() {
@@ -370,7 +373,7 @@ func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err
 	if f, ok := s.callbacks[packet.Type()]; ok {
 		f(packet.Type(), message, session)
 	} else {
-		err = ErrUnknownMessage
+		err = ErrUnregisteredMessage
 	}
 
 	return

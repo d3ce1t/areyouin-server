@@ -14,6 +14,14 @@ message AyiHeaderV2 {
   uint32 payloadSize = 4;
 }
 
+// Hello
+message Hello {
+  uint32 protocol_version = 1;
+  string client_version = 2;
+  string platform = 3; // Android, iOS, Web, ...
+  string platform_version = 4;
+}
+
 //
 // Modifiers
 //

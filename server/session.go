@@ -53,24 +53,36 @@ func NewFuture(ack bool) *Future {
 func NewSession(conn net.Conn, server *Server) *AyiSession {
 
 	session := &AyiSession{
-		Conn:        conn,
-		Version:     0, // Use v1 by default
-		UserId:      0,
-		IsAuth:      false,
-		eventChan:   make(chan *SessionEvent, EVENT_CHANNEL_SIZE),
-		writeChan:   make(chan *WriteMsg, WRITE_CHANNEL_SIZE),
-		Server:      server,
-		lastRecvMsg: time.Now().UTC(),
-		pendingResp: make(map[uint16]chan bool),
+		Conn:            conn,
+		ProtocolVersion: 0, // Use v1 by default
+		UserId:          0,
+		IsAuth:          false,
+		eventChan:       make(chan *SessionEvent, EVENT_CHANNEL_SIZE),
+		writeChan:       make(chan *WriteMsg, WRITE_CHANNEL_SIZE),
+		Server:          server,
+		lastRecvMsg:     time.Now().UTC(),
+		pendingResp:     make(map[uint16]chan bool),
 	}
 
 	return session
 }
 
 type AyiSession struct {
-	Conn             net.Conn
-	UserId           uint64
-	Version          uint8
+	Conn   net.Conn
+	UserId uint64
+
+	// Network protocol version
+	ProtocolVersion uint8
+
+	// Client version
+	ClientVersion string
+
+	// Platform
+	Platform string
+
+	// Platform Version
+	PlatformVersion string
+
 	IsAuth           bool
 	eventChan        chan *SessionEvent
 	writeChan        chan *WriteMsg
@@ -96,7 +108,7 @@ func (s *AyiSession) String() string {
 }
 
 func (s *AyiSession) NewMessage() proto.MessageBuilder {
-	return proto.NewPacket(s.Version)
+	return proto.NewPacket(s.ProtocolVersion)
 }
 
 // Alias for WriteAsync without indicating a future
@@ -272,9 +284,17 @@ func (s *AyiSession) doRead() {
 	packet, err := proto.ReadPacket(s.Conn) // Blocked here
 
 	if err == nil {
+
 		s.lastRecvMsg = time.Now()
 		s.pingTime = s.lastRecvMsg.Add(PING_INTERVAL_MS)
-		s.Version = uint8(packet.Version())
+
+		// Before HELLO message was introduced, the protocol version was set from the
+		// received packet each time. Now protocol version is set by HELLO message.
+		// For compatibility purposes keep doing the same thing but get it from the first
+		// received packet so that version from a posterior HELLO message doesn't get overrided.
+		if s.ProtocolVersion == 0 {
+			s.ProtocolVersion = uint8(packet.Version())
+		}
 
 		if !s.manageSessionMsg(packet) {
 			s.eventChan <- &SessionEvent{Id: READ_MESSAGE_EVENT, Object: packet}
@@ -340,6 +360,7 @@ func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 // managed or false otherwise
 func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 
+	// USE TLS
 	if packet.Header.GetType() == proto.M_USE_TLS {
 		log.Printf("> (%v) USE TLS\n", s)
 		if tlsconn, ok := s.Conn.(*tls.Conn); !ok {
@@ -354,6 +375,21 @@ func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 		return true
 	}
 
+	// HELLO
+	if packet.Header.GetType() == proto.M_HELLO {
+		generic_message, _ := packet.DecodeMessage()
+		if generic_message != nil {
+			hello_info := generic_message.(*proto.Hello)
+			s.ProtocolVersion = uint8(hello_info.ProtocolVersion)
+			s.ClientVersion = hello_info.ClientVersion
+			s.Platform = hello_info.Platform
+			s.PlatformVersion = hello_info.PlatformVersion
+			log.Printf("> (%v) HELLO %v\n", s, hello_info)
+		}
+		return true
+	}
+
+	// REQUIRE ACK
 	if packet.Header.GetType() == proto.M_OK && packet.Header.GetToken() != 0 {
 		if c, ok := s.pendingResp[packet.Header.GetToken()]; ok {
 			log.Printf("> (%v) ACK %v\n", s.UserId, packet.Header.GetToken())
