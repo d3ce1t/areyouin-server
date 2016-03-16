@@ -53,20 +53,23 @@ func (packet *AyiPacket) Version() uint32 {
 // is unknown a nil message is returned
 func (packet *AyiPacket) DecodeMessage() (Message, error) {
 
-	// Check if packet conveys payload
-	if !packet.HasPayload() {
-		return nil, ErrNoPayload
-	}
-
+	// Check message first. Because of protocol buffers default messages
+	// a packet could not convey payload but have a message with default
+	// values, i.e. empty strings, zero values, and so on.
 	message := createEmptyMessage(packet.Type())
 
 	if message == nil {
-		return nil, ErrUnknownMessage
+		if !packet.HasPayload() {
+			return nil, ErrNoPayload
+		} else {
+			return nil, ErrUnknownMessage
+		}
 	}
 
-	err := proto.Unmarshal(packet.Data, message)
-	if err != nil {
-		return nil, err
+	if packet.HasPayload() {
+		if err := proto.Unmarshal(packet.Data, message); err != nil {
+			return nil, err
+		}
 	}
 
 	return message, nil
