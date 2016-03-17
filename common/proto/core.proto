@@ -39,6 +39,7 @@ message Event {
   map<uint64, EventParticipant> participants = 12;
   int64 inbox_position = 13;
   EventState state = 14;
+  bytes picture_digest = 15;
 }
 
 message Location {

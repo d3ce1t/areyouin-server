@@ -560,7 +560,7 @@ func (shell *Shell) resetPicture(args []string) {
 	picture_bytes, err = server.resizeImage(original_image, 512)
 	manageShellError(err)
 
-	// Save profile Picture
+	// Compute digest and prepare image
 	digest := sha256.Sum256(picture_bytes)
 
 	picture := &core.Picture{
@@ -568,6 +568,7 @@ func (shell *Shell) resetPicture(args []string) {
 		Digest:  digest[:],
 	}
 
+	// Save profile Picture
 	err = server.saveProfilePicture(user_id, picture)
 	manageShellError(err)
 
@@ -618,7 +619,7 @@ func (shell *Shell) createFakeUser(args []string) {
 	original_image, _, err := image.Decode(bytes.NewReader(picture_bytes))
 	manageShellError(err)
 
-	// Resize image to 512x512
+	// Resize image to 512xauto
 	picture_bytes, err = shell.server.resizeImage(original_image, 512)
 	manageShellError(err)
 

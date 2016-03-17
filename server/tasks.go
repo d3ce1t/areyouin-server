@@ -377,6 +377,7 @@ func (task *LoadFacebookProfilePicture) Run(ex *TaskExecutor) {
 
 	server := ex.server
 
+	// Get profile picture
 	fbsession := fb.NewSession(task.Fbtoken)
 	picture_bytes, err := fb.GetProfilePicture(fbsession)
 	if err != nil {
@@ -398,7 +399,7 @@ func (task *LoadFacebookProfilePicture) Run(ex *TaskExecutor) {
 		return
 	}
 
-	// Save profile Picture
+	// Compute digest and prepare image
 	digest := sha256.Sum256(picture_bytes)
 
 	picture := &core.Picture{
@@ -406,6 +407,7 @@ func (task *LoadFacebookProfilePicture) Run(ex *TaskExecutor) {
 		Digest:  digest[:],
 	}
 
+	// Save profile Picture
 	if err := server.saveProfilePicture(task.User.Id, picture); err != nil {
 		log.Println("LoadFacebookProfilePicture: ", err)
 		return

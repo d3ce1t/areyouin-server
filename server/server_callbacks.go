@@ -346,18 +346,14 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 
 	server := session.Server
 	msg := message.(*proto.CreateEvent)
-	log.Printf("> (%v) CREATE EVENT %v\n", session.UserId, msg)
+	log.Printf("> (%v) CREATE EVENT (message: %v, start: %v, end: %v, invitations: %v, picture: %v bytes)\n",
+		session.UserId, msg.Message, msg.StartDate, msg.EndDate, len(msg.Participants), len(msg.Picture))
 
 	checkAuthenticated(session)
 
 	userDAO := server.NewUserDAO()
-
 	author, err := userDAO.Load(session.UserId)
-	if err != nil {
-		session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
-		log.Printf("< (%v) CREATE EVENT AUTHOR ERROR (1) %v\n", session.UserId, err)
-		return
-	}
+	checkNoErrorOrPanic(err)
 
 	valid, err := userDAO.CheckValidAccountObject(author.Id, author.Email, author.Fbid, true)
 	if !valid || err != nil {
@@ -376,6 +372,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 		return
 	}
 
+	// Create event object
 	event := core.CreateNewEvent(server.GetNewID(), author.Id, author.Name, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
 
 	if _, err := event.IsValid(); err != nil {
@@ -405,9 +402,29 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	authorParticipant.SetFields(core.AttendanceResponse_ASSIST, core.MessageStatus_NO_DELIVERED) // Assume it's delivered because author created it
 	participantsList[author.Id] = authorParticipant
 
+	// Set participants
 	event.SetParticipants(participantsList)
 
+	// Compute digest for event picture
+	digest := sha256.Sum256(msg.Picture)
+
+	picture := &core.Picture{
+		RawData: msg.Picture,
+		Digest:  digest[:],
+	}
+
+	// Finally publish event
 	if err := server.PublishEvent(event); err == nil {
+
+		// After that, set event picture if received
+
+		if len(msg.Picture) != 0 {
+			err = server.saveEventPicture(event.EventId, picture)
+			if err != nil {
+				// Only log error but do nothiing. Event has already been published.
+				log.Printf("* (%v) Error saving picture for event %v (%v)\n", session.UserId, event.EventId, err)
+			}
+		}
 
 		ok_msg := session.NewMessage().Ok(packet_type)
 		session.Write(ok_msg)

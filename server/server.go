@@ -5,8 +5,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/disintegration/imaging"
 	"github.com/gocql/gocql"
-	"github.com/nfnt/resize"
 	"image"
 	"image/jpeg"
 	"log"
@@ -26,6 +26,7 @@ const (
 	ALL_CONTACTS_GROUP  = 0 // Id for the main friend group of a user
 	GCM_API_KEY         = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
 	GCM_MAX_TTL         = 2419200
+	EVENT_THUMBNAIL     = 100              // 100 px
 	THUMBNAIL_MDPI_SIZE = 50               // 50 px
 	IMAGE_MDPI          = 160              // 160dpi
 	IMAGE_HDPI          = 1.5 * IMAGE_MDPI // 240dpi
@@ -457,11 +458,6 @@ func (s *Server) PublishEvent(event *core.Event) error {
 		return err
 	}
 
-	// NOTE: DeliverySystem Submit must be persistent in order to continue the job
-	// in case of failure. So, in the meanwhile publishing events to inbox will be
-	// managed here. Only notification will be managed async.
-	//s.ds.Submit(event) // put event into users' inbox
-
 	// Author is the last participant. Add it first in order to get the author receive
 	// the event to add other participants if something fails
 	event.Participants[event.AuthorId].Delivered = core.MessageStatus_CLIENT_DELIVERED
@@ -757,10 +753,17 @@ func (s *Server) createUserAccount(user *core.UserAccount) error {
 	return nil
 }
 
+// Assume picture is 512x512
 func (s *Server) saveProfilePicture(user_id uint64, picture *core.Picture) error {
 
+	// Decode image
+	srcImage, _, err := image.Decode(bytes.NewReader(picture.RawData))
+	if err != nil {
+		return err
+	}
+
 	// Create thumbnails
-	thumbnails, err := s.createThumbnails(picture.RawData, THUMBNAIL_MDPI_SIZE)
+	thumbnails, err := s.createThumbnails(srcImage, THUMBNAIL_MDPI_SIZE)
 	if err != nil {
 		return err
 	}
@@ -833,31 +836,68 @@ func (s *Server) removeProfilePicture(user_id uint64, picture *core.Picture) err
 	return nil
 }
 
-func (s *Server) createThumbnails(picture []byte, width int) (map[int32][]byte, error) {
+func (s *Server) saveEventPicture(event_id uint64, picture *core.Picture) error {
+
+	// The whole picture is the header. But It is also needed thumbnails for
+	// event icon.
 
 	// Decode image
-	original_image, _, err := image.Decode(bytes.NewReader(picture))
+	srcImage, _, err := image.Decode(bytes.NewReader(picture.RawData))
 	if err != nil {
-		return nil, err
+		return err
 	}
+
+	// Create thumbnails
+	thumbnails, err := s.createThumbnails(srcImage, EVENT_THUMBNAIL)
+	if err != nil {
+		return err
+	}
+
+	// Save thumbnails
+	thumbDAO := s.NewThumbnailDAO()
+	err = thumbDAO.Insert(event_id, picture.Digest, thumbnails)
+	if err != nil {
+		return err
+	}
+
+	// Save event picture (always does it after thumbnails)
+	eventDAO := s.NewEventDAO()
+	err = eventDAO.SetEventPicture(event_id, picture)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Creates picture thumbnails for every supported dpi. Thumbnails size are
+// (size_xy, size_xy)*scale_factor. Thumbnails are returned as byte slide
+// JPEG encoded.
+func (s *Server) createThumbnails(srcImage image.Image, size_xy int) (map[int32][]byte, error) {
 
 	// Create thumbnails for distinct sizes
 	thumbnails := make(map[int32][]byte)
 
 	for _, dpi := range s.supportedDpi {
-		size := float32(width) * (float32(dpi) / float32(IMAGE_MDPI))
-		resized_image, err := s.resizeImage(original_image, uint(size))
+		// Compute size
+		size := float32(size_xy) * (float32(dpi) / float32(IMAGE_MDPI))
+		// Resize and crop image to fill size x size area
+		dstImage := imaging.Thumbnail(srcImage, int(size), int(size), imaging.Lanczos)
+		log.Printf("%v dpi has image %v\n", dpi, dstImage.Bounds().Size())
+		// Encode
+		bytes := &bytes.Buffer{}
+		err := jpeg.Encode(bytes, dstImage, nil)
 		if err != nil {
 			return nil, err
 		}
-		thumbnails[dpi] = resized_image
+		thumbnails[dpi] = bytes.Bytes()
 	}
 
 	return thumbnails, nil
 }
 
-func (s *Server) resizeImage(picture image.Image, width uint) ([]byte, error) {
-	resize_image := resize.Resize(width, 0, picture, resize.Lanczos3)
+func (s *Server) resizeImage(picture image.Image, width int) ([]byte, error) {
+	resize_image := imaging.Resize(picture, width, 0, imaging.Lanczos)
 	bytes := &bytes.Buffer{}
 	err := jpeg.Encode(bytes, resize_image, nil)
 	if err != nil {

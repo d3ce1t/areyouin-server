@@ -42,6 +42,7 @@ type EventDAO interface {
 	SetParticipantResponse(participant *Participant, response AttendanceResponse) error
 	//SetUserEventInboxPosition(participant *EventParticipant, event *Event, new_position int64) error
 	SetEventStateAndInboxPosition(event_id uint64, new_status EventState, new_position int64) error
+	SetEventPicture(event_id uint64, picture *Picture) error
 }
 
 type UserDAO interface {

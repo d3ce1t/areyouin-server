@@ -185,7 +185,7 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*co
 
 	events = make([]*core.Event, 0, len(event_ids))
 
-	stmt := `SELECT event_id, author_id, author_name, message, created_date, inbox_position, start_date,
+	stmt := `SELECT event_id, author_id, author_name, message, picture_digest, created_date, inbox_position, start_date,
 									end_date, num_attendees, num_guests, event_state, guest_id, guest_name,
 									guest_response, guest_status
 						FROM event WHERE event_id IN (` + GenParams(len(event_ids)) + `)`
@@ -197,6 +197,7 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*co
 	var author_id uint64
 	var author_name string
 	var message string
+	var digest []byte
 	var created_date int64
 	var inbox_position int64
 	var start_date int64
@@ -212,7 +213,7 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*co
 	events_index := make(map[uint64]*core.Event)
 
 	// Except guest attributes, all of the attributes are STATIC in cassandra
-	for iter.Scan(&event_id, &author_id, &author_name, &message, &created_date, &inbox_position, &start_date,
+	for iter.Scan(&event_id, &author_id, &author_name, &message, &digest, &created_date, &inbox_position, &start_date,
 		&end_date, &num_attendees, &num_guests, &event_state, &guest_id, &guest_name, &guest_response, &guest_status) {
 
 		event, ok := events_index[event_id]
@@ -226,6 +227,7 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*co
 				StartDate:     start_date,
 				EndDate:       end_date,
 				Message:       message,
+				PictureDigest: digest,
 				IsPublic:      false,
 				NumAttendees:  num_attendees,
 				NumGuests:     num_guests,
@@ -267,7 +269,7 @@ func (dao *EventDAO) LoadEvent(event_ids ...uint64) (events []*core.Event, err e
 
 	events = make([]*core.Event, 0, len(event_ids))
 
-	stmt := `SELECT DISTINCT event_id, author_id, author_name, message, created_date, inbox_position,
+	stmt := `SELECT DISTINCT event_id, author_id, author_name, message, picture_digest, created_date, inbox_position,
 									start_date,	end_date, num_attendees, num_guests, event_state
 						FROM event WHERE event_id IN (` + GenParams(len(event_ids)) + `)`
 
@@ -278,6 +280,7 @@ func (dao *EventDAO) LoadEvent(event_ids ...uint64) (events []*core.Event, err e
 	var author_id uint64
 	var author_name string
 	var message string
+	var digest []byte
 	var created_date int64
 	var inbox_position int64
 	var start_date int64
@@ -287,7 +290,7 @@ func (dao *EventDAO) LoadEvent(event_ids ...uint64) (events []*core.Event, err e
 	var event_state int32
 
 	// Except guest attributes, all of the attributes are STATIC in cassandra
-	for iter.Scan(&event_id, &author_id, &author_name, &message, &created_date, &inbox_position,
+	for iter.Scan(&event_id, &author_id, &author_name, &message, &digest, &created_date, &inbox_position,
 		&start_date, &end_date, &num_attendees, &num_guests, &event_state) {
 
 		event := &core.Event{
@@ -298,6 +301,7 @@ func (dao *EventDAO) LoadEvent(event_ids ...uint64) (events []*core.Event, err e
 			StartDate:     start_date,
 			EndDate:       end_date,
 			Message:       message,
+			PictureDigest: digest,
 			IsPublic:      false,
 			NumAttendees:  num_attendees,
 			NumGuests:     num_guests,
@@ -368,6 +372,13 @@ func (dao *EventDAO) SetEventStateAndInboxPosition(event_id uint64, new_status c
 	dao.checkSession()
 	stmt := `UPDATE event SET inbox_position = ?, event_state = ? WHERE event_id = ?`
 	q := dao.session.Query(stmt, new_position, new_status, event_id)
+	return q.Exec()
+}
+
+func (dao *EventDAO) SetEventPicture(event_id uint64, picture *core.Picture) error {
+	dao.checkSession()
+	stmt := `UPDATE event SET picture = ?, picture_digest = ? WHERE event_id = ?`
+	q := dao.session.Query(stmt, picture.RawData, picture.Digest, event_id)
 	return q.Exec()
 }
 

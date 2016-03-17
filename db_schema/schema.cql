@@ -109,6 +109,8 @@ CREATE TABLE event (
 	author_id bigint STATIC,
 	author_name text STATIC,
 	message text STATIC,
+	picture blob STATIC,
+	picture_digest blob STATIC,
   created_date timestamp STATIC,
 	inbox_position timestamp STATIC,
 	start_date timestamp STATIC,
