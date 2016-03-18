@@ -420,7 +420,9 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 
 		if len(msg.Picture) != 0 {
 			err = server.saveEventPicture(event.EventId, picture)
-			if err != nil {
+			if err == nil {
+				event.PictureDigest = picture.Digest
+			} else {
 				// Only log error but do nothiing. Event has already been published.
 				log.Printf("* (%v) Error saving picture for event %v (%v)\n", session.UserId, event.EventId, err)
 			}
