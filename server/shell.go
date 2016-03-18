@@ -186,6 +186,7 @@ func (shell *Shell) init() {
 		"reset_picture":    shell.resetPicture,
 		"create_fake_user": shell.createFakeUser,
 		"make_friends":     shell.makeFriends,
+		"fix_database":     shell.fixDatabase,
 	}
 }
 
