@@ -1,10 +1,11 @@
 package dao
 
 import (
-	"github.com/gocql/gocql"
 	"log"
 	core "peeple/areyouin/common"
 	"time"
+
+	"github.com/gocql/gocql"
 )
 
 const (
@@ -380,6 +381,23 @@ func (dao *EventDAO) SetEventPicture(event_id uint64, picture *core.Picture) err
 	stmt := `UPDATE event SET picture = ?, picture_digest = ? WHERE event_id = ?`
 	q := dao.session.Query(stmt, picture.RawData, picture.Digest, event_id)
 	return q.Exec()
+}
+
+func (dao *EventDAO) LoadEventPicture(event_id uint64) ([]byte, error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT picture FROM event WHERE event_id = ?`
+	q := dao.session.Query(stmt, event_id)
+
+	var picture []byte
+
+	err := q.Scan(&picture)
+	if err != nil {
+		return nil, err
+	}
+
+	return picture, nil
 }
 
 // Compare-and-set (read-before) update operation

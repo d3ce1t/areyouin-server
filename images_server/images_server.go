@@ -3,7 +3,6 @@ package images_server
 import (
 	"errors"
 	"fmt"
-	"github.com/gocql/gocql"
 	"log"
 	"math"
 	"net/http"
@@ -11,6 +10,8 @@ import (
 	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
 	"strconv"
+
+	"github.com/gocql/gocql"
 )
 
 const (
@@ -87,6 +88,11 @@ func (s *ImageServer) loadThumbnail(id uint64, reqDpi int32) ([]byte, error) {
 	return thumbnail_dao.Load(id, dpi)
 }
 
+func (s *ImageServer) loadImage(id uint64) ([]byte, error) {
+	event_dao := dao.NewEventDAO(s.db_session)
+	return event_dao.LoadEventPicture(id)
+}
+
 // Check access and returns user_id if access is granted or
 // 0 otherwise.
 func (s *ImageServer) checkAccess(header http.Header) (uint64, error) {
@@ -113,7 +119,24 @@ func (s *ImageServer) checkAccess(header http.Header) (uint64, error) {
 	return user_id, nil
 }
 
-func (s *ImageServer) parseParams(thumbnail_id *uint64, dpi *int32, values url.Values) error {
+func (s *ImageServer) parseImageParams(id *uint64, values url.Values) error {
+
+	id_str := values.Get("id")
+
+	if id_str == "" {
+		return ErrInvalidRequest
+	}
+
+	var err error
+	*id, err = strconv.ParseUint(id_str, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImageServer) parseThumbnailsParams(thumbnail_id *uint64, dpi *int32, values url.Values) error {
 
 	thumbnail_id_str := values.Get("thumbnail")
 	dpi_str := values.Get("dpi")
@@ -145,7 +168,7 @@ func (s *ImageServer) parseParams(thumbnail_id *uint64, dpi *int32, values url.V
 	return nil
 }
 
-func (s *ImageServer) handler(w http.ResponseWriter, r *http.Request) {
+func (s *ImageServer) handleThumbnailRequest(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
 		http.Error(w, "Invalid request received", http.StatusBadRequest)
@@ -177,7 +200,7 @@ func (s *ImageServer) handler(w http.ResponseWriter, r *http.Request) {
 	var thumbnail_id uint64
 	var dpi int32
 
-	err = s.parseParams(&thumbnail_id, &dpi, r.URL.Query())
+	err = s.parseThumbnailsParams(&thumbnail_id, &dpi, r.URL.Query())
 	if err != nil {
 		http.Error(w, "Invalid request received", http.StatusBadRequest)
 		log.Printf("< (%v) GET THUMBNAIL ERROR: %v\n", user_id, err)
@@ -192,6 +215,54 @@ func (s *ImageServer) handler(w http.ResponseWriter, r *http.Request) {
 	n, err := w.Write(data)
 	manageError(err)
 	log.Printf("< (%v) SEND THUMBNAIL (%v/%v bytes, %v dpi)\n", user_id, n, len(data), dpi)
+}
+
+func (s *ImageServer) handleOriginalImageRequest(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != "GET" {
+		http.Error(w, "Invalid request received", http.StatusBadRequest)
+		log.Printf("< (?) GET IMAGE ERROR: Invalid Request\n")
+		return
+	}
+
+	var user_id uint64
+
+	defer func() {
+		r := recover()
+		if r != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			log.Printf("< (%v) GET IMAGE ERROR: %v\n", user_id, r)
+		}
+	}()
+
+	log.Printf("> (%v) GET IMAGE (ID: %v)\n", r.Header.Get("userid"), r.URL.Query().Get("id"))
+
+	user_id, err := s.checkAccess(r.Header)
+	manageError(err)
+	if user_id == 0 {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		log.Printf("< (%v) GET IMAGE ERROR: ACCESS DENIED", r.Header.Get("userid"))
+		return
+	}
+
+	var image_id uint64
+
+	err = s.parseImageParams(&image_id, r.URL.Query())
+	if err != nil {
+		http.Error(w, "Invalid request received", http.StatusBadRequest)
+		log.Printf("< (%v) GET IMAGE ERROR: %v\n", user_id, err)
+		return
+	}
+
+	// Everything OK
+
+	data, err := s.loadImage(image_id)
+	manageError(err)
+
+	n, err := w.Write(data)
+	manageError(err)
+	log.Printf("< (%v) SEND IMAGE (%v/%v bytes)\n", user_id, n, len(data))
+
 }
 
 func (s *ImageServer) connectToDB() {
@@ -214,11 +285,10 @@ func (s *ImageServer) Run() {
 	s.connectToDB()
 
 	go func() {
-
-		http.HandleFunc("/", s.handler)
-
+		http.HandleFunc("/api/", s.handleThumbnailRequest)
+		http.HandleFunc("/api/img/thumbnail/", s.handleThumbnailRequest)
+		http.HandleFunc("/api/img/original/", s.handleOriginalImageRequest)
 		err := http.ListenAndServe(fmt.Sprintf(":%v", s.listen_port), nil)
-
 		if err != nil {
 			log.Fatal("ListenAndServe: ", err)
 		}

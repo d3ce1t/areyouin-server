@@ -27,6 +27,7 @@ type Picture struct {
 
 type EventDAO interface {
 	InsertEventAndParticipants(event *Event) error
+	LoadEventPicture(event_id uint64) ([]byte, error)
 	LoadEvent(event_ids ...uint64) (events []*Event, err error)
 	LoadEventAndParticipants(event_ids ...uint64) (events []*Event, err error)
 	LoadParticipant(event_id uint64, user_id uint64) (*Participant, error)
