@@ -2,13 +2,14 @@ package main
 
 import (
 	"crypto/sha256"
-	"github.com/twinj/uuid"
 	"log"
 	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
 	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
 	"time"
+
+	"github.com/twinj/uuid"
 )
 
 func onCreateAccount(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
@@ -109,7 +110,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 		if user_id, err := userDAO.GetIDByEmailAndPassword(msg.Pass1, msg.Pass2); err == nil {
 			new_auth_token := uuid.NewV4()
-			if err := userDAO.SetAuthToken(user_id, new_auth_token); err == nil {
+			if err = userDAO.SetAuthToken(user_id, new_auth_token); err == nil {
 				reply = session.NewMessage().UserAccessGranted(user_id, new_auth_token)
 				log.Printf("< (%v) USER NEW AUTH ACCESS GRANTED\n", session)
 			} else {
@@ -375,7 +376,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	// Create event object
 	event := core.CreateNewEvent(server.GetNewID(), author.Id, author.Name, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
 
-	if _, err := event.IsValid(); err != nil {
+	if _, err = event.IsValid(); err != nil {
 		session.Write(session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_INVALID_INPUT)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session.UserId, err)
 		return
@@ -567,7 +568,7 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 
 	if succeedCounter > 0 {
 
-		_, err := eventDAO.CompareAndSetNumGuests(event.EventId, len(event.Participants))
+		_, err = eventDAO.CompareAndSetNumGuests(event.EventId, len(event.Participants))
 		if err != nil {
 			log.Println("Invite Users: Update Num. guestss Error:", err)
 		}

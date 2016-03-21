@@ -21,6 +21,7 @@ var (
 	ErrAuthorMismatch             = errors.New("author mismatch")
 	ErrOperationFailed            = errors.New("operation failed")
 	ErrEventNotFound              = errors.New("event not found")
+	ErrImageOutOfBounds           = errors.New("image is out of bounds")
 )
 
 func getNetErrorCode(err error, default_code int32) int32 {

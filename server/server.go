@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/disintegration/imaging"
-	"github.com/gocql/gocql"
 	"image"
 	"image/jpeg"
 	"log"
@@ -20,19 +18,26 @@ import (
 	wh "peeple/areyouin/webhook"
 	"strings"
 	"time"
+
+	"github.com/disintegration/imaging"
+	"github.com/gocql/gocql"
 )
 
 const (
-	ALL_CONTACTS_GROUP  = 0 // Id for the main friend group of a user
-	GCM_API_KEY         = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
-	GCM_MAX_TTL         = 2419200
-	EVENT_THUMBNAIL     = 100              // 100 px
-	THUMBNAIL_MDPI_SIZE = 50               // 50 px
-	IMAGE_MDPI          = 160              // 160dpi
-	IMAGE_HDPI          = 1.5 * IMAGE_MDPI // 240dpi
-	IMAGE_XHDPI         = 2 * IMAGE_MDPI   // 320dpi
-	IMAGE_XXHDPI        = 3 * IMAGE_MDPI   // 480dpi
-	IMAGE_XXXHDPI       = 4 * IMAGE_MDPI   // 640dpi
+	ALL_CONTACTS_GROUP         = 0 // Id for the main friend group of a user
+	GCM_API_KEY                = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
+	GCM_MAX_TTL                = 2419200
+	PROFILE_PICTURE_MAX_WIDTH  = 512
+	PROFILE_PICTURE_MAX_HEIGHT = 512
+	EVENT_PICTURE_MAX_WIDTH    = 1280
+	EVENT_PICTURE_MAX_HEIGHT   = 720
+	EVENT_THUMBNAIL            = 100              // 100 px
+	THUMBNAIL_MDPI_SIZE        = 50               // 50 px
+	IMAGE_MDPI                 = 160              // 160dpi
+	IMAGE_HDPI                 = 1.5 * IMAGE_MDPI // 240dpi
+	IMAGE_XHDPI                = 2 * IMAGE_MDPI   // 320dpi
+	IMAGE_XXHDPI               = 3 * IMAGE_MDPI   // 480dpi
+	IMAGE_XXXHDPI              = 4 * IMAGE_MDPI   // 640dpi
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 )
 
@@ -495,7 +500,7 @@ func (s *Server) inviteParticipantToEvent(event *core.Event, participant *core.E
 // can only be current friends of the author. In this code, it is assumed that
 // participants are already friends of the author (author has-friend way). However,
 // it must be checked if participants have also the author as a friend (friend has-author way)
-func (s *Server) loadUserParticipants(author_id uint64, participants_id []uint64) (participant map[uint64]*core.UserAccount, warn error, err error) {
+func (s *Server) loadUserParticipants(author_id uint64, participants_id []uint64) (map[uint64]*core.UserAccount, error, error) {
 
 	var last_warning error
 	result := make(map[uint64]*core.UserAccount)
@@ -506,13 +511,13 @@ func (s *Server) loadUserParticipants(author_id uint64, participants_id []uint64
 
 		if ok, err := friend_dao.IsFriend(p_id, author_id); ok {
 
-			if uac, err := userDAO.Load(p_id); err == nil { // FIXME: Load several participants in one operation
+			if uac, load_err := userDAO.Load(p_id); load_err == nil { // FIXME: Load several participants in one operation
 				result[uac.Id] = uac
 			} else if err == dao.ErrNotFound {
 				last_warning = ErrUnregisteredFriendsIgnored
-				log.Printf("loadUserParticipants() Warning at userid %v: %v\n", p_id, err)
+				log.Printf("loadUserParticipants() Warning at userid %v: %v\n", p_id, load_err)
 			} else {
-				return nil, nil, err
+				return nil, nil, load_err
 			}
 
 		} else if err != nil {
@@ -762,13 +767,18 @@ func (s *Server) saveProfilePicture(user_id uint64, picture *core.Picture) error
 		return err
 	}
 
+	// Check image size is inside bounds
+	if srcImage.Bounds().Dx() > PROFILE_PICTURE_MAX_WIDTH || srcImage.Bounds().Dy() > PROFILE_PICTURE_MAX_HEIGHT {
+		return ErrImageOutOfBounds
+	}
+
 	// Create thumbnails
 	thumbnails, err := s.createThumbnails(srcImage, THUMBNAIL_MDPI_SIZE)
 	if err != nil {
 		return err
 	}
 
-	// Save profile picture (512x512)
+	// Save profile picture (max 512x512)
 	user_dao := s.NewUserDAO()
 
 	err = user_dao.SaveProfilePicture(user_id, picture)
@@ -847,6 +857,11 @@ func (s *Server) saveEventPicture(event_id uint64, picture *core.Picture) error 
 		return err
 	}
 
+	// Check image size is inside bounds
+	if srcImage.Bounds().Dx() > EVENT_PICTURE_MAX_WIDTH || srcImage.Bounds().Dy() > EVENT_PICTURE_MAX_HEIGHT {
+		return ErrImageOutOfBounds
+	}
+
 	// Create thumbnails
 	thumbnails, err := s.createThumbnails(srcImage, EVENT_THUMBNAIL)
 	if err != nil {
@@ -883,7 +898,6 @@ func (s *Server) createThumbnails(srcImage image.Image, size_xy int) (map[int32]
 		size := float32(size_xy) * (float32(dpi) / float32(IMAGE_MDPI))
 		// Resize and crop image to fill size x size area
 		dstImage := imaging.Thumbnail(srcImage, int(size), int(size), imaging.Lanczos)
-		log.Printf("%v dpi has image %v\n", dpi, dstImage.Bounds().Size())
 		// Encode
 		bytes := &bytes.Buffer{}
 		err := jpeg.Encode(bytes, dstImage, nil)

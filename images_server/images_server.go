@@ -186,7 +186,7 @@ func (s *ImageServer) handleThumbnailRequest(w http.ResponseWriter, r *http.Requ
 		}
 	}()
 
-	log.Printf("> (%v) GET THUMBNAIL (UserID: %v, ScreenDensity: %v)\n",
+	log.Printf("> (%v) GET THUMBNAIL (ID: %v, ScreenDensity: %v)\n",
 		r.Header.Get("userid"), r.URL.Query().Get("thumbnail"), r.URL.Query().Get("dpi"))
 
 	user_id, err := s.checkAccess(r.Header)
