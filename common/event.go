@@ -38,8 +38,10 @@ func CreateNewEvent(event_id uint64, author_id uint64, author_name string, creat
 
 func (event *Event) IsValid() (bool, error) {
 
-	if event.EventId == 0 || event.AuthorId == 0 || len(event.AuthorName) < 3 ||
-		event.Message == "" || len(event.Message) < 8 || event.NumAttendees < 0 ||
+	if event.EventId == 0 || event.AuthorId == 0 ||
+		len(event.AuthorName) < USER_NAME_MIN_LENGTH || len(event.AuthorName) > USER_NAME_MAX_LENGTH ||
+		event.Message == "" || len(event.Message) < EVENT_DESCRIPTION_MIN_LENGHT ||
+		len(event.Message) > EVENT_DESCRIPTION_MAX_LENGHT || event.NumAttendees < 0 ||
 		event.NumGuests < 0 || event.NumAttendees > event.NumGuests {
 		return false, ErrInvalidEventData
 	}

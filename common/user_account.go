@@ -2,9 +2,10 @@ package common
 
 import (
 	"errors"
-	"github.com/twinj/uuid"
 	"regexp"
 	"strings"
+
+	"github.com/twinj/uuid"
 )
 
 var validEmail = regexp.MustCompile(`\w[-._\w]*\w@\w[-._\w]*\w\.\w{2,3}`)
@@ -81,7 +82,7 @@ type UserAccount struct {
 // credential method, namely e-mail and password. or facebook
 func (user *UserAccount) IsValid() (bool, error) {
 
-	if user.Id == 0 || len(user.Name) < 3 {
+	if user.Id == 0 || len(user.Name) < USER_NAME_MIN_LENGTH || len(user.Name) > USER_NAME_MAX_LENGTH {
 		return false, ErrInvalidName
 	}
 
