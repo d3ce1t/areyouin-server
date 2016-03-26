@@ -450,6 +450,71 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	}
 }
 
+func onChangeEventPicture(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.ModifyEvent)
+	log.Printf("> (%v) CHANGE EVENT PICTURE %v (%v bytes)\n", session.UserId, msg.EventId, len(msg.Picture))
+
+	checkAuthenticated(session)
+
+	eventDAO := server.NewEventDAO()
+	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
+	checkNoErrorOrPanic(err)
+
+	// Check event exists
+	checkAtLeastOneEventOrPanic(events)
+
+	// Check author
+	event := events[0]
+	author_id := session.UserId
+	checkEventAuthorOrPanic(author_id, event)
+
+	// Event can be modified
+	checkEventWritableOrPanic(event)
+
+	// Create picture object
+	picture := &core.Picture{
+		RawData: msg.Picture,
+	}
+
+	// Set or remove picture
+
+	if len(msg.Picture) > 0 {
+
+		// Compute digest for event picture
+
+		digest := sha256.Sum256(msg.Picture)
+		picture.Digest = digest[:]
+
+		// Save picture
+
+		err = server.saveEventPicture(event.EventId, picture)
+		checkNoErrorOrPanic(err)
+
+	} else {
+
+		// Remove picture
+
+		picture.Digest = nil
+		picture.RawData = make([]byte, 0)
+		err = server.removeEventPicture(event.EventId, picture)
+		checkNoErrorOrPanic(err)
+	}
+
+	event.PictureDigest = picture.Digest
+
+	// Send ACK to caller
+	session.Write(session.NewMessage().Ok(packet_type))
+	log.Printf("< (%v) EVENT PICTURE CHANGED\n", session.UserId)
+
+	// Notify change to participants
+	server.task_executor.Submit(&NotifyEventChange{
+		Event:  event,
+		Target: core.GetParticipantsIdSlice(event.Participants),
+	})
+}
+
 func onCancelEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	server := session.Server
@@ -664,12 +729,6 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	} else {
 		log.Println("onConfirmAttendance:", err)
 	}
-}
-
-func onModifyEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
 }
 
 func onVoteChange(packet_type proto.PacketType, message proto.Message, session *AyiSession) {

@@ -1,8 +1,9 @@
 package protocol
 
 import (
-	"github.com/twinj/uuid"
 	core "peeple/areyouin/common"
+
+	"github.com/twinj/uuid"
 )
 
 type PacketBuilder struct {
@@ -137,7 +138,7 @@ func (mb *PacketBuilder) EventExpired(event_id uint64) *AyiPacket {
 	return mb.message
 }
 
-func (mb *PacketBuilder) EventDateModified(event_id uint64, start_date int64, end_date int64) *AyiPacket {
+/*func (mb *PacketBuilder) EventDateModified(event_id uint64, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_DATE_MODIFIED)
 	mb.message.SetMessage(&EventModified{EventId: event_id, StartDate: start_date, EndDate: end_date})
 	return mb.message
@@ -147,11 +148,11 @@ func (mb *PacketBuilder) EventMessageModified(event_id uint64, message string) *
 	mb.message.Header.SetType(M_EVENT_MESSAGE_MODIFIED)
 	mb.message.SetMessage(&EventModified{EventId: event_id, Message: message})
 	return mb.message
-}
+}*/
 
-func (mb *PacketBuilder) EventModified(event_id uint64, message string, start_date int64, end_date int64) *AyiPacket {
+func (mb *PacketBuilder) EventModified(event *core.Event) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_MODIFIED)
-	mb.message.SetMessage(&EventModified{EventId: event_id, Message: message, StartDate: start_date, EndDate: end_date})
+	mb.message.SetMessage(event)
 	return mb.message
 }
 

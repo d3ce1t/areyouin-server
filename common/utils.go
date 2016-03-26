@@ -3,10 +3,11 @@ package common
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"github.com/gocql/gocql"
 	"log"
 	"math/big"
 	"time"
+
+	"github.com/gocql/gocql"
 )
 
 var (
@@ -52,19 +53,19 @@ func ClearEvents(session *gocql.Session) {
 	session.Query(`TRUNCATE user_events`).Exec()
 }
 
-func CreateParticipantsFromFriends(author_id uint64, friends []*Friend) []*EventParticipant {
+func CreateParticipantsFromFriends(author_id uint64, friends []*Friend) map[uint64]*EventParticipant {
 
-	result := make([]*EventParticipant, 0, len(friends))
+	result := make(map[uint64]*EventParticipant)
 
 	if len(friends) > 0 {
 
 		for _, f := range friends {
-			result = append(result, &EventParticipant{
+			result[f.UserId] = &EventParticipant{
 				UserId:    f.UserId,
 				Name:      f.Name,
 				Response:  AttendanceResponse_NO_RESPONSE,
 				Delivered: MessageStatus_NO_DELIVERED,
-			})
+			}
 		}
 	}
 

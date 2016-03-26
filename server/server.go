@@ -553,7 +553,7 @@ func (s *Server) createParticipantListFromMap(participants map[uint64]*core.Even
 	return result
 }
 
-func (s *Server) createParticipantsFromFriends(author_id uint64) []*core.EventParticipant {
+func (s *Server) createParticipantsFromFriends(author_id uint64) map[uint64]*core.EventParticipant {
 
 	dao := s.NewFriendDAO()
 	friends, _ := dao.LoadFriends(author_id, ALL_CONTACTS_GROUP)
@@ -885,6 +885,25 @@ func (s *Server) saveEventPicture(event_id uint64, picture *core.Picture) error 
 	return nil
 }
 
+func (s *Server) removeEventPicture(event_id uint64, picture *core.Picture) error {
+
+	// Remove event picture
+	eventDAO := s.NewEventDAO()
+	err := eventDAO.SetEventPicture(event_id, picture)
+	if err != nil {
+		return err
+	}
+
+	// Remove thumbnails
+	thumbDAO := s.NewThumbnailDAO()
+	err = thumbDAO.Remove(event_id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Creates picture thumbnails for every supported dpi. Thumbnails size are
 // (size_xy, size_xy)*scale_factor. Thumbnails are returned as byte slide
 // JPEG encoded.
@@ -960,6 +979,7 @@ func main() {
 	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
 	server.RegisterCallback(proto.M_GET_ACCESS_TOKEN, onNewAccessToken)
 	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
+	//server.RegisterCallback(proto.M_MODIFY_EVENT, onModifyEvent)
 	server.RegisterCallback(proto.M_CANCEL_EVENT, onCancelEvent)
 	server.RegisterCallback(proto.M_INVITE_USERS, onInviteUsers)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
@@ -968,6 +988,7 @@ func main() {
 	server.RegisterCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
 	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)
 	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
+	server.RegisterCallback(proto.M_CHANGE_EVENT_PICTURE, onChangeEventPicture)
 
 	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)

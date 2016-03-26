@@ -12,6 +12,8 @@ import (
 const (
 	MAX_WRITE_TIMEOUT = 15 * time.Second
 	MAX_PAYLOAD_SIZE  = 1024000 // 1 Mb
+	VERSION_1         = 0
+	VERSION_2         = 1
 )
 
 func NewPacket(version uint8) *PacketBuilder {
@@ -202,6 +204,8 @@ func createEmptyMessage(packet_type PacketType) Message {
 		message = &AccessToken{}
 	case M_CHANGE_PROFILE_PICTURE:
 		message = &UserAccount{}
+	case M_CHANGE_EVENT_PICTURE:
+		message = &ModifyEvent{}
 	case M_HELLO:
 		message = &Hello{}
 	case M_IID_TOKEN:

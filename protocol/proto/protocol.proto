@@ -69,6 +69,7 @@ message ModifyEvent {
   string message = 2;
   int64 start_date = 3;
   int64 end_date = 4;
+  bytes picture = 5;
 }
 
 // VOTE CHANGE
@@ -142,12 +143,6 @@ message EventExpired {
 // EVENT DATE MODIFIED
 // EVENT MESSAGE MODIFIED
 // EVENT MODIFIED
-message EventModified {
-  uint64 event_id = 1;
-  int64 start_date = 2;
-  int64 end_date = 3;
-  string message = 4;
-}
 
 // INVITATION CANCELLED
 message InvitationCancelled {

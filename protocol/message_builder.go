@@ -1,8 +1,9 @@
 package protocol
 
 import (
-	"github.com/twinj/uuid"
 	core "peeple/areyouin/common"
+
+	"github.com/twinj/uuid"
 )
 
 // Interface
@@ -28,9 +29,9 @@ type MessageBuilder interface {
 	EventCreated(event *core.Event) *AyiPacket
 	EventCancelled(who_id uint64, event *core.Event) *AyiPacket
 	EventExpired(event_id uint64) *AyiPacket
-	EventDateModified(event_id uint64, start_date int64, end_date int64) *AyiPacket
-	EventMessageModified(event_id uint64, message string) *AyiPacket
-	EventModified(event_id uint64, message string, start_date int64, end_date int64) *AyiPacket
+	//EventDateModified(event_id uint64, start_date int64, end_date int64) *AyiPacket
+	//EventMessageModified(event_id uint64, message string) *AyiPacket
+	EventModified(event *core.Event) *AyiPacket
 	InvitationReceived(event *core.Event) *AyiPacket
 	InvitationCancelled(event_id uint64) *AyiPacket
 	AttendanceStatus(event_id uint64, status []*core.EventParticipant) *AyiPacket

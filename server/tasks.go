@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
-	gcm "github.com/google/go-gcm"
 	"image"
 	_ "image/jpeg"
 	"log"
@@ -12,6 +11,8 @@ import (
 	dao "peeple/areyouin/dao"
 	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
+
+	gcm "github.com/google/go-gcm"
 )
 
 type NotifyEventCancelled struct {
@@ -95,6 +96,41 @@ func (t *NotifyEventCancelled) sendGcmNotification(user_id uint64, token string,
 	sendGcmMessage(user_id, token, gcm_message)
 }
 
+type NotifyEventChange struct {
+	Event  *core.Event
+	Target []uint64
+}
+
+func (t *NotifyEventChange) Run(ex *TaskExecutor) {
+
+	if len(t.Target) == 0 {
+		log.Println("NotifyEventChange. Task doesn't have any target")
+		return
+	}
+
+	// Send message to each participant
+	server := ex.server
+	light_event := t.Event.GetEventWithoutParticipants()
+
+	for _, participant_dst := range t.Target {
+
+		session := server.GetSession(participant_dst)
+
+		if session != nil {
+
+			var msg *proto.AyiPacket
+
+			msg = session.NewMessage().EventModified(light_event)
+
+			if session.Write(msg) {
+				log.Printf("< (%v) EVENT %v CHANGED\n", participant_dst, t.Event.EventId)
+			} else {
+				log.Println("NotifyEventChange: Coudn't send notification to", participant_dst)
+			}
+		}
+	}
+}
+
 type NotifyParticipantChange struct {
 	Event               *core.Event
 	ParticipantsChanged []uint64 // Participants that has changed
@@ -104,7 +140,7 @@ type NotifyParticipantChange struct {
 
 func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 
-	if len(t.Event.Participants) == 0 {
+	if len(t.Target) == 0 {
 		log.Println("NotifyParticipantChange. Task doesn't have any target")
 		return
 	}
@@ -142,7 +178,7 @@ func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 			if session.Write(msg) {
 				log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", participant_dst, t.Event.EventId, len(privacy_participant_list))
 			} else {
-				log.Println("NotifyParticipantChange: Coudn't send notificatino to", participant_dst)
+				log.Println("NotifyParticipantChange: Coudn't send notification to", participant_dst)
 			}
 		}
 	}
