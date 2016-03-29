@@ -52,39 +52,39 @@ CREATE TABLE user_account (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// Q4: Find friends of a known user and group
-// Users are not gonna have more than 1000 friends and the same for
-// groups. So remove group_id as part of the key
-DROP TABLE IF EXISTS user_friends;
-CREATE TABLE user_friends (
-	user_id bigint,
-	group_id int,
-	group_name text STATIC,
-	friend_id bigint,
-	name text,
-	picture_digest blob,
-	PRIMARY KEY ((user_id, group_id), friend_id)
-)
-WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
-
-/*CREATE TABLE friends_by_user (
+// Q4: Find all friends by a given user_id
+DROP TABLE IF EXISTS friends_by_user;
+CREATE TABLE friends_by_user (
    user_id bigint,
 	 friend_id bigint,
    friend_name text,
 	 picture_digest blob,
    PRIMARY KEY (user_id, friend_id)
-)*/
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-/*CREATE TABLE friends_by_group (
+// Q5	: Get all groups of a given user_id
+DROP TABLE IF EXISTS groups_by_user;
+CREATE TABLE groups_by_user (
+	user_id bigint,
+	group_id int,
+	group_name text,
+	group_size int,
+	PRIMARY KEY (user_id, group_id)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
+
+// Q6: Get all friends inside a group by a given user_id and group_id
+DROP TABLE IF EXISTS friends_by_group
+CREATE TABLE friends_by_group (
    user_id bigint,
 	 group_id int,
-	 group_name text STATIC,
-	 group_size int STATIC,
 	 friend_id bigint,
-   PRIMARY KEY ((user_id, group_id), friend_id)
-)*/
+   PRIMARY KEY (user_id, group_id, friend_id)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// Q5: Find events a user has been invited to and range by start_date (order by start_date ASC)
+// Q7: Find events a user has been invited to and range by start_date (order by start_date ASC)
 DROP TABLE IF EXISTS events_by_user;
 CREATE TABLE events_by_user (
 	user_id bigint,
@@ -100,7 +100,7 @@ CREATE TABLE events_by_user (
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
 AND CLUSTERING ORDER BY (start_date ASC, event_id ASC);
 
-// Q6: Find a event with a specified event id
+// Q8: Find a event with a specified event id
 DROP TABLE IF EXISTS event;
 CREATE TABLE event (
 	// Partition Key
@@ -130,7 +130,7 @@ CREATE TABLE event (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// Q7: Find a user or event thumbnail by his or her id and dpi
+// Q9: Find a user or event thumbnail by his or her id and dpi
 DROP TABLE IF EXISTS thumbnails;
 CREATE TABLE thumbnails (
 	id bigint,
@@ -142,7 +142,7 @@ CREATE TABLE thumbnails (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// Q9: Find user access token by user_id
+// Q10: Find user access token by user_id
 DROP TABLE IF EXISTS user_access_token;
 CREATE TABLE user_access_token (
 	user_id bigint,
@@ -156,7 +156,7 @@ WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 //
 // Stats
 //
-// Q10: Find number of users registered each day and be able of aggregating
+// Q11: Find number of users registered each day and be able of aggregating
 // by month and year quickly
 CREATE TABLE users_registered_by_day (
 	year int,

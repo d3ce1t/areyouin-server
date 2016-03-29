@@ -189,9 +189,9 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*co
 	stmt := `SELECT event_id, author_id, author_name, message, picture_digest, created_date, inbox_position, start_date,
 									end_date, num_attendees, num_guests, event_state, guest_id, guest_name,
 									guest_response, guest_status
-						FROM event WHERE event_id IN (` + GenParams(len(event_ids)) + `)`
+						FROM event WHERE event_id IN (` + core.GenParams(len(event_ids)) + `)`
 
-	values := GenValues(event_ids)
+	values := core.GenValues(event_ids)
 	iter := dao.session.Query(stmt, values...).Iter()
 
 	var event_id uint64
@@ -272,9 +272,9 @@ func (dao *EventDAO) LoadEvent(event_ids ...uint64) (events []*core.Event, err e
 
 	stmt := `SELECT DISTINCT event_id, author_id, author_name, message, picture_digest, created_date, inbox_position,
 									start_date,	end_date, num_attendees, num_guests, event_state
-						FROM event WHERE event_id IN (` + GenParams(len(event_ids)) + `)`
+						FROM event WHERE event_id IN (` + core.GenParams(len(event_ids)) + `)`
 
-	values := GenValues(event_ids)
+	values := core.GenValues(event_ids)
 	iter := dao.session.Query(stmt, values...).Iter()
 
 	var event_id uint64

@@ -14,6 +14,50 @@ var (
 	EMPTY_ARRAY_32B = [32]byte{}
 )
 
+type QueryValues struct {
+	Params []interface{}
+}
+
+func (self *QueryValues) AddValue(val interface{}) {
+	self.Params = append(self.Params, val)
+}
+
+func (self *QueryValues) AddArrayInt32(array []int32) {
+	for _, val := range array {
+		self.Params = append(self.Params, val)
+	}
+}
+
+func (self *QueryValues) AddArrayUint64(array []uint64) {
+	for _, val := range array {
+		self.Params = append(self.Params, val)
+	}
+}
+
+func GenParams(size int) string {
+
+	if size == 0 {
+		return ""
+	}
+
+	result := "?"
+	for i := 1; i < size; i++ {
+		result += ", ?"
+	}
+	return result
+}
+
+func GenValues(values []uint64) []interface{} {
+
+	result := make([]interface{}, 0, len(values))
+
+	for _, val := range values {
+		result = append(result, val)
+	}
+
+	return result
+}
+
 // Get current time in millis
 func GetCurrentTimeMillis() int64 {
 	return TimeToMillis(time.Now())

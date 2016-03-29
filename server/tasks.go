@@ -201,7 +201,7 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 	}
 
 	friend_dao := server.NewFriendDAO()
-	storedFriends, err := friend_dao.LoadFriendsIndex(task.TargetUser.GetUserId(), ALL_CONTACTS_GROUP)
+	storedFriends, err := friend_dao.LoadFriendsMap(task.TargetUser.GetUserId())
 	if err != nil {
 		log.Println("ImportFacebookFriends Error:", err)
 		return
@@ -287,7 +287,7 @@ func (task *SendUserFriends) Run(ex *TaskExecutor) {
 		if session != nil {
 			packet := session.NewMessage().FriendsList(friends)
 			if session.Write(packet) {
-				log.Printf("< (%v) SEND USER FRIENDS\n", task.UserId)
+				log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", task.UserId, len(friends))
 			}
 		}
 	}

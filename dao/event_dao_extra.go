@@ -92,25 +92,6 @@ package dao
 	return events, nil
 }*/
 
-func GenParams(size int) string {
-	result := "?"
-	for i := 1; i < size; i++ {
-		result += ", ?"
-	}
-	return result
-}
-
-func GenValues(values []uint64) []interface{} {
-
-	result := make([]interface{}, 0, len(values))
-
-	for _, val := range values {
-		result = append(result, val)
-	}
-
-	return result
-}
-
 func (dao *EventDAO) checkSession() {
 	if dao.session == nil {
 		panic(ErrNoSession)

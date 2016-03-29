@@ -1,14 +1,14 @@
 package dao
 
 import (
-	"github.com/gocql/gocql"
-	"github.com/twinj/uuid"
 	"log"
 	core "peeple/areyouin/common"
+
+	"github.com/gocql/gocql"
+	"github.com/twinj/uuid"
 )
 
 const (
-	MAX_NUM_FRIENDS = 1000
 	GRACE_PERIOD_MS = 20 * 1000 // 20s
 )
 
@@ -461,7 +461,7 @@ func (dao *UserDAO) SetIIDToken(user_id uint64, iid_token string) error {
 // User information is spread in three tables: user_account, user_email_credentials
 // and user_facebook_credentials. So, in order to delete a user, it's needed an
 // user_id, e-mail and, likely, a Facebook ID. For the sake of safety, a read is
-// perform before delete in order to perform a security checks between data provided as
+// perform before delete in order to perform security checks between data provided as
 // argument and data stored in database. If all of the security checks passed, then user
 // is removed.
 func (dao *UserDAO) Delete(user *core.UserAccount) error {
@@ -490,7 +490,7 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 		can_remove_facebook = facebook_credentials.UserId == user.Id
 	}
 
-	// Read friens for deleting
+	// Read friends for deleting
 	friendDAO := NewFriendDAO(dao.session)
 
 	friends, err := friendDAO.LoadFriends(user.Id, 0)
@@ -502,19 +502,26 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
-	// Delete email_credential. Only delete if this credential belongs to the same user
-	if can_remove_email {
-		batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email) // Now account is invalid
-	}
+	// Empty user's friends groups
+	batch.Query(`DELETE FROM friends_by_group WHERE user_id = ?`, user.Id)
 
-	// Delete user from his user's friends
+	// Remove friends groups
+	batch.Query(`DELETE FROM groups_by_user WHERE user_id = ?`, user.Id)
+
+	// Delete self user from his friends
 	for _, friend := range friends {
-		batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ? AND friend_id = ?`,
-			friend.UserId, 0, user.Id)
+		batch.Query(`DELETE FROM friends_by_user WHERE user_id = ? AND friend_id = ?`,
+			friend.UserId, user.Id)
 	}
 
-	// Delete user friends
-	batch.Query(`DELETE FROM user_friends WHERE user_id = ? AND group_id = ?`, user.Id, 0) // Always after delete itself from other friends
+	// Delete user's friends: Always after delete self user from other friends
+	batch.Query(`DELETE FROM friends_by_user WHERE user_id = ?`, user.Id)
+
+	// Delete email_credential. Only delete if this credential belongs to the same user
+	// After this, account will be invalid
+	if can_remove_email {
+		batch.Query(`DELETE FROM user_email_credentials WHERE email = ?`, user.Email)
+	}
 
 	// Delete Facebook credential
 	if user.HasFacebookCredentials() && can_remove_facebook {
