@@ -343,6 +343,45 @@ func onChangeProfilePicture(packet_type proto.PacketType, message proto.Message,
 	log.Printf("< (%v) PROFILE PICTURE CHANGED\n", session.UserId)
 }
 
+func onSyncGroups(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.SyncGroups)
+	log.Printf("> (%v) SYNC GROUPS %v\n", session.UserId, msg)
+
+	checkAuthenticated(session)
+
+	// Load server groups
+
+	friendDAO := server.NewFriendDAO()
+
+	// FIXME: All groups are always loaded. However, a subset could be loaded when sync
+	// behaviour is not TRUNCATE.
+	serverGroups, err := friendDAO.LoadGroupsAndMembers(session.UserId)
+	checkNoErrorOrPanic(err)
+
+	// Sync
+	server.syncFriendGroups(msg.Owner, serverGroups, msg.Groups, msg.SyncBehaviour)
+
+	session.Write(session.NewMessage().Ok(packet_type))
+	log.Printf("< (%v) SYNC GROUPS OK\n", session.UserId)
+}
+
+func onGetGroups(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	log.Printf("> (%v) GET GROUPS\n", session.UserId)
+
+	checkAuthenticated(session)
+
+	friendDAO := server.NewFriendDAO()
+	groups, err := friendDAO.LoadGroupsAndMembers(session.UserId)
+	checkNoErrorOrPanic(err)
+
+	session.Write(session.NewMessage().GroupsList(groups))
+	log.Printf("< (%v) GROUPS LIST (num.groups: %v)\n", session.UserId, len(groups))
+}
+
 func onCreateEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	server := session.Server

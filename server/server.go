@@ -904,6 +904,131 @@ func (s *Server) removeEventPicture(event_id uint64, picture *core.Picture) erro
 	return nil
 }
 
+// Sync server-side friends groups with client-side friends groups. If groups
+// provided by the client contains all of the groups, then a full sync is required,
+// i.e. server-side groups that does not exist client-side are removed. Otherwise,
+// if provided groups are only a subset, a merge of client and server data is
+// performed. Conversely to full sync, merging process does not remove existing
+// groups from the server but add new groups and modify existing ones. Regarding
+// full sync, it is assumed that clientGroups contains all of the groups in client.
+// Hence, if a group doesn't exist in client, it will be removed from server. Like
+// a regular sync, new groups in client will be added to server. In whatever case,
+// if a group already exists server-side, it will be updated with members from client
+// group, removing those members that does not exist in client group (client is master).
+// In other words, groups at server will be equal to groups at client at the end of the
+// synchornisation process.
+func (s *Server) syncFriendGroups(owner uint64, serverGroups []*core.Group,
+	clientGroups []*core.Group, syncBehaviour core.SyncBehaviour) {
+
+	friendsDAO := s.NewFriendDAO()
+
+	// Copy map because it's gonna be modified
+	clientGroupsCopy := make(map[int32]*core.Group)
+	for _, group := range clientGroups {
+		clientGroupsCopy[group.Id] = group
+	}
+
+	// Loop through server groups in order to know what
+	// to do: update/replace or remove group from server
+	for _, group := range serverGroups {
+
+		if clientGroup, ok := clientGroupsCopy[group.Id]; ok {
+
+			// Group exists.
+
+			if clientGroup.Size == -1 && len(clientGroup.Members) == 0 {
+
+				// Special case
+
+				if clientGroup.Name == "" {
+
+					// Group is marked for removal. So remove it from server
+
+					err := friendsDAO.DeleteGroup(owner, group.Id)
+					checkNoErrorOrPanic(err)
+
+				} else if group.Name != clientGroup.Name {
+
+					// Only Rename group
+					err := friendsDAO.SetGroupName(owner, group.Id, clientGroup.Name)
+					checkNoErrorOrPanic(err)
+
+				}
+
+			} else {
+
+				// Update case
+
+				if group.Name != clientGroup.Name {
+					err := friendsDAO.SetGroupName(owner, group.Id, clientGroup.Name)
+					checkNoErrorOrPanic(err)
+				}
+
+				s.syncGroupMembers(owner, group.Id, group.Members, clientGroup.Members)
+			}
+
+			// Delete also from copy because it has been processed
+			delete(clientGroupsCopy, group.Id)
+
+		} else if syncBehaviour == core.SyncBehaviour_TRUNCATE {
+
+			// Remove
+
+			err := friendsDAO.DeleteGroup(owner, group.Id)
+			checkNoErrorOrPanic(err)
+		}
+	}
+
+	// clientIndex contains only new groups. So add groups to server
+
+	for _, group := range clientGroupsCopy {
+		err := friendsDAO.AddGroup(owner, group)
+		checkNoErrorOrPanic(err)
+	}
+}
+
+func (s *Server) syncGroupMembers(user_id uint64, group_id int32, serverMembers []uint64, clientMembers []uint64) {
+
+	// Index client members
+	index := make(map[uint64]bool)
+	for _, id := range clientMembers {
+		index[id] = true
+	}
+
+	// Loop through all of the members of group owned by the server.
+	// If member also exists client side, then keep it. Otherwise,
+	// remove it.
+	remove_ids := make([]uint64, 0, len(serverMembers)/2)
+
+	for _, serverMemberId := range serverMembers {
+		if _, ok := index[serverMemberId]; !ok {
+			remove_ids = append(remove_ids, serverMemberId)
+		} else {
+			delete(index, serverMemberId)
+		}
+	}
+
+	// After removing already existing members. Index contains only new members,
+	// so add them.
+	add_ids := make([]uint64, 0, len(clientMembers))
+	for id, _ := range index {
+		add_ids = append(add_ids, id)
+	}
+
+	// Proceed database I/O
+	friendDAO := s.NewFriendDAO()
+
+	if len(remove_ids) > 0 {
+		err := friendDAO.DeleteMembers(user_id, group_id, remove_ids...)
+		checkNoErrorOrPanic(err)
+	}
+
+	if len(add_ids) > 0 {
+		err := friendDAO.AddMembers(user_id, group_id, add_ids...)
+		checkNoErrorOrPanic(err)
+	}
+}
+
 // Creates picture thumbnails for every supported dpi. Thumbnails size are
 // (size_xy, size_xy)*scale_factor. Thumbnails are returned as byte slide
 // JPEG encoded.
@@ -989,6 +1114,8 @@ func main() {
 	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)
 	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
 	server.RegisterCallback(proto.M_CHANGE_EVENT_PICTURE, onChangeEventPicture)
+	server.RegisterCallback(proto.M_SYNC_GROUPS, onSyncGroups)
+	server.RegisterCallback(proto.M_GET_GROUPS, onGetGroups)
 
 	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)
