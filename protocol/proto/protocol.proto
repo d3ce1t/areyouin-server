@@ -123,6 +123,13 @@ message InstanceIDToken {
   string token = 1;
 }
 
+// SYNC GROUPS
+message SyncGroups {
+  uint64 owner = 1;
+  repeated common.Group groups = 2;
+  common.SyncBehaviour sync_behaviour = 3;
+}
+
 //
 // Notifications
 //
@@ -261,4 +268,9 @@ message UserAccount {
   string email = 2;
   bytes picture = 3;
   bytes picture_digest = 4;
+}
+
+// GROUPS LIST
+message GroupsList {
+  repeated common.Group groups = 1;
 }

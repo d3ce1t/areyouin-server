@@ -347,3 +347,9 @@ func (mb *PacketBuilder) UserAccount(user *core.UserAccount) *AyiPacket {
 		PictureDigest: user.PictureDigest})
 	return mb.message
 }
+
+func (mb *PacketBuilder) GroupsList(groups_list []*core.Group) *AyiPacket {
+	mb.message.Header.SetType(M_GROUPS_LIST)
+	mb.message.SetMessage(&GroupsList{Groups: groups_list})
+	return mb.message
+}

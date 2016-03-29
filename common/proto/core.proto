@@ -4,6 +4,14 @@ package common;
 
 option java_package = "es.peeple.areyouin.common";
 
+enum SyncBehaviour {
+  // Previous groups are removed and new ones are added.
+  TRUNCATE = 0;
+
+  // Previous groups are updated, new ones are added
+  PRESERVE = 1;
+}
+
 enum AttendanceResponse {
   NO_RESPONSE = 0;
   NO_ASSIST = 1;
@@ -58,4 +66,11 @@ message Friend {
   uint64 user_id = 1;
   string name = 2;
   bytes picture_digest = 3;
+}
+
+message Group {
+  int32 id = 1;
+  string name = 2;
+	int32 size = 3;
+  repeated uint64 members = 4;
 }

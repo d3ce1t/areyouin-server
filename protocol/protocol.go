@@ -206,6 +206,8 @@ func createEmptyMessage(packet_type PacketType) Message {
 		message = &UserAccount{}
 	case M_CHANGE_EVENT_PICTURE:
 		message = &ModifyEvent{}
+	case M_SYNC_GROUPS:
+		message = &SyncGroups{}
 	case M_HELLO:
 		message = &Hello{}
 	case M_IID_TOKEN:

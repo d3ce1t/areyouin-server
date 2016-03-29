@@ -58,4 +58,5 @@ type MessageBuilder interface {
 	FriendsList(friends_list []*core.Friend) *AyiPacket
 	ClockResponse() *AyiPacket
 	UserAccount(user *core.UserAccount) *AyiPacket
+	GroupsList(groups_list []*core.Group) *AyiPacket
 }
