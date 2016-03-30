@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"image"
 	_ "image/jpeg"
 	"log"
@@ -240,7 +241,7 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 			log.Printf("ImportFacebookFriends: %v and %v are now AreYouIN friends\n",
 				task.TargetUser.GetUserId(), friendUser.Id)
 			ex.Submit(&SendUserFriends{UserId: friend_id})
-			task.sendGcmNotification(friendUser.Id, friendUser.IIDtoken, task.TargetUser.GetName())
+			task.sendGcmNotification(friendUser.Id, friendUser.IIDtoken, task.TargetUser)
 			counter++
 		}
 
@@ -251,15 +252,17 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 	}
 }
 
-func (t *ImportFacebookFriends) sendGcmNotification(user_id uint64, token string, friend_name string) {
+func (t *ImportFacebookFriends) sendGcmNotification(user_id uint64, token string, new_friend core.UserFriend) {
 
 	gcm_message := gcm.HttpMessage{
 		To:       token,
 		Priority: "high",
 		Data: gcm.Data{
-			"msg_type":    "notification",
-			"notify_type": GCM_NEW_FRIEND_MESSAGE,
-			"friend_name": friend_name,
+			"msg_type":      "notification",
+			"notify_type":   GCM_NEW_FRIEND_MESSAGE,
+			"friend_name":   new_friend.GetName(),
+			"friend_id":     new_friend.GetUserId(),
+			"friend_digest": fmt.Sprintf("%x", new_friend.GetPictureDigest()),
 		},
 	}
 

@@ -27,7 +27,8 @@ func (shell *Shell) listUserAccounts(args []string) {
 			status_info = "E"
 		}
 
-		fmt.Fprintf(shell.io, "| %v | %-17v | %-15v | %-40v | %-16v |\n", status_info, ff(user.Id, 17), ff(user.Name, 15), ff(user.Email, 40), ff(core.UnixMillisToTime(user.LastConnection), 16))
+		fmt.Fprintf(shell.io, "| %v | %-17v | %-15v | %-40v | %-16v |\n",
+			status_info, ff(user.Id, 17), ff(user.Name, 15), ff(user.Email, 40), ff(core.UnixMillisToTime(user.LastConnection), 16))
 	}
 	fmt.Fprintln(shell.io, rp("-", 105))
 

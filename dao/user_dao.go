@@ -498,15 +498,30 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 		return err
 	}
 
+	// Read groups for deleting
+	groups, err := friendDAO.LoadGroupsAndMembers(user.Id)
+	if err != nil {
+		return err
+	}
+
 	// Prepare Delete batch
 
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
-	// Empty user's friends groups
-	batch.Query(`DELETE FROM friends_by_group WHERE user_id = ?`, user.Id)
+	// Delete groups
+	for _, group := range groups {
 
-	// Remove friends groups
-	batch.Query(`DELETE FROM groups_by_user WHERE user_id = ?`, user.Id)
+		// Empty user's friends groups
+		for _, friend_id := range group.Members {
+			batch.Query(`DELETE FROM friends_by_group
+				WHERE user_id = ? AND group_id = ? AND friend_id = ?`,
+				user.Id, group.Id, friend_id)
+		}
+
+		// Remove friends groups
+		batch.Query(`DELETE FROM groups_by_user WHERE user_id = ? AND group_id = ?`,
+			user.Id, group.Id)
+	}
 
 	// Delete self user from his friends
 	for _, friend := range friends {

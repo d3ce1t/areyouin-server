@@ -75,7 +75,7 @@ CREATE TABLE groups_by_user (
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
 // Q6: Get all friends inside a group by a given user_id and group_id
-DROP TABLE IF EXISTS friends_by_group
+DROP TABLE IF EXISTS friends_by_group;
 CREATE TABLE friends_by_group (
    user_id bigint,
 	 group_id int,
