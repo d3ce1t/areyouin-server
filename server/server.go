@@ -591,7 +591,7 @@ func sendPrivateEvents(session *AyiSession) {
 	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session.UserId, len(half_events))
 	session.Write(session.NewMessage().EventsList(half_events)) // TODO: Change after remove compatibility
 
-	// Send participants info of each event, update participant status as delivered and notify
+	// Send participants info for each event,  update participant status as delivered and notify it
 	for _, event := range events {
 
 		if len(event.Participants) == 0 {
@@ -678,6 +678,21 @@ func (s *Server) filterParticipantsMap(participant uint64, participants map[uint
 			result = append(result, p)
 		} else {
 			result = append(result, p.AsAnonym())
+		}
+	}
+
+	return result
+}
+
+func (s *Server) filterEventParticipants(targetParticipant uint64, participants map[uint64]*core.EventParticipant) map[uint64]*core.EventParticipant {
+
+	result := make(map[uint64]*core.EventParticipant)
+
+	for key, p := range participants {
+		if s.canSee(targetParticipant, p) {
+			result[key] = p
+		} else {
+			result[key] = p.AsAnonym()
 		}
 	}
 
@@ -1116,6 +1131,7 @@ func main() {
 	server.RegisterCallback(proto.M_CHANGE_EVENT_PICTURE, onChangeEventPicture)
 	server.RegisterCallback(proto.M_SYNC_GROUPS, onSyncGroups)
 	server.RegisterCallback(proto.M_GET_GROUPS, onGetGroups)
+	server.RegisterCallback(proto.M_LIST_PRIVATE_EVENTS, onRequestPrivateEvents)
 
 	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)

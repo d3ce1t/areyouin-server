@@ -1,10 +1,6 @@
 package main
 
-import (
-	"testing"
-)
-
-func TestTaskSyncFacebookFriends(t *testing.T) {
+/*func TestTaskSyncFacebookFriends(t *testing.T) {
 
 	task := &SyncFacebookFriends{
 		UserId:  15918606474806281,
@@ -13,4 +9,4 @@ func TestTaskSyncFacebookFriends(t *testing.T) {
 	}
 
 	task.Run(server.task_executor)
-}
+}*/

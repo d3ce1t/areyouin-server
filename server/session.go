@@ -228,6 +228,7 @@ func (s *AyiSession) closeSocket() {
 func (s *AyiSession) startRecv() {
 	if s.Conn != nil {
 		go func() {
+			// FIXME: Capture Panic here or in doRead()
 			for !s.closed {
 				s.doRead()
 			}

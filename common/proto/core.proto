@@ -3,6 +3,7 @@ syntax = "proto3";
 package common;
 
 option java_package = "es.peeple.areyouin.common";
+option objc_class_prefix="Core";
 
 enum SyncBehaviour {
   // Previous groups are removed and new ones are added.

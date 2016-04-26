@@ -234,19 +234,19 @@ func (mb *PacketBuilder) UserAccessGranted(user_id uint64, auth_token uuid.UUID)
 
 func (mb *PacketBuilder) Ok(msg_type PacketType) *AyiPacket {
 	mb.message.Header.SetType(M_OK)
-	mb.message.SetMessage(&Ok{Type: int32(msg_type)})
+	mb.message.SetMessage(&Ok{Type: uint32(msg_type)})
 	return mb.message
 }
 
 func (mb *PacketBuilder) OkWithPayload(msg_type PacketType, payload []byte) *AyiPacket {
 	mb.message.Header.SetType(M_OK)
-	mb.message.SetMessage(&Ok{Type: int32(msg_type), Payload: payload})
+	mb.message.SetMessage(&Ok{Type: uint32(msg_type), Payload: payload})
 	return mb.message
 }
 
 func (mb *PacketBuilder) Error(msg_type PacketType, error_code int32) *AyiPacket {
 	mb.message.Header.SetType(M_ERROR)
-	mb.message.SetMessage(&Error{Type: int32(msg_type), Error: error_code})
+	mb.message.SetMessage(&Error{Type: uint32(msg_type), Error: error_code})
 	return mb.message
 }
 

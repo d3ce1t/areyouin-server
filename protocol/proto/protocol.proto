@@ -3,6 +3,7 @@ syntax = "proto3";
 package protocol;
 
 option java_package = "es.peeple.areyouin.protocol";
+//option objc_class_prefix="Proto";
 
 import "core.proto";
 
@@ -207,13 +208,13 @@ message ChangeDiscarded {
 
 // OK
 message Ok {
-  int32 type = 1;
+  uint32 type = 1;
   bytes payload = 2;
 }
 
 // ERROR
 message Error {
-  int32 type = 1;
+  uint32 type = 1;
   int32 error = 2;
 }
 

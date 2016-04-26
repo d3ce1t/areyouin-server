@@ -26,7 +26,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// Check if its a valid user, so the input was correct
 	if _, err := user.IsValid(); err != nil {
 		error_code := getNetErrorCode(err, proto.E_INVALID_INPUT)
-		session.Write(session.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, error_code))
+		session.Write(session.NewMessage().Error(packet_type, error_code))
 		log.Printf("< (%v) CREATE ACCOUNT INVALID USER: %v\n", session, err)
 		return
 	}
@@ -40,7 +40,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 		fbsession := fb.NewSession(user.Fbtoken)
 
 		if _, err := fb.CheckAccess(user.Fbid, fbsession); err != nil {
-			reply = session.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, proto.E_FB_INVALID_ACCESS)
+			reply = session.NewMessage().Error(packet_type, proto.E_FB_INVALID_ACCESS)
 			session.Write(reply)
 			log.Printf("< (%v) CREATE ACCOUNT FB ERROR: %v\n", session, fb.GetErrorMessage(err))
 			return
@@ -57,14 +57,13 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// FAILED message is sent so far. Read UserDAO.insert for more info.
 	if err := userDAO.Insert(user); err != nil {
 		err_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
-		reply = session.NewMessage().Error(proto.M_USER_CREATE_ACCOUNT, err_code)
+		reply = session.NewMessage().Error(packet_type, err_code)
 		session.Write(reply)
 		log.Printf("< (%v) CREATE ACCOUNT INSERT ERROR: %v\n", session, err)
 		return
 	}
 
 	// Insert OK
-	reply = session.NewMessage().UserAccessGranted(user.Id, user.AuthToken)
 
 	if user.HasFacebookCredentials() {
 		// Load profie picture from Facebook
@@ -79,6 +78,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 		})
 	}
 
+	reply = session.NewMessage().UserAccessGranted(user.Id, user.AuthToken)
 	session.Write(reply)
 	log.Printf("< (%v) CREATE ACCOUNT OK\n", session)
 }
@@ -96,7 +96,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 	var reply *proto.AyiPacket
 
 	if msg.Type != proto.AuthType_A_NATIVE && msg.Type != proto.AuthType_A_FACEBOOK {
-		reply = session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_MALFORMED_MESSAGE)
+		reply = session.NewMessage().Error(packet_type, proto.E_MALFORMED_MESSAGE)
 		session.Write(reply)
 		log.Printf("< (%v) USER NEW AUTH TOKEN MALFORMED MESSAGE\n", session)
 		return
@@ -118,7 +118,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 				log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			}
 		} else if err == dao.ErrNotFound {
-			reply = session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD)
+			reply = session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD\n", session)
 		} else {
 			reply = session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
@@ -138,7 +138,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		fbsession := fb.NewSession(msg.Pass2)
 
 		if _, err := fb.CheckAccess(msg.Pass1, fbsession); err != nil {
-			reply = session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_FB_INVALID_ACCESS)
+			reply = session.NewMessage().Error(packet_type, proto.E_FB_INVALID_ACCESS)
 			session.Write(reply)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID FB ACCESS %v\n", session, fb.GetErrorMessage(err))
 			return
@@ -151,7 +151,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 		if err == dao.ErrNotFound {
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD (1)", session)
-			session.Write(session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD))
+			session.Write(session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD))
 			return
 		} else if err != nil {
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
@@ -170,7 +170,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 		if user.Fbid != msg.Pass1 {
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD (2)", session)
-			session.Write(session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD))
+			session.Write(session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD))
 		}
 
 		// Check that account linked to given Facebook ID is valid, i.e. it has user_email_credentials (with or without
@@ -180,7 +180,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		// happened. So, at this point only existence of e-mail are checked (credentials are ignored).
 
 		if _, err := userDAO.CheckValidAccountObject(user.Id, user.Email, user.Fbid, false); err != nil {
-			reply = session.NewMessage().Error(proto.M_USER_NEW_AUTH_TOKEN, proto.E_INVALID_USER_OR_PASSWORD)
+			reply = session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD)
 			session.Write(reply)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			return
@@ -230,8 +230,11 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	server.RegisterSession(session)
 	server.NewUserDAO().SetLastConnection(session.UserId, core.GetCurrentTimeMillis())
 	server.task_executor.Submit(&SendUserFriends{UserId: user_id})
-	// FIXME: Do not send all of the private events, but limit to a fixed number
-	sendPrivateEvents(session)
+
+	if session.ProtocolVersion < 2 {
+		// FIXME: Do not send all of the private events, but limit to a fixed number
+		sendPrivateEvents(session)
+	}
 }
 
 func onNewAccessToken(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
@@ -301,8 +304,7 @@ func onGetUserAccount(packet_type proto.PacketType, message proto.Message, sessi
 		return
 	}
 
-	packet := session.NewMessage().UserAccount(user)
-	session.Write(packet)
+	session.Write(session.NewMessage().UserAccount(user))
 	log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session.UserId, len(user.Picture))
 }
 
@@ -468,14 +470,24 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 			}
 		}
 
-		ok_msg := session.NewMessage().Ok(packet_type)
-		session.Write(ok_msg)
-		log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session.UserId, event.EventId, len(event.Participants))
+		if session.ProtocolVersion >= 2 {
 
-		event_created_msg := session.NewMessage().EventCreated(event.GetEventWithoutParticipants())
-		status_msg := session.NewMessage().AttendanceStatus(event.EventId, server.createParticipantListFromMap(event.Participants))
-		session.Write(event_created_msg, status_msg)
-		log.Printf("< (%v) SEND NEW EVENT %v\n", author.Id, event.EventId)
+			// From protocol v2 onward, OK message is removed in favour of only one message that
+			// includes all of the event info (including participants)
+
+			session.Write(session.NewMessage().EventCreated(event))
+			log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session.UserId, event.EventId, len(event.Participants))
+
+		} else {
+			// Keep this code for clients that uses v0 and v1
+			session.Write(session.NewMessage().Ok(packet_type))
+			log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session.UserId, event.EventId, len(event.Participants))
+
+			event_created_msg := session.NewMessage().EventCreated(event.GetEventWithoutParticipants())
+			status_msg := session.NewMessage().AttendanceStatus(event.EventId, server.createParticipantListFromMap(event.Participants))
+			session.Write(event_created_msg, status_msg)
+			log.Printf("< (%v) SEND NEW EVENT %v\n", session.UserId, event.EventId)
+		}
 
 		notification := &NotifyEventInvitation{
 			Event:  event,
@@ -595,6 +607,8 @@ func onCancelEvent(packet_type proto.PacketType, message proto.Message, session 
 	event.InboxPosition = new_inbox_position
 	event.State = core.EventState_CANCELLED
 
+	// FIXME: Could send directly the event canceled message, and ignore author from
+	// NotifyEventCancelled task
 	log.Printf("< (%v) CANCEL EVENT OK\n", session.UserId)
 	session.Write(session.NewMessage().Ok(packet_type))
 
@@ -683,20 +697,17 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 		log.Printf("< (%v) INVITE USERS OK (event_id=%v, invitations_send=%v, total=%v)\n", session.UserId, msg.EventId, succeedCounter, len(msg.Participants))
 
 		// Notify previous participants of the new ones added
-		notify_event_changed := &NotifyParticipantChange{
+		server.task_executor.Submit(&NotifyParticipantChange{
 			Event:               event,
 			ParticipantsChanged: new_participants,
 			Target:              old_participants,
 			NumGuests:           event.NumGuests, // Include also total NumGuests because it's changed
-		}
+		})
 
-		server.task_executor.Submit(notify_event_changed)
-
-		notify_invitation := &NotifyEventInvitation{
+		server.task_executor.Submit(&NotifyEventInvitation{
 			Event:  event,
 			Target: userParticipants,
-		}
-		server.task_executor.Submit(notify_invitation)
+		})
 
 	} else {
 		session.Write(session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)))
@@ -734,7 +745,7 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 
 	if participant.StartDate < current_time || participant.EventState == core.EventState_CANCELLED {
 		log.Printf("< (%v) CONFIRM ATTENDANCE %v EVENT CANNOT BE MODIFIED\n", session.UserId, msg.EventId)
-		session.Write(session.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_EVENT_CANNOT_BE_MODIFIED))
+		session.Write(session.NewMessage().Error(packet_type, proto.E_EVENT_CANNOT_BE_MODIFIED))
 		return
 	}
 
@@ -745,7 +756,7 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	}
 
 	if err := event_dao.SetParticipantResponse(participant, msg.ActionCode); err != nil {
-		session.Write(session.NewMessage().Error(proto.M_CONFIRM_ATTENDANCE, proto.E_OPERATION_FAILED))
+		session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
 		log.Printf("< (%v) CONFIRM ATTENDANCE %v ERROR %v\n", session.UserId, msg.EventId, err)
 		return
 	}
@@ -757,13 +768,12 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 
 	// Notify participants
 	if event, err := event_dao.LoadEventAndParticipants(msg.EventId); err == nil && len(event) == 1 {
-		task := &NotifyParticipantChange{
+
+		server.task_executor.Submit(&NotifyParticipantChange{
 			Event:               event[0],
 			ParticipantsChanged: []uint64{session.UserId},
 			Target:              core.GetParticipantsIdSlice(event[0].Participants),
-		}
-
-		server.task_executor.Submit(task)
+		})
 
 	} else {
 		log.Println("onConfirmAttendance:", err)
@@ -836,11 +846,6 @@ func onUserFriends(packet_type proto.PacketType, message proto.Message, session 
 
 	checkAuthenticated(session)
 
-	if !session.IsAuth {
-		log.Println("Received USER FRIENDS message from unauthenticated client", session)
-		return
-	}
-
 	/*server := session.Server
 	var reply []byte
 
@@ -855,16 +860,59 @@ func onUserFriends(packet_type proto.PacketType, message proto.Message, session 
 }
 
 func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+	log.Println("> OK")
+	checkAuthenticated(session)
+}
 
-	msg := message.(*proto.Ok)
-	log.Println("> OK", msg.Type)
+func onRequestPrivateEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
+	log.Println("> REQUEST PRIVATE EVENTS") // Message does not has payload
 	checkAuthenticated(session)
 
-	/*switch msg.Type {
-	case proto.M_INVITATION_RECEIVED:
+	server := session.Server
+	dao := server.NewEventDAO()
 
-	}*/
+	current_time := core.GetCurrentTimeMillis()
+	events, err := dao.LoadUserEventsAndParticipants(session.UserId, current_time)
+	checkNoErrorOrPanic(err)
+
+	// Filter event's participant list
+	for _, event := range events {
+
+		if len(event.Participants) == 0 {
+			log.Printf("WARNING: Event %v has zero participants\n", event.EventId)
+			continue
+		}
+
+		event.Participants = session.Server.filterEventParticipants(session.UserId, event.Participants)
+	}
+
+	// Send event list to user
+	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session.UserId, len(events))
+	session.Write(session.NewMessage().EventsList(events))
+
+	// Update delivery status
+	for _, event := range events {
+
+		ownParticipant, ok := event.Participants[session.UserId]
+
+		if ok && ownParticipant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
+
+			ownParticipant.Delivered = core.MessageStatus_CLIENT_DELIVERED
+			dao.SetParticipantStatus(session.UserId, event.EventId, ownParticipant.Delivered)
+
+			// Notify change in participant status to the other participants
+			task := &NotifyParticipantChange{
+				Event:               event,
+				ParticipantsChanged: []uint64{session.UserId},
+				Target:              core.GetParticipantsIdSlice(event.Participants),
+			}
+
+			// I'm also sending notification to the author. Could avoid this because author already knows
+			// that the event has been send to him
+			server.task_executor.Submit(task)
+		}
+	}
 }
 
 func onClockRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
