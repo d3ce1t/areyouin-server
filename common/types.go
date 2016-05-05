@@ -57,6 +57,7 @@ type UserDAO interface {
 	LoadAllUsers() ([]*UserAccount, error)
 	LoadEmailCredential(email string) (credent *EmailCredential, err error)
 	LoadFacebookCredential(fbid string) (credent *FacebookCredential, err error)
+	LoadUserPicture(user_id uint64) ([]byte, error)
 	GetIIDToken(user_id uint64) (string, error)
 	Insert(user *UserAccount) error
 	SaveProfilePicture(user_id uint64, picture *Picture) error

@@ -244,6 +244,24 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 	return users, nil
 }
 
+func (dao *UserDAO) LoadUserPicture(user_id uint64) ([]byte, error) {
+
+	dao.checkSession()
+
+	stmt := `SELECT profile_picture	FROM user_account	WHERE user_id = ? LIMIT 1`
+
+	q := dao.session.Query(stmt, user_id)
+
+	var picture []byte
+
+	err := q.Scan(&picture)
+	if err != nil {
+		return nil, err
+	}
+
+	return picture, nil
+}
+
 func (dao *UserDAO) LoadEmailCredential(email string) (credent *core.EmailCredential, err error) {
 
 	dao.checkSession()

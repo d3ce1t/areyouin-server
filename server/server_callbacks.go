@@ -295,7 +295,22 @@ func onGetUserAccount(packet_type proto.PacketType, message proto.Message, sessi
 	checkAuthenticated(session)
 
 	userDAO := server.NewUserDAO()
-	user, err := userDAO.LoadWithPicture(session.UserId)
+
+	var user *core.UserAccount
+	var err error
+
+	if session.ProtocolVersion < 2 {
+
+		// Keep this one for compatibility
+
+		user, err = userDAO.LoadWithPicture(session.UserId)
+
+	} else {
+
+		// User account should not include the image but only its digest
+
+		user, err = userDAO.Load(session.UserId)
+	}
 
 	if err != nil {
 		reply := session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED))
@@ -870,11 +885,20 @@ func onRequestPrivateEvents(packet_type proto.PacketType, message proto.Message,
 	checkAuthenticated(session)
 
 	server := session.Server
-	dao := server.NewEventDAO()
+	eventDAO := server.NewEventDAO()
 
 	current_time := core.GetCurrentTimeMillis()
-	events, err := dao.LoadUserEventsAndParticipants(session.UserId, current_time)
-	checkNoErrorOrPanic(err)
+	events, err := eventDAO.LoadUserEventsAndParticipants(session.UserId, current_time)
+
+	if err != nil {
+		if err ==  dao.ErrEmptyInbox {
+			log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session.UserId, 0)
+			session.Write(session.NewMessage().EventsList(nil))
+			return
+		} else {
+			panic(err)
+		}
+	}
 
 	// Filter event's participant list
 	for _, event := range events {
@@ -899,7 +923,7 @@ func onRequestPrivateEvents(packet_type proto.PacketType, message proto.Message,
 		if ok && ownParticipant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
 
 			ownParticipant.Delivered = core.MessageStatus_CLIENT_DELIVERED
-			dao.SetParticipantStatus(session.UserId, event.EventId, ownParticipant.Delivered)
+			eventDAO.SetParticipantStatus(session.UserId, event.EventId, ownParticipant.Delivered)
 
 			// Notify change in participant status to the other participants
 			task := &NotifyParticipantChange{

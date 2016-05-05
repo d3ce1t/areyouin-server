@@ -88,9 +88,14 @@ func (s *ImageServer) loadThumbnail(id uint64, reqDpi int32) ([]byte, error) {
 	return thumbnail_dao.Load(id, dpi)
 }
 
-func (s *ImageServer) loadImage(id uint64) ([]byte, error) {
+func (s *ImageServer) loadEventImage(id uint64) ([]byte, error) {
 	event_dao := dao.NewEventDAO(s.db_session)
 	return event_dao.LoadEventPicture(id)
+}
+
+func (s *ImageServer) loadUserImage(id uint64) ([]byte, error) {
+	user_dao := dao.NewUserDAO(s.db_session)
+	return user_dao.LoadUserPicture(id)
 }
 
 // Check access and returns user_id if access is granted or
@@ -217,11 +222,11 @@ func (s *ImageServer) handleThumbnailRequest(w http.ResponseWriter, r *http.Requ
 	log.Printf("< (%v) SEND THUMBNAIL (%v/%v bytes, %v dpi)\n", user_id, n, len(data), dpi)
 }
 
-func (s *ImageServer) handleOriginalImageRequest(w http.ResponseWriter, r *http.Request) {
+func (s *ImageServer) handleEventImageRequest(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
 		http.Error(w, "Invalid request received", http.StatusBadRequest)
-		log.Printf("< (?) GET IMAGE ERROR: Invalid Request\n")
+		log.Printf("< (?) GET EVENT IMAGE ERROR: Invalid Request\n")
 		return
 	}
 
@@ -231,17 +236,17 @@ func (s *ImageServer) handleOriginalImageRequest(w http.ResponseWriter, r *http.
 		r := recover()
 		if r != nil {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			log.Printf("< (%v) GET IMAGE ERROR: %v\n", user_id, r)
+			log.Printf("< (%v) GET EVENT IMAGE ERROR: %v\n", user_id, r)
 		}
 	}()
 
-	log.Printf("> (%v) GET IMAGE (ID: %v)\n", r.Header.Get("userid"), r.URL.Query().Get("id"))
+	log.Printf("> (%v) GET EVENT IMAGE (ID: %v)\n", r.Header.Get("userid"), r.URL.Query().Get("id"))
 
 	user_id, err := s.checkAccess(r.Header)
 	manageError(err)
 	if user_id == 0 {
 		http.Error(w, "Authentication required", http.StatusUnauthorized)
-		log.Printf("< (%v) GET IMAGE ERROR: ACCESS DENIED", r.Header.Get("userid"))
+		log.Printf("< (%v) GET EVENT IMAGE ERROR: ACCESS DENIED", r.Header.Get("userid"))
 		return
 	}
 
@@ -250,19 +255,72 @@ func (s *ImageServer) handleOriginalImageRequest(w http.ResponseWriter, r *http.
 	err = s.parseImageParams(&image_id, r.URL.Query())
 	if err != nil {
 		http.Error(w, "Invalid request received", http.StatusBadRequest)
-		log.Printf("< (%v) GET IMAGE ERROR: %v\n", user_id, err)
+		log.Printf("< (%v) GET EVENT IMAGE ERROR: %v\n", user_id, err)
 		return
 	}
 
 	// Everything OK
 
-	data, err := s.loadImage(image_id)
+	data, err := s.loadEventImage(image_id)
 	manageError(err)
 
 	n, err := w.Write(data)
 	manageError(err)
-	log.Printf("< (%v) SEND IMAGE (%v/%v bytes)\n", user_id, n, len(data))
+	log.Printf("< (%v) SEND EVENT IMAGE (%v/%v bytes)\n", user_id, n, len(data))
 
+}
+
+func (s *ImageServer) handleUserImageRequest(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != "GET" {
+		http.Error(w, "Invalid request received", http.StatusBadRequest)
+		log.Printf("< (?) GET USER IMAGE ERROR: Invalid Request\n")
+		return
+	}
+
+	var user_id uint64
+
+	defer func() {
+		r := recover()
+		if r != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			log.Printf("< (%v) GET USER IMAGE ERROR: %v\n", user_id, r)
+		}
+	}()
+
+	log.Printf("> (%v) GET USER IMAGE (ID: %v)\n", r.Header.Get("userid"), r.URL.Query().Get("id"))
+
+	user_id, err := s.checkAccess(r.Header)
+	manageError(err)
+	if user_id == 0 {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		log.Printf("< (%v) GET USER IMAGE ERROR: ACCESS DENIED", r.Header.Get("userid"))
+		return
+	}
+
+	var image_id uint64
+
+	err = s.parseImageParams(&image_id, r.URL.Query())
+	if err != nil {
+		http.Error(w, "Invalid request received", http.StatusBadRequest)
+		log.Printf("< (%v) GET USER IMAGE ERROR: %v\n", user_id, err)
+		return
+	}
+
+	// Only allow retrieve of own profile image
+	if user_id != image_id {
+		http.Error(w, "Access Forbidden", http.StatusUnauthorized)
+		log.Printf("< (%v) GET USER IMAGE ERROR: %v\n", user_id, "Access Forbidden")
+		return
+	}
+
+	// Everything OK
+	data, err := s.loadUserImage(image_id)
+	manageError(err)
+
+	n, err := w.Write(data)
+	manageError(err)
+	log.Printf("< (%v) SEND USER IMAGE (%v/%v bytes)\n", user_id, n, len(data))
 }
 
 func (s *ImageServer) connectToDB() {
@@ -287,7 +345,9 @@ func (s *ImageServer) Run() {
 	go func() {
 		http.HandleFunc("/api/", s.handleThumbnailRequest)
 		http.HandleFunc("/api/img/thumbnail/", s.handleThumbnailRequest)
-		http.HandleFunc("/api/img/original/", s.handleOriginalImageRequest)
+		http.HandleFunc("/api/img/original/", s.handleEventImageRequest)
+		http.HandleFunc("/api/img/original/event/", s.handleEventImageRequest)
+		http.HandleFunc("/api/img/original/user/", s.handleUserImageRequest)
 		err := http.ListenAndServe(fmt.Sprintf(":%v", s.listen_port), nil)
 		if err != nil {
 			log.Fatal("ListenAndServe: ", err)

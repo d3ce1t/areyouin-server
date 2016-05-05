@@ -874,6 +874,7 @@ func (s *Server) saveEventPicture(event_id uint64, picture *core.Picture) error 
 
 	// Check image size is inside bounds
 	if srcImage.Bounds().Dx() > EVENT_PICTURE_MAX_WIDTH || srcImage.Bounds().Dy() > EVENT_PICTURE_MAX_HEIGHT {
+		log.Printf("Image Bounds: %v x %v\n", srcImage.Bounds().Dx(), srcImage.Bounds().Dy())
 		return ErrImageOutOfBounds
 	}
 
