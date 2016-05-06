@@ -881,7 +881,7 @@ func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSessi
 
 func onRequestPrivateEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
-	log.Println("> REQUEST PRIVATE EVENTS") // Message does not has payload
+	log.Printf("> (%v) REQUEST PRIVATE EVENTS\n", session.UserId) // Message does not has payload
 	checkAuthenticated(session)
 
 	server := session.Server
