@@ -47,6 +47,8 @@ func getNetErrorCode(err error, default_code int32) int32 {
 		err_code = proto.E_OPERATION_FAILED
 	case dao.ErrNotFoundEventOrParticipant:
 		err_code = proto.E_INVALID_EVENT_OR_PARTICIPANT
+	case dao.ErrEmptyInbox:
+		err_code = proto.E_EMPTY_LIST
 	case ErrParticipantsRequired:
 		err_code = proto.E_EVENT_PARTICIPANTS_REQUIRED
 	case ErrNonFriendsIgnored:

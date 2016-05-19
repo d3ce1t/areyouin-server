@@ -463,8 +463,8 @@ func (s *Server) PublishEvent(event *core.Event) error {
 		return err
 	}
 
-	// Author is the last participant. Add it first in order to get the author receive
-	// the event to add other participants if something fails
+	// Author is the last participant. Add it first in order to let author receive
+	// the event and add other participants if something fails
 	event.Participants[event.AuthorId].Delivered = core.MessageStatus_CLIENT_DELIVERED
 	tmp_error := s.inviteParticipantToEvent(event, event.Participants[event.AuthorId])
 	if tmp_error != nil {
@@ -1132,7 +1132,8 @@ func main() {
 	server.RegisterCallback(proto.M_CHANGE_EVENT_PICTURE, onChangeEventPicture)
 	server.RegisterCallback(proto.M_SYNC_GROUPS, onSyncGroups)
 	server.RegisterCallback(proto.M_GET_GROUPS, onGetGroups)
-	server.RegisterCallback(proto.M_LIST_PRIVATE_EVENTS, onRequestPrivateEvents)
+	server.RegisterCallback(proto.M_LIST_PRIVATE_EVENTS, onListPrivateEvents)
+	server.RegisterCallback(proto.M_HISTORY_PRIVATE_EVENTS, onListEventsHistory)
 
 	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)

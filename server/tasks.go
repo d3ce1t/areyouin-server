@@ -326,12 +326,32 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 			continue
 		}
 
-		// Create InvitationReceived message
-		notify_msg := session.NewMessage().InvitationReceived(light_event)
+		messageToSend := make([]*proto.AyiPacket, 0, 0)
+		eventCopy := &core.Event{}
+		*eventCopy = *t.Event
 
-		// Filter event participants to protect privacy and create message
-		filtered_participants := server.filterParticipantsMap(user.Id, t.Event.Participants)
-		attendance_status_msg := session.NewMessage().AttendanceStatus(t.Event.EventId, filtered_participants)
+		// Create InvitationReceived message
+		if session.ProtocolVersion >= 2 {
+
+			// From protocol v2 onward, invitation received message contains event info
+			// and participants.
+
+			// Filter event participants to protect privacy and create message
+			eventCopy.Participants = server.filterEventParticipants(user.Id, t.Event.Participants)
+			notify_msg := session.NewMessage().InvitationReceived(eventCopy)
+			messageToSend = append(messageToSend, notify_msg)
+
+		} else {
+
+				// Keep this code for clients that uses v0 and v1
+
+				// Filter event participants to protect privacy and create message
+				filtered_participants := server.filterParticipantsMap(user.Id, t.Event.Participants)
+				notify_msg := session.NewMessage().InvitationReceived(light_event)
+				attendance_status_msg := session.NewMessage().AttendanceStatus(t.Event.EventId, filtered_participants)
+				messageToSend = append(messageToSend, notify_msg, attendance_status_msg)
+
+		}
 
 		// Notify (use a channel because it is needed to know if message arrived)
 		var future *Future
@@ -342,7 +362,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 			future = NewFuture(false)
 		}
 
-		if ok := session.WriteAsync(future, notify_msg, attendance_status_msg); ok {
+		if ok := session.WriteAsync(future, messageToSend...); ok {
 			futures[user.Id] = future.C
 			log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id, t.Event.EventId)
 		} else {

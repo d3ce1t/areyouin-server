@@ -819,67 +819,7 @@ func onReadEvent(packet_type proto.PacketType, message proto.Message, session *A
 
 }
 
-func onListAuthoredEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
 func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
-func onListPublicEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
-func onHistoryAuthoredEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
-func onHistoryPrivateEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
-func onHistoryPublicEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
-func onUserFriends(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-
-	log.Println("> USER FRIENDS") // Message does not has payload
-
-	checkAuthenticated(session)
-
-	/*server := session.Server
-	var reply []byte
-
-	if !server.udb.ExistID(session.UserId) {
-		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_MALFORMED_MESSAGE).Marshal()
-		writeReply(reply, session)
-		log.Println("FIXME: Received USER FRIENDS message from authenticated user but non-existent")
-	} else if ok := sendUserFriends(session); !ok {
-		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_INVALID_USER).Marshal()
-		writeReply(reply, session)
-	}*/
-}
-
-func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
-	log.Println("> OK")
-	checkAuthenticated(session)
-}
-
-func onRequestPrivateEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	log.Printf("> (%v) REQUEST PRIVATE EVENTS\n", session.UserId) // Message does not has payload
 	checkAuthenticated(session)
@@ -937,6 +877,85 @@ func onRequestPrivateEvents(packet_type proto.PacketType, message proto.Message,
 			server.task_executor.Submit(task)
 		}
 	}
+}
+
+func onListEventsHistory(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.EventListRequest)
+
+	log.Printf("> (%v) REQUEST EVENTS HISTORY (start: %v, end: %v)\n", session.UserId, msg.StartWindow, msg.EndWindow) // Message does not has payload
+	checkAuthenticated(session)
+
+	current_time := core.GetCurrentTimeMillis()
+
+	if msg.StartWindow >= current_time {
+		msg.StartWindow = current_time
+	}
+
+	if msg.EndWindow >= current_time {
+		msg.EndWindow = current_time
+	}
+
+	eventDAO := server.NewEventDAO()
+	events, err := eventDAO.LoadUserEventsHistoryAndparticipants(session.UserId, msg.StartWindow, msg.EndWindow)
+	checkNoErrorOrPanic(err)
+
+	// Check event exists
+	checkAtLeastOneEventOrPanic(events)
+
+	var startWindow int64 = 0
+	var endWindow int64 = 0
+
+	if msg.StartWindow < msg.EndWindow {
+		startWindow = events[0].StartDate
+		endWindow = events[len(events)-1].StartDate
+	} else {
+		startWindow = events[len(events)-1].StartDate
+		endWindow = events[0].StartDate
+	}
+	
+	// Filter event's participant list
+	for _, event := range events {
+
+		if len(event.Participants) == 0 {
+			log.Printf("WARNING: Event %v has zero participants\n", event.EventId)
+			continue
+		}
+
+		event.Participants = session.Server.filterEventParticipants(session.UserId, event.Participants)
+	}
+
+	// Send event list to user
+	log.Printf("< (%v) SEND EVENTS HISTORY (num.events: %v)", session.UserId, len(events))
+	session.Write(session.NewMessage().EventsHistoryList(events, startWindow, endWindow))
+
+	// NOTE: Retrieval of events history does not cause any change to events involved, i.e.
+	// event delivery status isn't updated
+}
+
+func onUserFriends(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	log.Println("> USER FRIENDS") // Message does not has payload
+
+	checkAuthenticated(session)
+
+	/*server := session.Server
+	var reply []byte
+
+	if !server.udb.ExistID(session.UserId) {
+		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_MALFORMED_MESSAGE).Marshal()
+		writeReply(reply, session)
+		log.Println("FIXME: Received USER FRIENDS message from authenticated user but non-existent")
+	} else if ok := sendUserFriends(session); !ok {
+		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_INVALID_USER).Marshal()
+		writeReply(reply, session)
+	}*/
+}
+
+func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+	log.Println("> OK")
+	checkAuthenticated(session)
 }
 
 func onClockRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
