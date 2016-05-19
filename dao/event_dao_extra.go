@@ -1,5 +1,10 @@
 package dao
 
+import (
+	core "peeple/areyouin/common"
+	"github.com/gocql/gocql"
+)
+
 /*func (dao *EventDAO) InsertEventCAS(event *core.Event) (bool, error) {
 
 	dao.checkSession()
@@ -91,6 +96,41 @@ package dao
 
 	return events, nil
 }*/
+
+func (dao *EventDAO) loadUserInboxHelper(query *gocql.Query) ([]*core.EventInbox, error) {
+
+	iter := query.Iter()
+	events := make([]*core.EventInbox, 0, 20)
+
+	var event_id uint64
+	var author_id uint64
+	var author_name string
+	var start_date int64
+	var message string
+	var response int32
+
+	for iter.Scan(&event_id, &author_id, &author_name, &start_date, &message, &response) {
+
+		events = append(events, &core.EventInbox{
+			EventId:    event_id,
+			AuthorId:   author_id,
+			AuthorName: author_name,
+			StartDate:  start_date,
+			Message:    message,
+			Response:   core.AttendanceResponse(response),
+		})
+	}
+
+	if err := iter.Close(); err != nil {
+		return nil, err
+	}
+
+	if len(events) == 0 {
+		return nil, ErrEmptyInbox
+	}
+
+	return events, nil
+}
 
 func (dao *EventDAO) checkSession() {
 	if dao.session == nil {

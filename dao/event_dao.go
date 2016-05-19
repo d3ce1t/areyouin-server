@@ -3,13 +3,13 @@ package dao
 import (
 	"log"
 	core "peeple/areyouin/common"
-	"time"
-
 	"github.com/gocql/gocql"
 )
 
 const (
 	MAX_NUM_GUESTS = 100
+	MAX_EVENTS_IN_HISTORY_LIST = 15
+	MAX_EVENTS_IN_RECENT_LIST = 100
 	//TIME_MARGIN_IN_SEC = 4 * 3600 // 4 hours
 )
 
@@ -137,43 +137,64 @@ func (dao *EventDAO) InsertEventToUserInbox(participant *core.EventParticipant, 
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *EventDAO) LoadUserInbox(user_id uint64, fromDate int64, toDate int64) ([]*core.EventInbox, error) {
+// Load events in closed range [fromDate, ...], where upper bound isn't constrained
+// and it's higher than fromDate. Retrieved events are ordered from newer to older.
+// This function returns MAX_EVENTS_IN_RECENT_LIST events as much.
+func (dao *EventDAO) LoadUserInbox(user_id uint64, fromDate int64) ([]*core.EventInbox, error) {
+
+		stmt := `SELECT event_id, author_id, author_name, start_date, message, response FROM events_by_user
+			WHERE user_id = ? AND event_bucket = ? AND start_date >= ? LIMIT ?`
+
+		event_bucket := 1 // TODO: Add bucket logic
+		query := dao.session.Query(stmt, user_id, event_bucket, fromDate, MAX_EVENTS_IN_RECENT_LIST)
+
+		return dao.loadUserInboxHelper(query)
+}
+
+// Load events in open range [..., fromDate), where lower bound isn't constrained
+// and it's lower than fromDate. fromDate must be a date lower than current_time.
+// Retrieved events are ordered from newer to older. This function returns
+// MAX_EVENTS_IN_HISTORY_LIST events as much.
+func (dao *EventDAO) LoadUserInboxReverse(user_id uint64, fromDate int64) ([]*core.EventInbox, error) {
+
+	currentTime := core.GetCurrentTimeMillis()
+
+	if fromDate > currentTime {
+		fromDate = currentTime
+	}
 
 	stmt := `SELECT event_id, author_id, author_name, start_date, message, response FROM events_by_user
-		WHERE user_id = ? AND event_bucket = ? AND start_date >= ? AND start_date < ?`
+		WHERE user_id = ? AND event_bucket = ? AND start_date < ? LIMIT ?`
 
 	event_bucket := 1 // TODO: Add bucket logic
-	iter := dao.session.Query(stmt, user_id, event_bucket, fromDate, toDate).Iter()
-	events := make([]*core.EventInbox, 0, 20)
+	query := dao.session.Query(stmt, user_id, event_bucket, fromDate, MAX_EVENTS_IN_HISTORY_LIST)
 
-	var event_id uint64
-	var author_id uint64
-	var author_name string
-	var start_date int64
-	var message string
-	var response int32
+	return dao.loadUserInboxHelper(query)
+}
 
-	for iter.Scan(&event_id, &author_id, &author_name, &start_date, &message, &response) {
-		events = append(events, &core.EventInbox{
-			EventId:    event_id,
-			AuthorId:   author_id,
-			AuthorName: author_name,
-			StartDate:  start_date,
-			Message:    message,
-			Response:   core.AttendanceResponse(response),
-		})
+// Load events in open range (fromDate, toDate), where fromDate < toDate.  Retrieved
+// events are ordered from older to newer. toDate must be a date lower than current_time.
+// This function returns MAX_EVENTS_IN_HISTORY_LIST as much.
+func (dao *EventDAO) LoadUserInboxBetween(user_id uint64, fromDate int64, toDate int64) ([]*core.EventInbox, error) {
+
+	currentTime := core.GetCurrentTimeMillis()
+
+	if toDate > currentTime {
+		toDate = currentTime
 	}
 
-	if err := iter.Close(); err != nil {
-		log.Println("LoadUserInbox Error (user", user_id, "):", err)
-		return nil, err
+	if fromDate >= toDate {
+		return nil, ErrInvalidArg
 	}
 
-	if len(events) == 0 {
-		return nil, ErrEmptyInbox
-	}
+	stmt := `SELECT event_id, author_id, author_name, start_date, message, response FROM events_by_user
+		WHERE user_id = ? AND event_bucket = ? AND start_date > ? AND start_date < ?
+		ORDER BY start_date ASC LIMIT ?`
 
-	return events, nil
+	event_bucket := 1 // TODO: Add bucket logic
+	query := dao.session.Query(stmt, user_id, event_bucket, fromDate, toDate, MAX_EVENTS_IN_HISTORY_LIST)
+
+	return dao.loadUserInboxHelper(query)
 }
 
 // Read one or more events and their participants. Event info and participants are in the
@@ -184,7 +205,14 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*co
 		return nil, ErrInvalidArg
 	}
 
-	events = make([]*core.Event, 0, len(event_ids))
+	// Keep input order in output slice. Because of this, it's need to index which
+	// position takes each id in the input vector
+	eventPosition := make(map[uint64]int)
+	for pos, value := range event_ids {
+		eventPosition[value] = pos
+	}
+
+	events = make([]*core.Event, len(event_ids))
 
 	stmt := `SELECT event_id, author_id, author_name, message, picture_digest, created_date, inbox_position, start_date,
 									end_date, num_attendees, num_guests, event_state, guest_id, guest_name,
@@ -238,7 +266,7 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...uint64) (events []*co
 			}
 
 			events_index[event_id] = event
-			events = append(events, event)
+			events[eventPosition[event.EventId]] = event
 		}
 
 		if guest_id != 0 {
@@ -328,8 +356,8 @@ func (dao *EventDAO) LoadUserEventsAndParticipants(user_id uint64, fromDate int6
 	dao.checkSession()
 
 	// Get index of events
-	toDate := core.TimeToMillis(time.Now().Add(core.MAX_DIF_IN_START_DATE)) // One year
-	events_inbox, err := dao.LoadUserInbox(user_id, fromDate, toDate)
+	//toDate := core.TimeToMillis(time.Now().Add(core.MAX_DIF_IN_START_DATE)) // One year
+	events_inbox, err := dao.LoadUserInbox(user_id, fromDate)
 
 	if err != nil {
 		log.Println("LoadUserEventsAndParticipants 1 (", user_id, "):", err)
@@ -348,6 +376,47 @@ func (dao *EventDAO) LoadUserEventsAndParticipants(user_id uint64, fromDate int6
 		log.Println("LoadUserEventsAndParticipants 2 (", user_id, "):", err)
 		return nil, err
 	}
+
+	return events, nil
+}
+
+
+// Load user events in window delimited by (fromDate, toDate) where fromDate < toDate
+func (dao *EventDAO) LoadUserEventsHistoryAndparticipants(user_id uint64, fromDate int64, toDate int64) ([]*core.Event, error) {
+
+	dao.checkSession()
+
+	var events_inbox []*core.EventInbox
+	var err error
+
+	if fromDate < toDate {
+		events_inbox, err = dao.LoadUserInboxBetween(user_id, fromDate, toDate)
+	} else {
+		events_inbox, err = dao.LoadUserInboxReverse(user_id, fromDate)
+	}
+
+	if err != nil {
+		log.Println("LoadUserEventsHistoryAndparticipants 1 (", user_id, "):", err)
+		return nil, err
+	}
+
+	event_id_list := make([]uint64, 0, len(events_inbox))
+	for _, event_inbox := range events_inbox {
+		event_id_list = append(event_id_list, event_inbox.EventId)
+	}
+
+	// Read from event table to get the actual info
+	events, err := dao.LoadEventAndParticipants(event_id_list...)
+
+	if err != nil {
+		log.Println("LoadUserEventsHistoryAndparticipants 2 (", user_id, "):", err)
+		return nil, err
+	}
+
+	/*for i := 0; i<len(events_inbox); i++ {
+		fmt.Printf("StartDate: %v Id: %v, Id: %v\n", core.UnixMillisToTime(events_inbox[i].StartDate), events_inbox[i].EventId, events[i].EventId)
+	}*/
+
 
 	return events, nil
 }

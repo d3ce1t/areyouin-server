@@ -98,7 +98,7 @@ CREATE TABLE events_by_user (
 	PRIMARY KEY ((user_id, event_bucket), start_date, event_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
-AND CLUSTERING ORDER BY (start_date ASC, event_id ASC);
+AND CLUSTERING ORDER BY (start_date DESC, event_id DESC);
 
 // Q8: Find a event with a specified event id
 DROP TABLE IF EXISTS event;

@@ -476,6 +476,28 @@ func (dao *UserDAO) SetIIDToken(user_id uint64, iid_token string) error {
 	return dao.session.Query(stmt, iid_token, user_id).Exec()
 }
 
+func (dao *UserDAO) ResetEmailCredentialPassword(user_id uint64, email string, password string) (ok bool, err error) {
+
+	dao.checkSession()
+
+	if email == "" || password == "" || user_id == 0 {
+		return false, ErrInvalidArg
+	}
+
+	// Hash Password
+	salt, err := core.NewRandomSalt32()
+	if err != nil {
+		return false, ErrUnexpected
+	}
+
+	hashedPassword := core.HashPasswordWithSalt(password, salt)
+
+	updateEmailCredentials := `UPDATE user_email_credentials SET password = ?, salt = ?
+			WHERE email = ? IF user_id = ?`
+
+	return dao.session.Query(updateEmailCredentials, hashedPassword[:], salt[:], email, user_id).ScanCAS(nil)
+}
+
 // User information is spread in three tables: user_account, user_email_credentials
 // and user_facebook_credentials. So, in order to delete a user, it's needed an
 // user_id, e-mail and, likely, a Facebook ID. For the sake of safety, a read is

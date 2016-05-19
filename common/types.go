@@ -31,8 +31,14 @@ type EventDAO interface {
 	LoadEvent(event_ids ...uint64) (events []*Event, err error)
 	LoadEventAndParticipants(event_ids ...uint64) (events []*Event, err error)
 	LoadParticipant(event_id uint64, user_id uint64) (*Participant, error)
-	LoadUserInbox(user_id uint64, fromDate int64, toDate int64) ([]*EventInbox, error)
+
+	LoadUserInbox(user_id uint64, fromDate int64) ([]*EventInbox, error)
+	LoadUserInboxReverse(user_id uint64, fromDate int64) ([]*EventInbox, error)
+	LoadUserInboxBetween(user_id uint64, fromDate int64, toDate int64) ([]*EventInbox, error)
+
 	LoadUserEventsAndParticipants(user_id uint64, fromDate int64) ([]*Event, error)
+	LoadUserEventsHistoryAndparticipants(user_id uint64, fromDate int64, toDate int64) ([]*Event, error)
+
 	InsertEventToUserInbox(participant *EventParticipant, event *Event) error
 	AddOrUpdateEventToUserInbox(participant *EventParticipant, event *Event) error
 	CompareAndSetNumGuests(event_id uint64, num_guests int) (bool, error)
@@ -66,6 +72,7 @@ type UserDAO interface {
 	SetFacebookAccessToken(user_id uint64, fb_id string, fb_token string) error
 	SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID, fb_id string, fb_token string) error
 	SetIIDToken(user_id uint64, iid_token string) error
+	ResetEmailCredentialPassword(user_id uint64, email string, password string) (ok bool, err error)
 	Delete(user *UserAccount) error
 	DeleteUserAccount(user_id uint64) error
 	DeleteEmailCredentials(email string) error
