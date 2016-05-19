@@ -12,6 +12,10 @@ func (shell *Shell) fixDatabase(args []string) {
 		shell.fixEvent()
 	case "--import-old-friends-table":
 		shell.importFriendsFromOldFormat()
+	case "--copy-events-by-users-to-tmp":
+		shell.copyEventsByUser("events_by_user", "events_by_user_new")
+	case "--copy-tmp-to-events-by-user":
+		shell.copyEventsByUser("events_by_user_new", "events_by_user")
 	}
 }
 
@@ -107,4 +111,56 @@ func (shell *Shell) importFriendsFromOldFormat() {
 
 	fmt.Fprintf(shell.io, "Completed: (fixes: %v, rows_processed: %v)\n",
 		fixes, rows_processed)
+}
+
+// Copy events_by_user to events_by_user_new
+func (shell *Shell) copyEventsByUser(fromTable string, toTable string) {
+
+	server := shell.server
+
+	stmt_select := `SELECT user_id, event_bucket, start_date, event_id, author_id,
+		author_name, message, response FROM ` + fromTable
+
+	stmt_update := `INSERT INTO ` + toTable +
+		` (user_id, event_bucket, start_date, event_id, author_id, author_name, message, response)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+
+		var user_id uint64
+		var event_bucket int32
+		var start_date int64
+		var event_id uint64
+		var author_id uint64
+		var author_name string
+		var message string
+		var response int32
+
+		rows_processed := 0
+		fixes := 0
+
+		iter := server.DbSession().Query(stmt_select).Iter()
+
+		for iter.Scan(&user_id, &event_bucket, &start_date, &event_id, &author_id, &author_name, &message, &response) {
+
+			rows_processed++
+
+			q := server.DbSession().Query(stmt_update, user_id, event_bucket, start_date, event_id, author_id, author_name, message, response)
+			if err := q.Exec(); err != nil {
+				manageShellError(
+					errors.New(
+						fmt.Sprintf("Error %v (user_id: %v, bucket: %v, start_date: %v, event_id: %v, fixes: %v, rows_processed: %v)",
+							err.Error(), user_id, event_bucket, start_date, event_id, fixes, rows_processed)))
+			}
+
+			fixes++
+
+			if rows_processed%10 == 0 {
+				fmt.Fprintf(shell.io, "Progress: (fixes: %v, rows_processed: %v)\n",
+					fixes, rows_processed)
+			}
+		}
+
+		manageShellError(iter.Close())
+
+		fmt.Fprintf(shell.io, "Completed: (fixes: %v, rows_processed: %v)\n",
+			fixes, rows_processed)
 }
