@@ -218,18 +218,18 @@ func createEmptyMessage(packet_type PacketType) Message {
 		message = &TimeInfo{}
 	case M_READ_EVENT:
 		message = &ReadEvent{}
-	case M_LIST_AUTHORED_EVENTS:
-		message = &ListCursor{}
+	/*case M_LIST_AUTHORED_EVENTS:
+		message = &ListCursor{}*/
 	/*case M_LIST_PRIVATE_EVENTS:
 		message = &ListCursor{}*/
-	case M_LIST_PUBLIC_EVENTS:
-		message = &ListPublicEvents{}
-	case M_HISTORY_AUTHORED_EVENTS:
-		fallthrough
+	/*case M_LIST_PUBLIC_EVENTS:
+		message = &ListPublicEvents{}*/
+	/*case M_HISTORY_AUTHORED_EVENTS:
+		fallthrough*/
 	case M_HISTORY_PRIVATE_EVENTS:
-		fallthrough
-	case M_HISTORY_PUBLIC_EVENTS:
-		message = &ListCursor{}
+		message = &EventListRequest{}
+	/*case M_HISTORY_PUBLIC_EVENTS:
+		message = &ListCursor{}*/
 		///case M_USER_FRIENDS: UserFriends has no payload
 	// Replies
 	case M_PONG:

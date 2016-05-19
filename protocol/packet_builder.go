@@ -263,42 +263,42 @@ func (mb *PacketBuilder) ReadEvent(event_id uint64) *AyiPacket {
 	return mb.message
 }
 
-func (mb *PacketBuilder) ListAuthoredEvents(cursor uint32) *AyiPacket {
+/*func (mb *PacketBuilder) ListAuthoredEvents(cursor uint32) *AyiPacket {
 	mb.message.Header.SetType(M_LIST_AUTHORED_EVENTS)
 	mb.message.SetMessage(&ListCursor{Cursor: cursor})
 	return mb.message
-}
+}*/
 
-func (mb *PacketBuilder) ListPrivateEvents(cursor uint32) *AyiPacket {
+/*func (mb *PacketBuilder) ListPrivateEvents(cursor uint32) *AyiPacket {
 	mb.message.Header.SetType(M_LIST_PRIVATE_EVENTS)
 	mb.message.SetMessage(&ListCursor{Cursor: cursor})
 	return mb.message
-}
+}*/
 
-func (mb *PacketBuilder) ListPublicEvents(latitude float32, longitude float32, range_in_meters uint32, cursor uint32) *AyiPacket {
+/*func (mb *PacketBuilder) ListPublicEvents(latitude float32, longitude float32, range_in_meters uint32, cursor uint32) *AyiPacket {
 	mb.message.Header.SetType(M_LIST_PUBLIC_EVENTS)
 	mb.message.SetMessage(&ListPublicEvents{UserCoordinates: &core.Location{Latitude: latitude, Longitude: longitude},
 		RangeInMeters: range_in_meters, Cursor: &ListCursor{cursor}})
 	return mb.message
-}
+}*/
 
-func (mb *PacketBuilder) HistoryAuthoredEvents(cursor uint32) *AyiPacket {
+/*func (mb *PacketBuilder) HistoryAuthoredEvents(cursor uint32) *AyiPacket {
 	mb.message.Header.SetType(M_HISTORY_AUTHORED_EVENTS)
 	mb.message.SetMessage(&ListCursor{Cursor: cursor})
 	return mb.message
-}
+}*/
 
-func (mb *PacketBuilder) HistoryPrivateEvents(cursor uint32) *AyiPacket {
+/*func (mb *PacketBuilder) HistoryPrivateEvents(cursor uint32) *AyiPacket {
 	mb.message.Header.SetType(M_HISTORY_PRIVATE_EVENTS)
 	mb.message.SetMessage(&ListCursor{Cursor: cursor})
 	return mb.message
-}
+}*/
 
-func (mb *PacketBuilder) HistoryPublicEvents(cursor uint32) *AyiPacket {
+/*func (mb *PacketBuilder) HistoryPublicEvents(cursor uint32) *AyiPacket {
 	mb.message.Header.SetType(M_HISTORY_PUBLIC_EVENTS)
 	mb.message.SetMessage(&ListCursor{Cursor: cursor})
 	return mb.message
-}
+}*/
 
 func (mb *PacketBuilder) UserFriends() *AyiPacket {
 	mb.message.Header.SetType(M_USER_FRIENDS)
@@ -323,6 +323,12 @@ func (mb *PacketBuilder) EventInfo(event *core.Event) *AyiPacket {
 func (mb *PacketBuilder) EventsList(events_list []*core.Event) *AyiPacket {
 	mb.message.Header.SetType(M_EVENTS_LIST)
 	mb.message.SetMessage(&EventsList{Event: events_list})
+	return mb.message
+}
+
+func (mb *PacketBuilder) EventsHistoryList(events_list []*core.Event, startWindow int64, endWindow int64) *AyiPacket {
+	mb.message.Header.SetType(M_EVENTS_HISTORY_LIST)
+	mb.message.SetMessage(&EventsList{Event: events_list, StartWindow: startWindow, EndWindow: endWindow})
 	return mb.message
 }
 

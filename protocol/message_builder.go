@@ -45,16 +45,17 @@ type MessageBuilder interface {
 	Error(msg_type PacketType, error_code int32) *AyiPacket
 	Ping() *AyiPacket
 	ReadEvent(event_id uint64) *AyiPacket
-	ListAuthoredEvents(cursor uint32) *AyiPacket
-	ListPrivateEvents(cursor uint32) *AyiPacket
-	ListPublicEvents(latitude float32, longitude float32, range_in_meters uint32, cursor uint32) *AyiPacket
-	HistoryAuthoredEvents(cursor uint32) *AyiPacket
-	HistoryPrivateEvents(cursor uint32) *AyiPacket
-	HistoryPublicEvents(cursor uint32) *AyiPacket
+	//ListAuthoredEvents(cursor uint32) *AyiPacket
+	//ListPrivateEvents(cursor uint32) *AyiPacket
+	//ListPublicEvents(latitude float32, longitude float32, range_in_meters uint32, cursor uint32) *AyiPacket
+	//HistoryAuthoredEvents(cursor uint32) *AyiPacket
+	//HistoryPrivateEvents(cursor uint32) *AyiPacket
+	//HistoryPublicEvents(cursor uint32) *AyiPacket
 	UserFriends() *AyiPacket
 	Pong() *AyiPacket
 	EventInfo(event *core.Event) *AyiPacket
 	EventsList(events_list []*core.Event) *AyiPacket
+	EventsHistoryList(events_list []*core.Event, startWindow int64, endWindow int64) *AyiPacket
 	FriendsList(friends_list []*core.Friend) *AyiPacket
 	ClockResponse() *AyiPacket
 	UserAccount(user *core.UserAccount) *AyiPacket

@@ -238,14 +238,11 @@ message ReadEvent {
 // HISTORY AUTHORED EVENTS
 // HISTORY PRIVATE EVENTS
 // HISTORY PUBLIC EVENTS
-message ListCursor {
-  uint32 cursor = 1;
-}
-
-message ListPublicEvents {
-  common.Location user_coordinates = 1;
-  uint32 range_in_meters = 2;
-  ListCursor cursor = 3;
+message EventListRequest {
+  int64 start_window = 1;
+  int64 end_window = 2;
+  common.Location user_coordinates = 3;
+  uint32 range_in_meters = 4;
 }
 
 //
@@ -255,7 +252,8 @@ message ListPublicEvents {
 // EVENTS LIST
 message EventsList {
   repeated common.Event event = 1;
-  // Optionally add cursor field
+  int64 startWindow = 2;
+  int64 endWindow = 3;
 }
 
 // FRIENDS LIST
