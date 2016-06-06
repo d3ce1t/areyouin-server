@@ -12,7 +12,6 @@ var (
 	ErrEmptyInbox                 = errors.New("user inbox is empty")
 	ErrNoSession                  = errors.New("no session to Cassandra available")
 	ErrInvalidArg                 = errors.New("invalid arguments")
-	ErrInvalidUser                = errors.New("invalid user account")
 	ErrInvalidEmail               = errors.New("invalid e-mail")
 	ErrEmailAlreadyExists         = errors.New("e-mail already exists")
 	ErrFacebookAlreadyExists      = errors.New("facebook already exists")

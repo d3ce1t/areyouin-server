@@ -16,13 +16,13 @@ type FriendDAO struct {
 	session *gocql.Session
 }
 
-func NewFriendDAO(session *gocql.Session) core.FriendDAO {
-	return &FriendDAO{session: session}
+func (dao *FriendDAO) GetSession() *gocql.Session {
+	return dao.session
 }
 
 func (dao *FriendDAO) LoadFriends(user_id int64, group_id int32) ([]*core.Friend, error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	if group_id == 0 {
 		return dao.getAllFriends(user_id)
@@ -37,7 +37,7 @@ func (dao *FriendDAO) LoadFriends(user_id int64, group_id int32) ([]*core.Friend
 
 func (dao *FriendDAO) LoadFriendsMap(user_id int64) (map[int64]*core.Friend, error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt := `SELECT friend_id, friend_name, picture_digest FROM friends_by_user
 						WHERE user_id = ? LIMIT ?`
@@ -71,7 +71,7 @@ func (dao *FriendDAO) LoadFriendsMap(user_id int64) (map[int64]*core.Friend, err
 // have the first user in his/her friend list.
 func (dao *FriendDAO) IsFriend(user_id int64, other_user_id int64) (bool, error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt := `SELECT user_id FROM friends_by_user
 		WHERE user_id = ? AND friend_id = ?`
@@ -108,7 +108,7 @@ func (dao *FriendDAO) AreFriends(user_id int64, other_user_id int64) (bool, erro
 
 func (dao *FriendDAO) MakeFriends(user1 core.UserFriend, user2 core.UserFriend) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
@@ -122,15 +122,18 @@ func (dao *FriendDAO) MakeFriends(user1 core.UserFriend, user2 core.UserFriend) 
 }
 
 func (dao *FriendDAO) SetPictureDigest(user_id int64, friend_id int64, digest []byte) error {
-	dao.checkSession()
+
+	checkSession(dao)
+
 	stmt := `UPDATE friends_by_user SET picture_digest = ?
 						WHERE user_id = ? AND friend_id = ?`
+
 	return dao.session.Query(stmt, digest, user_id, friend_id).Exec()
 }
 
 func (dao *FriendDAO) LoadGroups(user_id int64) ([]*core.Group, error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt := `SELECT group_id, group_name, group_size FROM groups_by_user
 		WHERE user_id = ?`
@@ -160,7 +163,7 @@ func (dao *FriendDAO) LoadGroups(user_id int64) ([]*core.Group, error) {
 
 func (dao *FriendDAO) LoadGroupsAndMembers(user_id int64) ([]*core.Group, error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	groups, err := dao.LoadGroups(user_id)
 	if err != nil {
@@ -180,7 +183,7 @@ func (dao *FriendDAO) LoadGroupsAndMembers(user_id int64) ([]*core.Group, error)
 // of the members in the group.
 func (dao *FriendDAO) AddGroup(user_id int64, group *core.Group) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt_add_group := `INSERT INTO groups_by_user (user_id, group_id, group_name, group_size)
 		VALUES (?, ?, ?, ?)`
@@ -200,16 +203,19 @@ func (dao *FriendDAO) AddGroup(user_id int64, group *core.Group) error {
 }
 
 func (dao *FriendDAO) SetGroupName(user_id int64, group_id int32, name string) error {
-	dao.checkSession()
+
+	checkSession(dao)
+
 	stmt_update := `UPDATE groups_by_user SET group_name = ?
 		WHERE user_id = ? AND group_id = ?`
+
 	return dao.session.Query(stmt_update, name, user_id, group_id).Exec()
 }
 
 // Add one or more members into the same group
 func (dao *FriendDAO) AddMembers(user_id int64, group_id int32, friend_ids ...int64) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	if len(friend_ids) == 0 {
 		return ErrInvalidArg
@@ -235,7 +241,7 @@ func (dao *FriendDAO) AddMembers(user_id int64, group_id int32, friend_ids ...in
 // Delete one or more members from the same group
 func (dao *FriendDAO) DeleteMembers(user_id int64, group_id int32, friend_ids ...int64) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	if len(friend_ids) == 0 {
 		return ErrInvalidArg
@@ -259,7 +265,7 @@ func (dao *FriendDAO) DeleteMembers(user_id int64, group_id int32, friend_ids ..
 
 func (dao *FriendDAO) DeleteGroup(user_id int64, group_id int32) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt_empty_group := `DELETE FROM friends_by_group WHERE user_id = ? AND group_id = ?`
 	stmt_delete_group := `DELETE FROM groups_by_user WHERE user_id = ? AND group_id = ?`
@@ -269,10 +275,4 @@ func (dao *FriendDAO) DeleteGroup(user_id int64, group_id int32) error {
 	batch.Query(stmt_delete_group, user_id, group_id)
 
 	return dao.session.ExecuteBatch(batch)
-}
-
-func (dao *FriendDAO) checkSession() {
-	if dao.session == nil {
-		panic(ErrNoSession)
-	}
 }

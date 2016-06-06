@@ -131,9 +131,3 @@ func (dao *EventDAO) loadUserInboxHelper(query *gocql.Query) ([]*core.EventInbox
 
 	return events, nil
 }
-
-func (dao *EventDAO) checkSession() {
-	if dao.session == nil {
-		panic(ErrNoSession)
-	}
-}

@@ -17,13 +17,13 @@ type EventDAO struct {
 	session *gocql.Session
 }
 
-func NewEventDAO(session *gocql.Session) core.EventDAO {
-	return &EventDAO{session: session}
+func (dao *EventDAO) GetSession() *gocql.Session {
+	return dao.session
 }
 
 func (dao *EventDAO) InsertEventAndParticipants(event *core.Event) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt_event := `INSERT INTO event (event_id, author_id, author_name, message, start_date,
 		end_date, public, num_attendees, num_guests, created_date, inbox_position)
@@ -49,7 +49,7 @@ func (dao *EventDAO) InsertEventAndParticipants(event *core.Event) error {
 // and error. Whatever else returns (nil, error)
 func (dao *EventDAO) LoadParticipant(event_id int64, user_id int64) (*core.Participant, error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt := `SELECT guest_name, guest_response, guest_status, start_date, event_state FROM event
 		WHERE event_id = ? AND guest_id = ? LIMIT 1`
@@ -90,7 +90,7 @@ func (dao *EventDAO) LoadParticipant(event_id int64, user_id int64) (*core.Parti
 // If participant already exists, it is replaced. If not, participant is created
 func (dao *EventDAO) AddOrUpdateEventToUserInbox(participant *core.EventParticipant, event *core.Event) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt_insert := `INSERT INTO events_by_user (user_id, event_bucket, start_date, event_id, author_id, author_name, message, response)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
@@ -120,7 +120,7 @@ func (dao *EventDAO) AddOrUpdateEventToUserInbox(participant *core.EventParticip
 // participant
 func (dao *EventDAO) InsertEventToUserInbox(participant *core.EventParticipant, event *core.Event) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt_insert := `INSERT INTO events_by_user (user_id, event_bucket, start_date, event_id, author_id, author_name, message, response)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
@@ -142,6 +142,8 @@ func (dao *EventDAO) InsertEventToUserInbox(participant *core.EventParticipant, 
 // This function returns MAX_EVENTS_IN_RECENT_LIST events as much.
 func (dao *EventDAO) LoadUserInbox(user_id int64, fromDate int64) ([]*core.EventInbox, error) {
 
+		checkSession(dao)
+
 		stmt := `SELECT event_id, author_id, author_name, start_date, message, response FROM events_by_user
 			WHERE user_id = ? AND event_bucket = ? AND start_date >= ? LIMIT ?`
 
@@ -156,6 +158,8 @@ func (dao *EventDAO) LoadUserInbox(user_id int64, fromDate int64) ([]*core.Event
 // Retrieved events are ordered from newer to older. This function returns
 // MAX_EVENTS_IN_HISTORY_LIST events as much.
 func (dao *EventDAO) LoadUserInboxReverse(user_id int64, fromDate int64) ([]*core.EventInbox, error) {
+
+	checkSession(dao)
 
 	currentTime := core.GetCurrentTimeMillis()
 
@@ -176,6 +180,8 @@ func (dao *EventDAO) LoadUserInboxReverse(user_id int64, fromDate int64) ([]*cor
 // events are ordered from older to newer. toDate must be a date lower than current_time.
 // This function returns MAX_EVENTS_IN_HISTORY_LIST as much.
 func (dao *EventDAO) LoadUserInboxBetween(user_id int64, fromDate int64, toDate int64) ([]*core.EventInbox, error) {
+
+	checkSession(dao)
 
 	currentTime := core.GetCurrentTimeMillis()
 
@@ -200,6 +206,8 @@ func (dao *EventDAO) LoadUserInboxBetween(user_id int64, fromDate int64, toDate 
 // Read one or more events and their participants. Event info and participants are in the
 // same partition
 func (dao *EventDAO) LoadEventAndParticipants(event_ids ...int64) (events []*core.Event, err error) {
+
+	checkSession(dao)
 
 	if event_ids == nil || len(event_ids) == 0 {
 		return nil, ErrInvalidArg
@@ -292,6 +300,8 @@ func (dao *EventDAO) LoadEventAndParticipants(event_ids ...int64) (events []*cor
 // Read one or more events and do NOT include participants
 func (dao *EventDAO) LoadEvent(event_ids ...int64) (events []*core.Event, err error) {
 
+	checkSession(dao)
+
 	if event_ids == nil || len(event_ids) == 0 {
 		return nil, ErrInvalidArg
 	}
@@ -353,7 +363,7 @@ func (dao *EventDAO) LoadEvent(event_ids ...int64) (events []*core.Event, err er
 // or something in order to improve read performance.
 func (dao *EventDAO) LoadUserEventsAndParticipants(user_id int64, fromDate int64) ([]*core.Event, error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	// Get index of events
 	//toDate := core.TimeToMillis(time.Now().Add(core.MAX_DIF_IN_START_DATE)) // One year
@@ -384,7 +394,7 @@ func (dao *EventDAO) LoadUserEventsAndParticipants(user_id int64, fromDate int64
 // Load user events in window delimited by (fromDate, toDate) where fromDate < toDate
 func (dao *EventDAO) LoadUserEventsHistoryAndparticipants(user_id int64, fromDate int64, toDate int64) ([]*core.Event, error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	var events_inbox []*core.EventInbox
 	var err error
@@ -424,7 +434,7 @@ func (dao *EventDAO) LoadUserEventsHistoryAndparticipants(user_id int64, fromDat
 // Removes and insert the same row into events_by_user but change position. This is the only way
 // to do this in Cassandra because of position being part of the primary key.
 /*func (dao *EventDAO) SetUserEventInboxPosition(participant *core.EventParticipant, event *core.Event, new_position int64) error {
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt_remove := `DELETE FROM events_by_user WHERE user_id = ? AND event_bucket = ? AND position = ? AND event_id = ?`
 	stmt_insert := `INSERT INTO events_by_user (user_id, event_bucket, position, event_id, author_id, author_name, start_date, message, response)
@@ -439,22 +449,28 @@ func (dao *EventDAO) LoadUserEventsHistoryAndparticipants(user_id int64, fromDat
 }*/
 
 func (dao *EventDAO) SetEventStateAndInboxPosition(event_id int64, new_status core.EventState, new_position int64) error {
-	dao.checkSession()
+
+	checkSession(dao)
+
 	stmt := `UPDATE event SET inbox_position = ?, event_state = ? WHERE event_id = ?`
 	q := dao.session.Query(stmt, new_position, new_status, event_id)
+
 	return q.Exec()
 }
 
 func (dao *EventDAO) SetEventPicture(event_id int64, picture *core.Picture) error {
-	dao.checkSession()
+
+	checkSession(dao)
+
 	stmt := `UPDATE event SET picture = ?, picture_digest = ? WHERE event_id = ?`
 	q := dao.session.Query(stmt, picture.RawData, picture.Digest, event_id)
+
 	return q.Exec()
 }
 
 func (dao *EventDAO) LoadEventPicture(event_id int64) ([]byte, error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt := `SELECT picture FROM event WHERE event_id = ?`
 	q := dao.session.Query(stmt, event_id)
@@ -472,7 +488,7 @@ func (dao *EventDAO) LoadEventPicture(event_id int64) ([]byte, error) {
 // Compare-and-set (read-before) update operation
 func (dao *EventDAO) CompareAndSetNumGuests(event_id int64, num_guests int) (ok bool, err error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	read_stmt := `SELECT num_guests FROM event WHERE event_id = ?`
 	q := dao.session.Query(read_stmt, event_id)
@@ -493,7 +509,7 @@ func (dao *EventDAO) CompareAndSetNumGuests(event_id int64, num_guests int) (ok 
 
 /*func (dao *EventDAO) SetNumGuests(event_id int64, num_guests int32) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt := `UPDATE event SET num_guests = ? WHERE event_id = ?`
 	q := dao.session.Query(stmt, num_guests, event_id)
@@ -503,7 +519,7 @@ func (dao *EventDAO) CompareAndSetNumGuests(event_id int64, num_guests int) (ok 
 // Compare-and-set (read-before) update operation
 func (dao *EventDAO) CompareAndSetNumAttendees(event_id int64, num_attendees int) (ok bool, err error) {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	read_stmt := `SELECT num_attendees FROM event WHERE event_id = ?`
 	q := dao.session.Query(read_stmt, event_id)
@@ -519,12 +535,13 @@ func (dao *EventDAO) CompareAndSetNumAttendees(event_id int64, num_attendees int
 								IF num_attendees = ?`
 
 	q = dao.session.Query(write_stmt, num_attendees, event_id, old_attendees)
+
 	return q.ScanCAS(nil)
 }
 
 /*func (dao *EventDAO) SetNumAttendees(event_id int64, num_attendees int) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt := `UPDATE event SET num_attendees = ? WHERE event_id = ?`
 	q := dao.session.Query(stmt, num_attendees, event_id)
@@ -533,16 +550,17 @@ func (dao *EventDAO) CompareAndSetNumAttendees(event_id int64, num_attendees int
 
 func (dao *EventDAO) SetParticipantStatus(user_id int64, event_id int64, status core.MessageStatus) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt := `UPDATE event SET guest_status = ? WHERE event_id = ? AND guest_id = ?`
 	q := dao.session.Query(stmt, status, event_id, user_id)
+
 	return q.Exec()
 }
 
 func (dao *EventDAO) SetParticipantResponse(participant *core.Participant, response core.AttendanceResponse) error {
 
-	dao.checkSession()
+	checkSession(dao)
 
 	stmt_event := `UPDATE event SET guest_response = ? WHERE event_id = ? AND guest_id = ?`
 	stmt_events_by_user := `UPDATE events_by_user SET response = ?

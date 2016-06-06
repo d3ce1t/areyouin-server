@@ -63,7 +63,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func CreateParticipantsList(author_id uint64, participants_id []uint64) []*core.EventParticipant {
+/*func CreateParticipantsList(author_id int64, participants_id []int64) []*core.EventParticipant {
 
 	result := make([]*core.EventParticipant, 0, len(participants_id))
 
@@ -82,12 +82,12 @@ func CreateParticipantsList(author_id uint64, participants_id []uint64) []*core.
 	}
 
 	return result
-}
+}*/
 
 func CreateRandomParticipant() *core.EventParticipant {
 
 	participant := &core.EventParticipant{
-		UserId:    idgen.GenerateID(),
+		UserId:    int64(idgen.GenerateID()),
 		Name:      "Prueba",
 		Response:  core.AttendanceResponse_NO_RESPONSE,
 		Delivered: core.MessageStatus_NO_DELIVERED,

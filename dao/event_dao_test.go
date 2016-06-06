@@ -1,6 +1,6 @@
 package dao
 
-import (
+/*import (
 	"math/rand"
 	core "peeple/areyouin/common"
 	"testing"
@@ -326,3 +326,4 @@ func BenchmarkReadRandomEventAndParticipants100(b *testing.B) {
 		}
 	}
 }
+*/

@@ -254,15 +254,22 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	user_id := msg.UserId
 
 	user_account, err := userDAO.Load(user_id)
-	if err == dao.ErrNotFound || (err == nil && user_account.AuthToken.String() != msg.AuthToken) {
-		sendAuthError(session)
+	if err != nil {
+		if err == dao.ErrNotFound {
+			sendAuthError(session)
+		} else {
+			session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
+			log.Printf("< (%v) AUTH ERROR %v\n", session, err)
+		}
 		return
-	} else if err != nil {
-		session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
-		log.Printf("< (%v) AUTH ERROR %v\n", session, err)
-		return
+	} else {
+		authToken := user_account.AuthToken.String()
+		if authToken == "" || authToken != msg.AuthToken {
+			sendAuthError(session)
+			return
+		}
 	}
-
+	
 	session.IsAuth = true
 	session.UserId = user_id
 	session.IIDToken = user_account.IIDtoken
