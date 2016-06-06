@@ -23,7 +23,7 @@ func NewEmptyUserAccount() *UserAccount {
 }
 
 // TODO: Password should always be hashed
-func NewUserAccount(id uint64, name string, email string, password string, phone string, fbid string, fbtoken string) *UserAccount {
+func NewUserAccount(id int64, name string, email string, password string, phone string, fbid string, fbtoken string) *UserAccount {
 
 	user := &UserAccount{
 		Id:          id,
@@ -60,7 +60,7 @@ func IsValidEmail(email string) bool {
 }
 
 type UserAccount struct {
-	Id             uint64 // AreYouIN ID
+	Id             int64 // AreYouIN ID
 	AuthToken      uuid.UUID
 	Email          string
 	EmailVerified  bool
@@ -114,7 +114,7 @@ func (user *UserAccount) GetName() string {
 	return user.Name
 }
 
-func (user *UserAccount) GetUserId() uint64 {
+func (user *UserAccount) GetUserId() int64 {
 	return user.Id
 }
 

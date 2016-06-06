@@ -26,7 +26,7 @@ func (shell *Shell) fixEvent() {
 	stmt_select := `SELECT event_id, start_date, inbox_position FROM event`
 	stmt_update := `UPDATE event SET inbox_position = ? WHERE event_id = ?`
 
-	var event_id uint64
+	var event_id int64
 	var start_date int64
 	var inbox_position int64
 
@@ -72,7 +72,7 @@ func (shell *Shell) importFriendsFromOldFormat() {
 	stmt_update := `INSERT INTO friends_by_user (user_id, friend_id, friend_name, picture_digest)
 	 	VALUES (?, ?, ?, ?)`
 
-	var user_id uint64
+	var user_id int64
 	var group_id int32
 	var friend_id int64
 	var name string
@@ -125,11 +125,11 @@ func (shell *Shell) copyEventsByUser(fromTable string, toTable string) {
 		` (user_id, event_bucket, start_date, event_id, author_id, author_name, message, response)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
-		var user_id uint64
+		var user_id int64
 		var event_bucket int32
 		var start_date int64
-		var event_id uint64
-		var author_id uint64
+		var event_id int64
+		var author_id int64
 		var author_name string
 		var message string
 		var response int32

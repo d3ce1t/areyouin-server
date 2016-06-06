@@ -22,7 +22,7 @@ func NewUserDAO(session *gocql.Session) core.UserDAO {
 
 // Checks that email exists and belongs to user_id. If fb_id exists, then check it also
 // This function assumes that a row belonging to user_id exists in user_account table
-func (dao *UserDAO) CheckValidAccountObject(user_id uint64, email string, fb_id string, check_credentials bool) (bool, error) {
+func (dao *UserDAO) CheckValidAccountObject(user_id int64, email string, fb_id string, check_credentials bool) (bool, error) {
 
 	if user_id == 0 || email == "" {
 		return false, ErrInvalidArg
@@ -57,7 +57,7 @@ func (dao *UserDAO) CheckValidAccountObject(user_id uint64, email string, fb_id 
 // Checks if the given user_id belongs to an existing and valid account. Returns true
 // if the account is valid or false otherwise. If account isn't found or something
 // unexpected happens, it returns also an error.
-func (dao *UserDAO) CheckValidAccount(user_id uint64, check_credentials bool) (bool, error) {
+func (dao *UserDAO) CheckValidAccount(user_id int64, check_credentials bool) (bool, error) {
 
 	// Load user with only credentials
 	stmt_user := `SELECT email, fb_id FROM user_account WHERE user_id = ? LIMIT 1`
@@ -75,7 +75,7 @@ func (dao *UserDAO) CheckValidAccount(user_id uint64, check_credentials bool) (b
 
 // Find a user_id matching the given e-mail and password. Returns user_id if
 // succeed, error otherwise.
-func (dao *UserDAO) GetIDByEmailAndPassword(email string, password string) (user_id uint64, err error) {
+func (dao *UserDAO) GetIDByEmailAndPassword(email string, password string) (int64, error) {
 
 	dao.checkSession()
 
@@ -83,11 +83,10 @@ func (dao *UserDAO) GetIDByEmailAndPassword(email string, password string) (user
 	q := dao.session.Query(stmt, email)
 
 	var pass_slice, salt_slice []byte
-	var uid uint64
-	user_id = 0
+	var uid int64
 
 	// FIXME: Scan doesn't work with array[:] notation
-	if err = q.Scan(&pass_slice, &salt_slice, &uid); err == nil {
+	if err := q.Scan(&pass_slice, &salt_slice, &uid); err == nil {
 
 		// HACK: Copy slices to vectors
 		var pass, salt [32]byte
@@ -97,23 +96,23 @@ func (dao *UserDAO) GetIDByEmailAndPassword(email string, password string) (user
 
 		hashedPassword := core.HashPasswordWithSalt(password, salt)
 		if hashedPassword == pass {
-			user_id = uid
+			return uid, nil
 		} else {
-			err = ErrNotFound
+			return 0, ErrNotFound
 		}
+	} else {
+		return 0, err
 	}
-
-	return
 }
 
 // Returns all of the IDs associated with the given fb_id. If no id is foound
 // an empty slide is returned
-func (dao *UserDAO) GetIDByFacebookID(fb_id string) (uint64, error) {
+func (dao *UserDAO) GetIDByFacebookID(fb_id string) (int64, error) {
 
 	dao.checkSession()
 
 	stmt := `SELECT user_id FROM user_facebook_credentials WHERE fb_id = ?`
-	var user_id uint64
+	var user_id int64
 
 	if err := dao.session.Query(stmt, fb_id).Scan(&user_id); err != nil {
 		return 0, err
@@ -123,7 +122,7 @@ func (dao *UserDAO) GetIDByFacebookID(fb_id string) (uint64, error) {
 }
 
 // Load a user from database and includes profile picture
-func (dao *UserDAO) LoadWithPicture(user_id uint64) (*core.UserAccount, error) {
+func (dao *UserDAO) LoadWithPicture(user_id int64) (*core.UserAccount, error) {
 
 	dao.checkSession()
 
@@ -153,7 +152,7 @@ func (dao *UserDAO) LoadWithPicture(user_id uint64) (*core.UserAccount, error) {
 
 // FIXME: This function does not load credential causing UserAccount.IsValid to return false
 // Load a user from database but do not include profile picture
-func (dao *UserDAO) Load(user_id uint64) (*core.UserAccount, error) {
+func (dao *UserDAO) Load(user_id int64) (*core.UserAccount, error) {
 
 	dao.checkSession()
 
@@ -207,7 +206,7 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 	}
 
 	users := make([]*core.UserAccount, 0, 1000)
-	var user_id uint64
+	var user_id int64
 	var auth_token gocql.UUID
 	var email string
 	var email_verified bool
@@ -244,7 +243,7 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 	return users, nil
 }
 
-func (dao *UserDAO) LoadUserPicture(user_id uint64) ([]byte, error) {
+func (dao *UserDAO) LoadUserPicture(user_id int64) ([]byte, error) {
 
 	dao.checkSession()
 
@@ -274,7 +273,7 @@ func (dao *UserDAO) LoadEmailCredential(email string) (credent *core.EmailCreden
 	q := dao.session.Query(stmt, email)
 
 	var pass_slice, salt_slice []byte
-	var uid uint64
+	var uid int64
 
 	// FIXME: Scan doesn't work with array[:] notation
 	if err = q.Scan(&pass_slice, &salt_slice, &uid); err == nil {
@@ -301,7 +300,7 @@ func (dao *UserDAO) LoadFacebookCredential(fbid string) (credent *core.FacebookC
 	q := dao.session.Query(stmt, fbid)
 
 	var fb_token string
-	var uid uint64
+	var uid int64
 	var created_date int64
 
 	if err = q.Scan(&fb_token, &uid, &created_date); err == nil {
@@ -317,7 +316,7 @@ func (dao *UserDAO) LoadFacebookCredential(fbid string) (credent *core.FacebookC
 	return
 }
 
-func (dao *UserDAO) GetIIDToken(user_id uint64) (string, error) {
+func (dao *UserDAO) GetIIDToken(user_id int64) (string, error) {
 
 	dao.checkSession()
 	stmt := `SELECT iid_token FROM user_account WHERE user_id = ?`
@@ -409,14 +408,14 @@ func (dao *UserDAO) Insert(user *core.UserAccount) error {
 	return nil
 }
 
-func (dao *UserDAO) SaveProfilePicture(user_id uint64, picture *core.Picture) error {
+func (dao *UserDAO) SaveProfilePicture(user_id int64, picture *core.Picture) error {
 	dao.checkSession()
 	stmt := `UPDATE user_account SET profile_picture = ?, picture_digest = ?
 						WHERE user_id = ?`
 	return dao.session.Query(stmt, picture.RawData, picture.Digest, user_id).Exec()
 }
 
-func (dao *UserDAO) SetAuthToken(user_id uint64, auth_token uuid.UUID) error {
+func (dao *UserDAO) SetAuthToken(user_id int64, auth_token uuid.UUID) error {
 
 	dao.checkSession()
 
@@ -426,7 +425,7 @@ func (dao *UserDAO) SetAuthToken(user_id uint64, auth_token uuid.UUID) error {
 	return dao.session.Query(stmt, auth_token.String(), user_id).Exec()
 }
 
-func (dao *UserDAO) SetLastConnection(user_id uint64, time int64) error {
+func (dao *UserDAO) SetLastConnection(user_id int64, time int64) error {
 
 	dao.checkSession()
 
@@ -436,7 +435,7 @@ func (dao *UserDAO) SetLastConnection(user_id uint64, time int64) error {
 	return dao.session.Query(stmt, time, user_id).Exec()
 }
 
-func (dao *UserDAO) SetFacebookAccessToken(user_id uint64, fb_id string, fb_token string) error {
+func (dao *UserDAO) SetFacebookAccessToken(user_id int64, fb_id string, fb_token string) error {
 
 	dao.checkSession()
 
@@ -451,7 +450,7 @@ func (dao *UserDAO) SetFacebookAccessToken(user_id uint64, fb_id string, fb_toke
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *UserDAO) SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID, fb_id string, fb_token string) error {
+func (dao *UserDAO) SetAuthTokenAndFBToken(user_id int64, auth_token uuid.UUID, fb_id string, fb_token string) error {
 
 	dao.checkSession()
 
@@ -466,7 +465,7 @@ func (dao *UserDAO) SetAuthTokenAndFBToken(user_id uint64, auth_token uuid.UUID,
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *UserDAO) SetIIDToken(user_id uint64, iid_token string) error {
+func (dao *UserDAO) SetIIDToken(user_id int64, iid_token string) error {
 
 	dao.checkSession()
 
@@ -476,7 +475,7 @@ func (dao *UserDAO) SetIIDToken(user_id uint64, iid_token string) error {
 	return dao.session.Query(stmt, iid_token, user_id).Exec()
 }
 
-func (dao *UserDAO) ResetEmailCredentialPassword(user_id uint64, email string, password string) (ok bool, err error) {
+func (dao *UserDAO) ResetEmailCredentialPassword(user_id int64, email string, password string) (ok bool, err error) {
 
 	dao.checkSession()
 
@@ -592,7 +591,7 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *UserDAO) DeleteUserAccount(user_id uint64) error {
+func (dao *UserDAO) DeleteUserAccount(user_id int64) error {
 	dao.checkSession()
 	if user_id == 0 {
 		return ErrInvalidArg

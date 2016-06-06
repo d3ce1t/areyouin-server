@@ -10,7 +10,7 @@ import (
 // send_msg client
 func (shell *Shell) sendMsg(args []string) {
 
-	user_id, err := strconv.ParseUint(args[1], 10, 64)
+	user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	if len(args) < 2 {

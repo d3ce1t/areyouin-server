@@ -17,7 +17,7 @@ import (
 )
 
 type NotifyEventCancelled struct {
-	CancelledBy uint64
+	CancelledBy int64
 	Event       *core.Event
 }
 
@@ -30,7 +30,7 @@ func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 		IIDToken string
 	}
 
-	user_data := make(map[uint64]*UserData)
+	user_data := make(map[int64]*UserData)
 
 	if len(t.Event.GetParticipants()) == 0 {
 		log.Println("NotifyEventCancelled: There aren't targetted participants to send notification")
@@ -79,7 +79,7 @@ func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 	}
 }
 
-func (t *NotifyEventCancelled) sendGcmNotification(user_id uint64, token string, start_date int64, data string) {
+func (t *NotifyEventCancelled) sendGcmNotification(user_id int64, token string, start_date int64, data string) {
 
 	time_to_start := uint32(start_date-core.GetCurrentTimeMillis()) / 1000
 	ttl := core.MinUint32(time_to_start, GCM_MAX_TTL) // Seconds
@@ -99,7 +99,7 @@ func (t *NotifyEventCancelled) sendGcmNotification(user_id uint64, token string,
 
 type NotifyEventChange struct {
 	Event  *core.Event
-	Target []uint64
+	Target []int64
 }
 
 func (t *NotifyEventChange) Run(ex *TaskExecutor) {
@@ -134,9 +134,9 @@ func (t *NotifyEventChange) Run(ex *TaskExecutor) {
 
 type NotifyParticipantChange struct {
 	Event               *core.Event
-	ParticipantsChanged []uint64 // Participants that has changed
+	ParticipantsChanged []int64 // Participants that has changed
 	NumGuests           int32
-	Target              []uint64
+	Target              []int64
 }
 
 func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
@@ -252,7 +252,7 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 	}
 }
 
-func (t *ImportFacebookFriends) sendGcmNotification(user_id uint64, token string, new_friend core.UserFriend) {
+func (t *ImportFacebookFriends) sendGcmNotification(user_id int64, token string, new_friend core.UserFriend) {
 
 	gcm_message := gcm.HttpMessage{
 		To:       token,
@@ -270,7 +270,7 @@ func (t *ImportFacebookFriends) sendGcmNotification(user_id uint64, token string
 }
 
 type SendUserFriends struct {
-	UserId uint64
+	UserId int64
 }
 
 func (task *SendUserFriends) Run(ex *TaskExecutor) {
@@ -301,14 +301,14 @@ func (task *SendUserFriends) Run(ex *TaskExecutor) {
 // notified yet.
 type NotifyEventInvitation struct {
 	Event  *core.Event
-	Target map[uint64]*core.UserAccount // Users that will be invited to the event
+	Target map[int64]*core.UserAccount // Users that will be invited to the event
 }
 
 func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 
 	server := ex.server
 	light_event := t.Event.GetEventWithoutParticipants()
-	futures := make(map[uint64]chan bool)
+	futures := make(map[int64]chan bool)
 
 	if len(t.Target) == 0 {
 		log.Println("NotifyEventInvitation: There aren't targetted participants to send notification")
@@ -371,7 +371,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 	}
 
 	// Update invitation delivery status
-	participants_changed := make([]uint64, 0, len(t.Target))
+	participants_changed := make([]int64, 0, len(t.Target))
 	eventDAO := ex.server.NewEventDAO()
 
 	for participant_id, c := range futures {
@@ -408,7 +408,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 	}
 }
 
-func (t *NotifyEventInvitation) sendGcmNotification(user_id uint64, token string, event *core.Event) {
+func (t *NotifyEventInvitation) sendGcmNotification(user_id int64, token string, event *core.Event) {
 
 	time_to_start := uint32(event.StartDate-core.GetCurrentTimeMillis()) / 1000
 	ttl := core.MinUint32(time_to_start, GCM_MAX_TTL) // Seconds
@@ -488,7 +488,7 @@ func (task *LoadFacebookProfilePicture) Run(ex *TaskExecutor) {
 	}
 }
 
-func sendGcmMessage(user_id uint64, token string, message gcm.HttpMessage) {
+func sendGcmMessage(user_id int64, token string, message gcm.HttpMessage) {
 
 	if token == "" {
 		return

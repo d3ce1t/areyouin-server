@@ -34,8 +34,8 @@ enum MessageStatus {
 }
 
 message Event {
-  uint64 event_id = 1;
-  uint64 author_id = 2;
+  int64 event_id = 1;
+  int64 author_id = 2;
   string author_name = 3;
   int64 start_date = 4;
   int64 end_date = 5;
@@ -45,7 +45,7 @@ message Event {
   int32 num_attendees = 9;
   int32 num_guests = 10;
   int64 created_date = 11;
-  map<uint64, EventParticipant> participants = 12;
+  map<int64, EventParticipant> participants = 12;
   int64 inbox_position = 13;
   EventState state = 14;
   bytes picture_digest = 15;
@@ -57,21 +57,21 @@ message Location {
 }
 
 message EventParticipant {
-  uint64 user_id = 1;
+  int64 user_id = 1;
   string name = 2;
   AttendanceResponse response = 3;
   MessageStatus delivered = 4;
 }
 
 message Friend {
-  uint64 user_id = 1;
+  int64 user_id = 1;
   string name = 2;
   bytes picture_digest = 3;
 }
 
 message Group {
-  uint32 id = 1;
+  int32 id = 1;
   string name = 2;
 	int32 size = 3;
-  repeated uint64 members = 4;
+  repeated int64 members = 4;
 }

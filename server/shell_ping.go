@@ -7,7 +7,7 @@ import (
 // ping client
 func (shell *Shell) pingClient(args []string) {
 
-	user_id, err := strconv.ParseUint(args[1], 10, 64)
+	user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	var repeat_times uint64 = 1

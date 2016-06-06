@@ -14,7 +14,7 @@ func NewThumbnailDAO(session *gocql.Session) core.ThumbnailDAO {
 	return &ThumbnailDAO{session: session}
 }
 
-func (dao *ThumbnailDAO) insertOne(id uint64, digest []byte, dpi int32, thumbnail []byte, timestamp int64) error {
+func (dao *ThumbnailDAO) insertOne(id int64, digest []byte, dpi int32, thumbnail []byte, timestamp int64) error {
 	dao.checkSession()
 	stmt := `INSERT INTO thumbnails (id, digest, dpi, thumbnail, created_date)
             VALUES (?, ?, ?, ?, ?)`
@@ -27,7 +27,7 @@ func (dao *ThumbnailDAO) insertOne(id uint64, digest []byte, dpi int32, thumbnai
 // same partition key). So a one-by-one insert implementation is preferred. If
 // one of the inserts fails, this implementation keeps the first error but continues
 // inserting the remainder ones. All errors are logged.
-func (dao *ThumbnailDAO) Insert(id uint64, digest []byte, thumbnails map[int32][]byte) error {
+func (dao *ThumbnailDAO) Insert(id int64, digest []byte, thumbnails map[int32][]byte) error {
 	dao.checkSession()
 	var first_error error
 	created_date := core.GetCurrentTimeMillis()
@@ -44,7 +44,7 @@ func (dao *ThumbnailDAO) Insert(id uint64, digest []byte, thumbnails map[int32][
 	return first_error
 }
 
-func (dao *ThumbnailDAO) Load(id uint64, dpi int32) ([]byte, error) {
+func (dao *ThumbnailDAO) Load(id int64, dpi int32) ([]byte, error) {
 
 	dao.checkSession()
 
@@ -62,7 +62,7 @@ func (dao *ThumbnailDAO) Load(id uint64, dpi int32) ([]byte, error) {
 	return thumbnail, nil
 }
 
-func (dao *ThumbnailDAO) Remove(id uint64) error {
+func (dao *ThumbnailDAO) Remove(id int64) error {
 	dao.checkSession()
 	return dao.session.Query(`DELETE FROM thumbnails WHERE id = ?`, id).Exec()
 }

@@ -7,7 +7,7 @@ import (
 // close_session user_id
 func (shell *Shell) closeSession(args []string) {
 
-	user_id, err := strconv.ParseUint(args[1], 10, 64)
+	user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	server := shell.server

@@ -82,25 +82,25 @@ func (s *ImageServer) getClosestDpi(reqDpi int32) int32 {
 	return s.supportedDpi[dpi_index]
 }
 
-func (s *ImageServer) loadThumbnail(id uint64, reqDpi int32) ([]byte, error) {
+func (s *ImageServer) loadThumbnail(id int64, reqDpi int32) ([]byte, error) {
 	thumbnail_dao := dao.NewThumbnailDAO(s.db_session)
 	dpi := s.getClosestDpi(reqDpi)
 	return thumbnail_dao.Load(id, dpi)
 }
 
-func (s *ImageServer) loadEventImage(id uint64) ([]byte, error) {
+func (s *ImageServer) loadEventImage(id int64) ([]byte, error) {
 	event_dao := dao.NewEventDAO(s.db_session)
 	return event_dao.LoadEventPicture(id)
 }
 
-func (s *ImageServer) loadUserImage(id uint64) ([]byte, error) {
+func (s *ImageServer) loadUserImage(id int64) ([]byte, error) {
 	user_dao := dao.NewUserDAO(s.db_session)
 	return user_dao.LoadUserPicture(id)
 }
 
 // Check access and returns user_id if access is granted or
 // 0 otherwise.
-func (s *ImageServer) checkAccess(header http.Header) (uint64, error) {
+func (s *ImageServer) checkAccess(header http.Header) (int64, error) {
 
 	user_id_str := header.Get("userid")
 	token := header.Get("token")
@@ -109,7 +109,7 @@ func (s *ImageServer) checkAccess(header http.Header) (uint64, error) {
 		return 0, nil
 	}
 
-	user_id, err := strconv.ParseUint(user_id_str, 10, 64)
+	user_id, err := strconv.ParseInt(user_id_str, 10, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -124,7 +124,7 @@ func (s *ImageServer) checkAccess(header http.Header) (uint64, error) {
 	return user_id, nil
 }
 
-func (s *ImageServer) parseImageParams(id *uint64, values url.Values) error {
+func (s *ImageServer) parseImageParams(id *int64, values url.Values) error {
 
 	id_str := values.Get("id")
 
@@ -133,7 +133,7 @@ func (s *ImageServer) parseImageParams(id *uint64, values url.Values) error {
 	}
 
 	var err error
-	*id, err = strconv.ParseUint(id_str, 10, 64)
+	*id, err = strconv.ParseInt(id_str, 10, 64)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (s *ImageServer) parseImageParams(id *uint64, values url.Values) error {
 	return nil
 }
 
-func (s *ImageServer) parseThumbnailsParams(thumbnail_id *uint64, dpi *int32, values url.Values) error {
+func (s *ImageServer) parseThumbnailsParams(thumbnail_id *int64, dpi *int32, values url.Values) error {
 
 	thumbnail_id_str := values.Get("thumbnail")
 	dpi_str := values.Get("dpi")
@@ -152,7 +152,7 @@ func (s *ImageServer) parseThumbnailsParams(thumbnail_id *uint64, dpi *int32, va
 
 	var err error
 
-	*thumbnail_id, err = strconv.ParseUint(thumbnail_id_str, 10, 64)
+	*thumbnail_id, err = strconv.ParseInt(thumbnail_id_str, 10, 64)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func (s *ImageServer) handleThumbnailRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var user_id uint64
+	var user_id int64
 
 	defer func() {
 		r := recover()
@@ -202,7 +202,7 @@ func (s *ImageServer) handleThumbnailRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var thumbnail_id uint64
+	var thumbnail_id int64
 	var dpi int32
 
 	err = s.parseThumbnailsParams(&thumbnail_id, &dpi, r.URL.Query())
@@ -230,7 +230,7 @@ func (s *ImageServer) handleEventImageRequest(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var user_id uint64
+	var user_id int64
 
 	defer func() {
 		r := recover()
@@ -250,7 +250,7 @@ func (s *ImageServer) handleEventImageRequest(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var image_id uint64
+	var image_id int64
 
 	err = s.parseImageParams(&image_id, r.URL.Query())
 	if err != nil {
@@ -278,7 +278,7 @@ func (s *ImageServer) handleUserImageRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var user_id uint64
+	var user_id int64
 
 	defer func() {
 		r := recover()
@@ -298,7 +298,7 @@ func (s *ImageServer) handleUserImageRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var image_id uint64
+	var image_id int64
 
 	err = s.parseImageParams(&image_id, r.URL.Query())
 	if err != nil {

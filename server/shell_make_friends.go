@@ -8,10 +8,10 @@ import (
 // make_friends user1 user2
 func (shell *Shell) makeFriends(args []string) {
 
-	friend_one_id, err := strconv.ParseUint(args[1], 10, 64)
+	friend_one_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
-	friend_two_id, err := strconv.ParseUint(args[2], 10, 64)
+	friend_two_id, err := strconv.ParseInt(args[2], 10, 64)
 	manageShellError(err)
 
 	server := shell.server

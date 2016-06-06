@@ -4,7 +4,7 @@ func (f *Friend) GetName() string {
 	return f.Name
 }
 
-func (f *Friend) GetUserId() uint64 {
+func (f *Friend) GetUserId() int64 {
 	return f.UserId
 }
 

@@ -5,7 +5,7 @@ import (
 	core "peeple/areyouin/common"
 )
 
-func (dao *UserDAO) checkEmailCredentialObject(user_id uint64, credential *core.EmailCredential, ignore_password bool) bool {
+func (dao *UserDAO) checkEmailCredentialObject(user_id int64, credential *core.EmailCredential, ignore_password bool) bool {
 
 	if user_id == 0 || credential == nil {
 		return false
@@ -27,7 +27,7 @@ func (dao *UserDAO) checkEmailCredentialObject(user_id uint64, credential *core.
 }
 
 // Check if a user with user_id has a credential with e-mail and password
-func (dao *UserDAO) checkEmailCredential(user_id uint64, email string, ignore_password bool) (bool, error) {
+func (dao *UserDAO) checkEmailCredential(user_id int64, email string, ignore_password bool) (bool, error) {
 
 	if user_id == 0 || email == "" {
 		return false, ErrInvalidArg
@@ -45,7 +45,7 @@ func (dao *UserDAO) checkEmailCredential(user_id uint64, email string, ignore_pa
 }
 
 // Check if a user with user_id has a credential with fb_id
-func (dao *UserDAO) checkFacebookCredential(user_id uint64, fb_id string) (bool, error) {
+func (dao *UserDAO) checkFacebookCredential(user_id int64, fb_id string) (bool, error) {
 
 	if user_id == 0 || fb_id == "" {
 		return false, ErrInvalidArg
@@ -82,12 +82,12 @@ func (dao *UserDAO) existEmail(email string) (bool, error) {
 
 // Returns an user id corresponding to the given e-mail. If it doesn't exist
 // or an error happens, returns (0, error).
-func (dao *UserDAO) getIDByEmail(email string) (uint64, error) {
+func (dao *UserDAO) getIDByEmail(email string) (int64, error) {
 
 	dao.checkSession()
 
 	stmt := `SELECT user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
-	var user_id uint64
+	var user_id int64
 
 	if err := dao.session.Query(stmt, email).Scan(&user_id); err != nil {
 		return 0, err
@@ -98,7 +98,7 @@ func (dao *UserDAO) getIDByEmail(email string) (uint64, error) {
 
 // Check if a user exists. Returns true if exists and false if it doesn't.
 // If an error happend returns (false, error)
-/*func (dao *UserDAO) ExistsUserAccount(user_id uint64) (bool, error) {
+/*func (dao *UserDAO) ExistsUserAccount(user_id int64) (bool, error) {
 
 	dao.checkSession()
 
@@ -115,7 +115,7 @@ func (dao *UserDAO) getIDByEmail(email string) (uint64, error) {
 	return true, nil
 }*/
 
-/*func (dao *UserDAO) FindMatchByAuthToken(user_id uint64, auth_token string) (bool, error) {
+/*func (dao *UserDAO) FindMatchByAuthToken(user_id int64, auth_token string) (bool, error) {
 
 	dao.checkSession()
 
@@ -180,7 +180,7 @@ func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err erro
 	return query.ScanCAS(nil)
 }
 
-func (dao *UserDAO) insertEmailCredentials(user_id uint64, email string, password string) (ok bool, err error) {
+func (dao *UserDAO) insertEmailCredentials(user_id int64, email string, password string) (ok bool, err error) {
 
 	dao.checkSession()
 
@@ -205,7 +205,7 @@ func (dao *UserDAO) insertEmailCredentials(user_id uint64, email string, passwor
 		hashedPassword[:], salt[:]).ScanCAS(nil)
 }
 
-func (dao *UserDAO) insertEmail(user_id uint64, email string) (ok bool, err error) {
+func (dao *UserDAO) insertEmail(user_id int64, email string) (ok bool, err error) {
 
 	dao.checkSession()
 
@@ -227,7 +227,7 @@ func (dao *UserDAO) insertEmail(user_id uint64, email string) (ok bool, err erro
 // created_date and account isn't valid, then remove row causing conflict and retry.
 // Otherwise, if account is valid, returns ErrFacebookAlreadyExists. If grace_period
 // seconds haven't elapsed yet since created_date then return ErrGracePeriod .
-func (dao *UserDAO) insertFacebookCredentials(fb_id string, fb_token string, user_id uint64) (ok bool, err error) {
+func (dao *UserDAO) insertFacebookCredentials(fb_id string, fb_token string, user_id int64) (ok bool, err error) {
 
 	dao.checkSession()
 
@@ -243,7 +243,7 @@ func (dao *UserDAO) insertFacebookCredentials(fb_id string, fb_token string, use
 
 	var old_fbid string
 	var old_token string
-	var old_uid uint64
+	var old_uid int64
 	var created_date int64
 
 	applied, err := query_insert.ScanCAS(&old_fbid, &created_date, &old_token, &old_uid)

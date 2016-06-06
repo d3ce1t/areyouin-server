@@ -13,7 +13,7 @@ func NewAccessTokenDAO(session *gocql.Session) core.AccessTokenDAO {
 	return &AccessTokenDAO{session: session}
 }
 
-func (dao *AccessTokenDAO) Insert(user_id uint64, token string) error {
+func (dao *AccessTokenDAO) Insert(user_id int64, token string) error {
 
 	dao.checkSession()
 
@@ -27,7 +27,7 @@ func (dao *AccessTokenDAO) Insert(user_id uint64, token string) error {
 	return dao.session.Query(stmt, user_id, token, core.GetCurrentTimeMillis()).Exec()
 }
 
-func (dao *AccessTokenDAO) CheckAccessToken(user_id uint64, access_token string) (bool, error) {
+func (dao *AccessTokenDAO) CheckAccessToken(user_id int64, access_token string) (bool, error) {
 
 	dao.checkSession()
 
@@ -51,7 +51,7 @@ func (dao *AccessTokenDAO) CheckAccessToken(user_id uint64, access_token string)
 	return true, nil
 }
 
-func (dao *AccessTokenDAO) SetLastUsed(user_id uint64, time int64) error {
+func (dao *AccessTokenDAO) SetLastUsed(user_id int64, time int64) error {
 
 	dao.checkSession()
 
@@ -63,7 +63,7 @@ func (dao *AccessTokenDAO) SetLastUsed(user_id uint64, time int64) error {
 	return dao.session.Query(stmt, time, user_id).Exec()
 }
 
-func (dao *AccessTokenDAO) Remove(user_id uint64) error {
+func (dao *AccessTokenDAO) Remove(user_id int64) error {
 
 	dao.checkSession()
 

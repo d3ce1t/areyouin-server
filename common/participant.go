@@ -2,7 +2,7 @@ package common
 
 type Participant struct {
 	EventParticipant
-	EventId    uint64
+	EventId    int64
 	StartDate  int64
 	EventState EventState
 }

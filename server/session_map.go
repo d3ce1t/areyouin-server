@@ -6,30 +6,30 @@ import (
 
 func NewSessionsMap() *SessionsMap {
 	object := &SessionsMap{
-		m: make(map[uint64]*AyiSession),
+		m: make(map[int64]*AyiSession),
 	}
 	return object
 }
 
 type SessionsMap struct {
 	mutex sync.RWMutex
-	m     map[uint64]*AyiSession
+	m     map[int64]*AyiSession
 }
 
-func (sm *SessionsMap) Get(key uint64) (v *AyiSession, ok bool) {
+func (sm *SessionsMap) Get(key int64) (v *AyiSession, ok bool) {
 	defer sm.mutex.RUnlock()
 	sm.mutex.RLock()
 	v, ok = sm.m[key]
 	return
 }
 
-func (sm *SessionsMap) Put(key uint64, session *AyiSession) {
+func (sm *SessionsMap) Put(key int64, session *AyiSession) {
 	defer sm.mutex.Unlock()
 	sm.mutex.Lock()
 	sm.m[key] = session
 }
 
-func (sm *SessionsMap) Remove(key uint64) {
+func (sm *SessionsMap) Remove(key int64) {
 	defer sm.mutex.Unlock()
 	sm.mutex.Lock()
 	delete(sm.m, key)
@@ -41,10 +41,10 @@ func (sm *SessionsMap) Len() int {
 	return len(sm.m)
 }
 
-func (sm *SessionsMap) Keys() (keys []uint64) {
+func (sm *SessionsMap) Keys() (keys []int64) {
 	defer sm.mutex.RUnlock()
 	sm.mutex.RLock()
-	keys = make([]uint64, 0, len(sm.m))
+	keys = make([]int64, 0, len(sm.m))
 	for k, _ := range sm.m {
 		keys = append(keys, k)
 	}

@@ -11,55 +11,55 @@ type PacketBuilder struct {
 }
 
 // Modifiers
-func (mb *PacketBuilder) CreateEvent(message string, start_date int64, end_date int64, participants []uint64) *AyiPacket {
+/*func (mb *PacketBuilder) CreateEvent(message string, start_date int64, end_date int64, participants []int64) *AyiPacket {
 	mb.message.Header.SetType(M_CREATE_EVENT)
 	mb.message.SetMessage(&CreateEvent{Message: message, StartDate: start_date, EndDate: end_date, Participants: participants})
 	return mb.message
 }
 
-func (mb *PacketBuilder) CancelEvent(event_id uint64, reason string) *AyiPacket {
+func (mb *PacketBuilder) CancelEvent(event_id int64, reason string) *AyiPacket {
 	mb.message.Header.SetType(M_CANCEL_EVENT)
 	mb.message.SetMessage(&CancelEvent{EventId: event_id, Reason: reason})
 	return mb.message
 }
 
-func (mb *PacketBuilder) InviteUsers(event_id uint64, participants []uint64) *AyiPacket {
+func (mb *PacketBuilder) InviteUsers(event_id int64, participants []int64) *AyiPacket {
 	mb.message.Header.SetType(M_INVITE_USERS)
 	mb.message.SetMessage(&InviteUsers{EventId: event_id, Participants: participants})
 	return mb.message
 }
 
-func (mb *PacketBuilder) CancelUsersInvitation(event_id uint64, participants []uint64) *AyiPacket {
+func (mb *PacketBuilder) CancelUsersInvitation(event_id int64, participants []int64) *AyiPacket {
 	mb.message.Header.SetType(M_CANCEL_USERS_INVITATION)
 	mb.message.SetMessage(&CancelUsersInvitation{EventId: event_id, Participants: participants})
 	return mb.message
 }
 
-func (mb *PacketBuilder) ConfirmAttendance(event_id uint64, action_code core.AttendanceResponse) *AyiPacket {
+func (mb *PacketBuilder) ConfirmAttendance(event_id int64, action_code core.AttendanceResponse) *AyiPacket {
 	mb.message.Header.SetType(M_CONFIRM_ATTENDANCE)
 	mb.message.SetMessage(&ConfirmAttendance{EventId: event_id, ActionCode: action_code})
 	return mb.message
 }
 
-func (mb *PacketBuilder) ModifyEventDate(event_id uint64, start_date int64, end_date int64) *AyiPacket {
+func (mb *PacketBuilder) ModifyEventDate(event_id int64, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.SetType(M_MODIFY_EVENT_DATE)
 	mb.message.SetMessage(&ModifyEvent{EventId: event_id, StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
-func (mb *PacketBuilder) ModifyEventMessage(event_id uint64, message string) *AyiPacket {
+func (mb *PacketBuilder) ModifyEventMessage(event_id int64, message string) *AyiPacket {
 	mb.message.Header.SetType(M_MODIFY_EVENT_MESSAGE)
 	mb.message.SetMessage(&ModifyEvent{EventId: event_id, Message: message})
 	return mb.message
 }
 
-func (mb *PacketBuilder) ModifyEvent(event_id uint64, message string, start_date int64, end_date int64) *AyiPacket {
+func (mb *PacketBuilder) ModifyEvent(event_id int64, message string, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.SetType(M_MODIFY_EVENT)
 	mb.message.SetMessage(&ModifyEvent{EventId: event_id, Message: message, StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
-func (mb *PacketBuilder) VoteChange(event_id uint64, change_id uint32, accept_change bool) *AyiPacket {
+func (mb *PacketBuilder) VoteChange(event_id int64, change_id int32, accept_change bool) *AyiPacket {
 	mb.message.Header.SetType(M_VOTE_CHANGE)
 	mb.message.SetMessage(&VoteChange{EventId: event_id, ChangeId: change_id, AcceptChange: accept_change})
 	return mb.message
@@ -95,19 +95,19 @@ func (mb *PacketBuilder) NewAuthTokenByFacebook(fbid string, fbtoken string) *Ay
 	return mb.message
 }
 
-func (mb *PacketBuilder) UserAuthencation(user_id uint64, auth_token uuid.UUID) *AyiPacket {
+func (mb *PacketBuilder) UserAuthencation(user_id int64, auth_token uuid.UUID) *AyiPacket {
 	mb.message.Header.SetType(M_USER_AUTH)
 	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token.String()})
 	return mb.message
-}
+}*/
 
-func (mb *PacketBuilder) NewAccessToken(user_id uint64, auth_token uuid.UUID) *AyiPacket {
+func (mb *PacketBuilder) NewAccessToken(user_id int64, auth_token uuid.UUID) *AyiPacket {
 	mb.message.Header.SetType(M_ACCESS_TOKEN)
 	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token.String()})
 	return mb.message
 }
 
-func (mb *PacketBuilder) IIDToken(token string) *AyiPacket {
+/*func (mb *PacketBuilder) IIDToken(token string) *AyiPacket {
 	mb.message.Header.SetType(M_IID_TOKEN)
 	mb.message.SetMessage(&InstanceIDToken{Token: token})
 	return mb.message
@@ -117,7 +117,7 @@ func (mb *PacketBuilder) ChangeProfilePicture(picture []byte) *AyiPacket {
 	mb.message.Header.SetType(M_CHANGE_PROFILE_PICTURE)
 	mb.message.SetMessage(&UserAccount{Picture: picture})
 	return mb.message
-}
+}*/
 
 // Notifications
 func (mb *PacketBuilder) EventCreated(event *core.Event) *AyiPacket {
@@ -126,25 +126,25 @@ func (mb *PacketBuilder) EventCreated(event *core.Event) *AyiPacket {
 	return mb.message
 }
 
-func (mb *PacketBuilder) EventCancelled(who_id uint64, event *core.Event) *AyiPacket {
+func (mb *PacketBuilder) EventCancelled(who_id int64, event *core.Event) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_CANCELLED)
 	mb.message.SetMessage(&EventCancelled{WhoId: who_id, EventId: event.EventId, Event: event})
 	return mb.message
 }
 
-func (mb *PacketBuilder) EventExpired(event_id uint64) *AyiPacket {
+func (mb *PacketBuilder) EventExpired(event_id int64) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_EXPIRED)
 	mb.message.SetMessage(&EventExpired{EventId: event_id})
 	return mb.message
 }
 
-/*func (mb *PacketBuilder) EventDateModified(event_id uint64, start_date int64, end_date int64) *AyiPacket {
+/*func (mb *PacketBuilder) EventDateModified(event_id int64, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_DATE_MODIFIED)
 	mb.message.SetMessage(&EventModified{EventId: event_id, StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
-func (mb *PacketBuilder) EventMessageModified(event_id uint64, message string) *AyiPacket {
+func (mb *PacketBuilder) EventMessageModified(event_id int64, message string) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_MESSAGE_MODIFIED)
 	mb.message.SetMessage(&EventModified{EventId: event_id, Message: message})
 	return mb.message
@@ -162,44 +162,44 @@ func (mb *PacketBuilder) InvitationReceived(event *core.Event) *AyiPacket {
 	return mb.message
 }
 
-func (mb *PacketBuilder) InvitationCancelled(event_id uint64) *AyiPacket {
+/*func (mb *PacketBuilder) InvitationCancelled(event_id int64) *AyiPacket {
 	mb.message.Header.SetType(M_INVITATION_CANCELLED)
 	mb.message.SetMessage(&InvitationCancelled{EventId: event_id})
 	return mb.message
-}
+}*/
 
-func (mb *PacketBuilder) AttendanceStatus(event_id uint64, status []*core.EventParticipant) *AyiPacket {
+func (mb *PacketBuilder) AttendanceStatus(event_id int64, status []*core.EventParticipant) *AyiPacket {
 	mb.message.Header.SetType(M_ATTENDANCE_STATUS)
 	mb.message.SetMessage(&AttendanceStatus{EventId: event_id, AttendanceStatus: status})
 	return mb.message
 }
 
-func (mb *PacketBuilder) AttendanceStatusWithNumGuests(event_id uint64, status []*core.EventParticipant, num_guests int32) *AyiPacket {
+func (mb *PacketBuilder) AttendanceStatusWithNumGuests(event_id int64, status []*core.EventParticipant, num_guests int32) *AyiPacket {
 	mb.message.Header.SetType(M_ATTENDANCE_STATUS)
 	mb.message.SetMessage(&AttendanceStatus{EventId: event_id, AttendanceStatus: status, NumGuests: num_guests})
 	return mb.message
 }
 
-func (mb *PacketBuilder) EventChangeDateProposed(event_id uint64, change_id uint32, start_date int64, end_date int64) *AyiPacket {
+/*func (mb *PacketBuilder) EventChangeDateProposed(event_id int64, change_id int32, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_CHANGE_DATE_PROPOSED)
 	mb.message.SetMessage(&EventChangeProposed{EventId: event_id, ChangeId: change_id, StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
-func (mb *PacketBuilder) EventChangeMessageProposed(event_id uint64, change_id uint32, message string) *AyiPacket {
+func (mb *PacketBuilder) EventChangeMessageProposed(event_id int64, change_id int32, message string) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_CHANGE_MESSAGE_PROPOSED)
 	mb.message.SetMessage(&EventChangeProposed{EventId: event_id, ChangeId: change_id, Message: message})
 	return mb.message
 }
 
-func (mb *PacketBuilder) EventChangeProposed(event_id uint64, change_id uint32, message string, start_date int64, end_date int64) *AyiPacket {
+func (mb *PacketBuilder) EventChangeProposed(event_id int64, change_id int32, message string, start_date int64, end_date int64) *AyiPacket {
 	mb.message.Header.SetType(M_EVENT_CHANGE_PROPOSED)
 	mb.message.SetMessage(&EventChangeProposed{EventId: event_id, ChangeId: change_id, Message: message,
 		StartDate: start_date, EndDate: end_date})
 	return mb.message
 }
 
-func (mb *PacketBuilder) VotingStatus(event_id uint64, change_id uint32, start_date int64,
+func (mb *PacketBuilder) VotingStatus(event_id int64, change_id int32, start_date int64,
 	end_date int64, votes_received uint32, votes_total uint32) *AyiPacket {
 	mb.message.Header.SetType(M_VOTING_STATUS)
 	mb.message.SetMessage(&VotingStatus{EventId: event_id, ChangeId: change_id,
@@ -208,25 +208,25 @@ func (mb *PacketBuilder) VotingStatus(event_id uint64, change_id uint32, start_d
 	return mb.message
 }
 
-func (mb *PacketBuilder) VotingFinished(event_id uint64, change_id uint32) *AyiPacket {
+func (mb *PacketBuilder) VotingFinished(event_id int64, change_id int32) *AyiPacket {
 	mb.message.Header.SetType(M_VOTING_FINISHED)
 	mb.message.SetMessage(&VotingStatus{EventId: event_id, ChangeId: change_id, Finished: true})
 	return mb.message
 }
 
-func (mb *PacketBuilder) ChangeAccepted(event_id uint64, change_id uint32) *AyiPacket {
+func (mb *PacketBuilder) ChangeAccepted(event_id int64, change_id int32) *AyiPacket {
 	mb.message.Header.SetType(M_CHANGE_ACCEPTED)
 	mb.message.SetMessage(&ChangeAccepted{EventId: event_id, ChangeId: change_id})
 	return mb.message
 }
 
-func (mb *PacketBuilder) ChangeDiscarded(event_id uint64, change_id uint32) *AyiPacket {
+func (mb *PacketBuilder) ChangeDiscarded(event_id int64, change_id int32) *AyiPacket {
 	mb.message.Header.SetType(M_CHANGE_DISCARDED)
 	mb.message.SetMessage(&ChangeDiscarded{EventId: event_id, ChangeId: change_id})
 	return mb.message
-}
+}*/
 
-func (mb *PacketBuilder) UserAccessGranted(user_id uint64, auth_token uuid.UUID) *AyiPacket {
+func (mb *PacketBuilder) UserAccessGranted(user_id int64, auth_token uuid.UUID) *AyiPacket {
 	mb.message.Header.SetType(M_ACCESS_GRANTED)
 	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token.String()})
 	return mb.message
@@ -257,11 +257,11 @@ func (mb *PacketBuilder) Ping() *AyiPacket {
 	return mb.message
 }
 
-func (mb *PacketBuilder) ReadEvent(event_id uint64) *AyiPacket {
+/*func (mb *PacketBuilder) ReadEvent(event_id int64) *AyiPacket {
 	mb.message.Header.SetType(M_READ_EVENT)
 	mb.message.SetMessage(&ReadEvent{EventId: event_id})
 	return mb.message
-}
+}*/
 
 /*func (mb *PacketBuilder) ListAuthoredEvents(cursor uint32) *AyiPacket {
 	mb.message.Header.SetType(M_LIST_AUTHORED_EVENTS)

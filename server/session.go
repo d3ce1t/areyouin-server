@@ -69,7 +69,7 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 
 type AyiSession struct {
 	Conn   net.Conn
-	UserId uint64
+	UserId int64
 
 	// Network protocol version
 	ProtocolVersion uint8

@@ -33,32 +33,32 @@ message CreateEvent {
   int64 created_date = 2;
   int64 start_date = 3;
   int64 end_date = 4;
-  repeated uint64 participants = 5;
+  repeated int64 participants = 5;
   bytes picture = 6;
   //bytes picture_digest = 4;
 }
 
 // CANCEL EVENT
 message CancelEvent {
-  uint64 event_id = 1;
+  int64 event_id = 1;
   string reason = 2;
 }
 
 // INVITE USERS
 message InviteUsers {
-  uint64 event_id = 1;
-  repeated uint64 participants = 2;
+  int64 event_id = 1;
+  repeated int64 participants = 2;
 }
 
 // CANCEL USERS INVITATION
 message CancelUsersInvitation {
-  uint64 event_id = 1;
-  repeated uint64 participants = 2;
+  int64 event_id = 1;
+  repeated int64 participants = 2;
 }
 
 // CONFIRM ATTENDANCE
 message ConfirmAttendance {
-  uint64 event_id = 1;
+  int64 event_id = 1;
   common.AttendanceResponse action_code = 2;
 }
 
@@ -66,7 +66,7 @@ message ConfirmAttendance {
 // MODIFY EVENT MESSAGE
 // MODIFY EVENT
 message ModifyEvent {
-  uint64 event_id = 1;
+  int64 event_id = 1;
   string message = 2;
   int64 start_date = 3;
   int64 end_date = 4;
@@ -75,8 +75,8 @@ message ModifyEvent {
 
 // VOTE CHANGE
 message VoteChange {
-  uint64 event_id = 1;
-  uint32 change_id = 2;
+  int64 event_id = 1;
+  int32 change_id = 2;
   bool accept_change = 3;
 }
 
@@ -116,7 +116,7 @@ message NewAuthToken {
 
 // ACCESS GRANTED / USER AUTH / GET ACCESS TOKEN
 message AccessToken {
-  uint64 user_id = 1;
+  int64 user_id = 1;
   string auth_token = 2;
 }
 
@@ -127,7 +127,7 @@ message InstanceIDToken {
 
 // SYNC GROUPS
 message SyncGroups {
-  uint64 owner = 1;
+  int64 owner = 1;
   repeated common.Group groups = 2;
   common.SyncBehaviour sync_behaviour = 3;
 }
@@ -138,15 +138,15 @@ message SyncGroups {
 
 // EVENT CANCELLED
 message EventCancelled {
-  uint64 who_id = 1;
-  uint64 event_id = 2;
+  int64 who_id = 1;
+  int64 event_id = 2;
   string reason = 3;
   common.Event event = 4;
 }
 
 // EVENT EXPIRED
 message EventExpired {
-  uint64 event_id = 1;
+  int64 event_id = 1;
 }
 
 // EVENT DATE MODIFIED
@@ -155,12 +155,12 @@ message EventExpired {
 
 // INVITATION CANCELLED
 message InvitationCancelled {
-  uint64 event_id = 1;
+  int64 event_id = 1;
 }
 
 // ATTENDANCE STATUS
 message AttendanceStatus {
-  uint64 event_id = 1;
+  int64 event_id = 1;
   repeated common.EventParticipant attendance_status = 2;
   int32 num_guests = 3;
 }
@@ -169,8 +169,8 @@ message AttendanceStatus {
 // EVENT CHANGE MESSAGE PROPOSED
 // EVENT CHANGE PROPOSED
 message EventChangeProposed {
-  uint64 event_id = 1;
-  uint32 change_id = 2;
+  int64 event_id = 1;
+  int32 change_id = 2;
   int64 start_date = 3;
   int64 end_date = 4;
   string message = 5;
@@ -179,8 +179,8 @@ message EventChangeProposed {
 // VOTING STATUS
 // VOTING FINISHED
 message VotingStatus {
-  uint64 event_id = 1;
-  uint32 change_id = 2;
+  int64 event_id = 1;
+  int32 change_id = 2;
   int64 start_date = 3;
   int64 end_date = 4;
   int64 elapsed_time = 5;
@@ -191,19 +191,19 @@ message VotingStatus {
 
 // CHANGE ACCEPTED
 message ChangeAccepted {
-  uint64 event_id = 1;
-  uint32 change_id = 2;
+  int64 event_id = 1;
+  int32 change_id = 2;
 }
 
 // CHANGE DISCARDED
 message ChangeDiscarded {
-  uint64 event_id = 1;
-  uint32 change_id = 2;
+  int64 event_id = 1;
+  int32 change_id = 2;
 }
 
 // ACCESS GRANTED
 /*message AccessGranted {
-  uint64 user_id = 1;
+  int64 user_id = 1;
   string auth_token = 2;
 }*/
 
@@ -230,7 +230,7 @@ message TimeInfo {
 
 // READ EVENT
 message ReadEvent {
-  uint64 event_id = 1;
+  int64 event_id = 1;
 }
 
 // LIST AUTHORED EVENTS

@@ -18,7 +18,6 @@ import (
 	wh "peeple/areyouin/webhook"
 	"strings"
 	"time"
-
 	"github.com/disintegration/imaging"
 	"github.com/gocql/gocql"
 )
@@ -193,8 +192,8 @@ func (s *Server) Run() {
 	}
 }
 
-func (s *Server) GetNewID() uint64 {
-	return <-s.id_gen_ch
+func (s *Server) GetNewID() int64 {
+	return int64(<-s.id_gen_ch)
 }
 
 func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
@@ -432,7 +431,7 @@ func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 	} // End outter loop
 }
 
-func (s *Server) GetSession(user_id uint64) *AyiSession {
+func (s *Server) GetSession(user_id int64) *AyiSession {
 	if session, ok := s.sessions.Get(user_id); ok {
 		return session
 	} else {
@@ -440,8 +439,8 @@ func (s *Server) GetSession(user_id uint64) *AyiSession {
 	}
 }
 
-func (s *Server) GetNewParticipants(participants_id []uint64, event *core.Event) []uint64 {
-	result := make([]uint64, 0, len(participants_id))
+func (s *Server) GetNewParticipants(participants_id []int64, event *core.Event) []int64 {
+	result := make([]int64, 0, len(participants_id))
 	for _, id := range participants_id {
 		if _, ok := event.Participants[id]; !ok {
 			result = append(result, id)
@@ -500,10 +499,10 @@ func (s *Server) inviteParticipantToEvent(event *core.Event, participant *core.E
 // can only be current friends of the author. In this code, it is assumed that
 // participants are already friends of the author (author has-friend way). However,
 // it must be checked if participants have also the author as a friend (friend has-author way)
-func (s *Server) loadUserParticipants(author_id uint64, participants_id []uint64) (map[uint64]*core.UserAccount, error, error) {
+func (s *Server) loadUserParticipants(author_id int64, participants_id []int64) (map[int64]*core.UserAccount, error, error) {
 
 	var last_warning error
-	result := make(map[uint64]*core.UserAccount)
+	result := make(map[int64]*core.UserAccount)
 	userDAO := s.NewUserDAO()
 	friend_dao := s.NewFriendDAO()
 
@@ -531,9 +530,9 @@ func (s *Server) loadUserParticipants(author_id uint64, participants_id []uint64
 	return result, last_warning, nil
 }
 
-func (s *Server) createParticipantList(users map[uint64]*core.UserAccount) map[uint64]*core.EventParticipant {
+func (s *Server) createParticipantList(users map[int64]*core.UserAccount) map[int64]*core.EventParticipant {
 
-	result := make(map[uint64]*core.EventParticipant)
+	result := make(map[int64]*core.EventParticipant)
 
 	for _, uac := range users {
 		result[uac.Id] = uac.AsParticipant()
@@ -542,7 +541,7 @@ func (s *Server) createParticipantList(users map[uint64]*core.UserAccount) map[u
 	return result
 }
 
-func (s *Server) createParticipantListFromMap(participants map[uint64]*core.EventParticipant) []*core.EventParticipant {
+func (s *Server) createParticipantListFromMap(participants map[int64]*core.EventParticipant) []*core.EventParticipant {
 
 	result := make([]*core.EventParticipant, 0, len(participants))
 
@@ -553,7 +552,7 @@ func (s *Server) createParticipantListFromMap(participants map[uint64]*core.Even
 	return result
 }
 
-func (s *Server) createParticipantsFromFriends(author_id uint64) map[uint64]*core.EventParticipant {
+func (s *Server) createParticipantsFromFriends(author_id int64) map[int64]*core.EventParticipant {
 
 	dao := s.NewFriendDAO()
 	friends, _ := dao.LoadFriends(author_id, ALL_CONTACTS_GROUP)
@@ -614,7 +613,7 @@ func sendPrivateEvents(session *AyiSession) {
 			// Notify change in participant status to the other participants
 			task := &NotifyParticipantChange{
 				Event:               event,
-				ParticipantsChanged: []uint64{session.UserId},
+				ParticipantsChanged: []int64{session.UserId},
 				Target:              core.GetParticipantsIdSlice(event.Participants),
 			}
 
@@ -661,7 +660,7 @@ func checkEventWritableOrPanic(event *core.Event) {
 	}
 }
 
-func checkEventAuthorOrPanic(author_id uint64, event *core.Event) {
+func checkEventAuthorOrPanic(author_id int64, event *core.Event) {
 	if event.AuthorId != author_id {
 		panic(ErrAuthorMismatch)
 	}
@@ -669,7 +668,7 @@ func checkEventAuthorOrPanic(author_id uint64, event *core.Event) {
 
 // Returns a participant list where users that will not assist the event or aren't
 // friends of the given user are removed */
-func (s *Server) filterParticipantsMap(participant uint64, participants map[uint64]*core.EventParticipant) []*core.EventParticipant {
+func (s *Server) filterParticipantsMap(participant int64, participants map[int64]*core.EventParticipant) []*core.EventParticipant {
 
 	result := make([]*core.EventParticipant, 0, len(participants))
 
@@ -684,9 +683,9 @@ func (s *Server) filterParticipantsMap(participant uint64, participants map[uint
 	return result
 }
 
-func (s *Server) filterEventParticipants(targetParticipant uint64, participants map[uint64]*core.EventParticipant) map[uint64]*core.EventParticipant {
+func (s *Server) filterEventParticipants(targetParticipant int64, participants map[int64]*core.EventParticipant) map[int64]*core.EventParticipant {
 
-	result := make(map[uint64]*core.EventParticipant)
+	result := make(map[int64]*core.EventParticipant)
 
 	for key, p := range participants {
 		if s.canSee(targetParticipant, p) {
@@ -699,7 +698,7 @@ func (s *Server) filterEventParticipants(targetParticipant uint64, participants 
 	return result
 }
 
-func (s *Server) filterParticipantsSlice(participant uint64, participants []*core.EventParticipant) []*core.EventParticipant {
+func (s *Server) filterParticipantsSlice(participant int64, participants []*core.EventParticipant) []*core.EventParticipant {
 
 	result := make([]*core.EventParticipant, 0, len(participants))
 
@@ -715,7 +714,7 @@ func (s *Server) filterParticipantsSlice(participant uint64, participants []*cor
 }
 
 // Tells if participant p1 can see changes of participant p2
-func (s *Server) canSee(p1 uint64, p2 *core.EventParticipant) bool {
+func (s *Server) canSee(p1 int64, p2 *core.EventParticipant) bool {
 	dao := s.NewFriendDAO()
 	if p2.Response == core.AttendanceResponse_ASSIST ||
 		/*p2.Response == core.AttendanceResponse_CANNOT_ASSIST ||*/
@@ -774,7 +773,7 @@ func (s *Server) createUserAccount(user *core.UserAccount) error {
 }
 
 // Assume picture is 512x512
-func (s *Server) saveProfilePicture(user_id uint64, picture *core.Picture) error {
+func (s *Server) saveProfilePicture(user_id int64, picture *core.Picture) error {
 
 	// Decode image
 	srcImage, _, err := image.Decode(bytes.NewReader(picture.RawData))
@@ -827,7 +826,7 @@ func (s *Server) saveProfilePicture(user_id uint64, picture *core.Picture) error
 	return nil
 }
 
-func (s *Server) removeProfilePicture(user_id uint64, picture *core.Picture) error {
+func (s *Server) removeProfilePicture(user_id int64, picture *core.Picture) error {
 
 	// Save empty profile picture
 	user_dao := s.NewUserDAO()
@@ -861,7 +860,7 @@ func (s *Server) removeProfilePicture(user_id uint64, picture *core.Picture) err
 	return nil
 }
 
-func (s *Server) saveEventPicture(event_id uint64, picture *core.Picture) error {
+func (s *Server) saveEventPicture(event_id int64, picture *core.Picture) error {
 
 	// The whole picture is the header. But It is also needed thumbnails for
 	// event icon.
@@ -901,7 +900,7 @@ func (s *Server) saveEventPicture(event_id uint64, picture *core.Picture) error 
 	return nil
 }
 
-func (s *Server) removeEventPicture(event_id uint64, picture *core.Picture) error {
+func (s *Server) removeEventPicture(event_id int64, picture *core.Picture) error {
 
 	// Remove event picture
 	eventDAO := s.NewEventDAO()
@@ -933,13 +932,13 @@ func (s *Server) removeEventPicture(event_id uint64, picture *core.Picture) erro
 // group, removing those members that does not exist in client group (client is master).
 // In other words, groups at server will be equal to groups at client at the end of the
 // synchornisation process.
-func (s *Server) syncFriendGroups(owner uint64, serverGroups []*core.Group,
+func (s *Server) syncFriendGroups(owner int64, serverGroups []*core.Group,
 	clientGroups []*core.Group, syncBehaviour core.SyncBehaviour) {
 
 	friendsDAO := s.NewFriendDAO()
 
 	// Copy map because it's gonna be modified
-	clientGroupsCopy := make(map[uint32]*core.Group)
+	clientGroupsCopy := make(map[int32]*core.Group)
 	for _, group := range clientGroups {
 		clientGroupsCopy[group.Id] = group
 	}
@@ -1000,7 +999,7 @@ func (s *Server) syncFriendGroups(owner uint64, serverGroups []*core.Group,
 	// Filter groups to remove non-friends.
 	for _, group := range clientGroupsCopy {
 
-		newMembers := make([]uint64, 0, group.Size)
+		newMembers := make([]int64, 0, group.Size)
 
 		for _, friendId := range group.Members {
 			ok, err := friendsDAO.IsFriend(friendId, owner)
@@ -1020,10 +1019,10 @@ func (s *Server) syncFriendGroups(owner uint64, serverGroups []*core.Group,
 	}
 }
 
-func (s *Server) syncGroupMembers(user_id uint64, group_id uint32, serverMembers []uint64, clientMembers []uint64) {
+func (s *Server) syncGroupMembers(user_id int64, group_id int32, serverMembers []int64, clientMembers []int64) {
 
 	// Index client members
-	index := make(map[uint64]bool)
+	index := make(map[int64]bool)
 	for _, id := range clientMembers {
 		index[id] = true
 	}
@@ -1031,7 +1030,7 @@ func (s *Server) syncGroupMembers(user_id uint64, group_id uint32, serverMembers
 	// Loop through all members group owned by the server.
 	// If member also exists client side, then keep it. Otherwise,
 	// remove it.
-	remove_ids := make([]uint64, 0, len(serverMembers)/2)
+	remove_ids := make([]int64, 0, len(serverMembers)/2)
 
 	for _, serverMemberId := range serverMembers {
 		if _, ok := index[serverMemberId]; !ok {
@@ -1045,7 +1044,7 @@ func (s *Server) syncGroupMembers(user_id uint64, group_id uint32, serverMembers
 	// so add them.
 	friendDAO := s.NewFriendDAO()
 
-	add_ids := make([]uint64, 0, len(clientMembers))
+	add_ids := make([]int64, 0, len(clientMembers))
 	for id, _ := range index {
 		ok, err := friendDAO.IsFriend(id, user_id)
 		checkNoErrorOrPanic(err)

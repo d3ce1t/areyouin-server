@@ -14,7 +14,7 @@ import (
 // reset_picture
 func (shell *Shell) resetPicture(args []string) {
 
-	user_id, err := strconv.ParseUint(args[1], 10, 64)
+	user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	server := shell.server

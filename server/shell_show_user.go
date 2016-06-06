@@ -9,7 +9,7 @@ import (
 // show_user
 func (shell *Shell) showUser(args []string) {
 
-	user_id, err := strconv.ParseUint(args[1], 10, 64)
+	user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	server := shell.server

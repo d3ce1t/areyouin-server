@@ -151,7 +151,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 				reply = session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
 				log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			}
-			
+
 		} else if err == dao.ErrNotFound {
 			reply = session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD\n", session)
@@ -728,7 +728,7 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 	// After check all of the possible erros, finally participants are inserted into the event
 	// and users inboxes
 	var succeedCounter int
-	new_participants := make([]uint64, 0, len(userParticipants))
+	new_participants := make([]int64, 0, len(userParticipants))
 	old_participants := core.GetParticipantsIdSlice(event.Participants)
 
 	for _, user := range userParticipants {
@@ -831,7 +831,7 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 
 		server.task_executor.Submit(&NotifyParticipantChange{
 			Event:               event[0],
-			ParticipantsChanged: []uint64{session.UserId},
+			ParticipantsChanged: []int64{session.UserId},
 			Target:              core.GetParticipantsIdSlice(event[0].Participants),
 		})
 
@@ -913,7 +913,7 @@ func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, se
 			// Notify change in participant status to the other participants
 			task := &NotifyParticipantChange{
 				Event:               event,
-				ParticipantsChanged: []uint64{session.UserId},
+				ParticipantsChanged: []int64{session.UserId},
 				Target:              core.GetParticipantsIdSlice(event.Participants),
 			}
 

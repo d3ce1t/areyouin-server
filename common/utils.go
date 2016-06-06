@@ -28,25 +28,25 @@ func (self *QueryValues) AddArrayInt32(array []int32) {
 	}
 }
 
-func (self *QueryValues) AddArrayUint32(array []uint32) {
+/*func (self *QueryValues) AddArrayUint32(array []uint32) {
 	for _, val := range array {
 		self.Params = append(self.Params, val)
 	}
-}
+}*/
 
-func (self *QueryValues) AddArrayUint32AsInt32(array []uint32) {
+/*func (self *QueryValues) AddArrayUint32AsInt32(array []uint32) {
 	for _, val := range array {
 		self.Params = append(self.Params, int32(val))
 	}
-}
+}*/
 
-func (self *QueryValues) AddArrayUint64AsInt64(array []uint64) {
+/*func (self *QueryValues) AddArrayUint64AsInt64(array []uint64) {
 	for _, val := range array {
 		self.Params = append(self.Params, int64(val))
 	}
-}
+}*/
 
-func (self *QueryValues) AddArrayUint64(array []uint64) {
+func (self *QueryValues) AddArrayInt64(array []int64) {
 	for _, val := range array {
 		self.Params = append(self.Params, val)
 	}
@@ -65,7 +65,7 @@ func GenParams(size int) string {
 	return result
 }
 
-func GenValues(values []uint64) []interface{} {
+func GenValues(values []int64) []interface{} {
 
 	result := make([]interface{}, 0, len(values))
 
@@ -115,9 +115,9 @@ func ClearEvents(session *gocql.Session) {
 	session.Query(`TRUNCATE user_events`).Exec()
 }
 
-func CreateParticipantsFromFriends(author_id uint64, friends []*Friend) map[uint64]*EventParticipant {
+func CreateParticipantsFromFriends(author_id int64, friends []*Friend) map[int64]*EventParticipant {
 
-	result := make(map[uint64]*EventParticipant)
+	result := make(map[int64]*EventParticipant)
 
 	if len(friends) > 0 {
 
@@ -134,8 +134,8 @@ func CreateParticipantsFromFriends(author_id uint64, friends []*Friend) map[uint
 	return result
 }
 
-func GetParticipantsIdSlice(participants map[uint64]*EventParticipant) []uint64 {
-	result := make([]uint64, 0, len(participants))
+func GetParticipantsIdSlice(participants map[int64]*EventParticipant) []int64 {
+	result := make([]int64, 0, len(participants))
 	for _, p := range participants {
 		result = append(result, p.UserId)
 	}

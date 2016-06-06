@@ -36,7 +36,7 @@ import (
 	return q.Exec()
 }*/
 
-/*func (dao *EventDAO) AddOrUpdateParticipant(event_id uint64, participant *core.EventParticipant) error {
+/*func (dao *EventDAO) AddOrUpdateParticipant(event_id int64, participant *core.EventParticipant) error {
 
 	dao.checkSession()
 
@@ -49,7 +49,7 @@ import (
 	return q.Exec()
 }*/
 
-/*func (dao *EventDAO) AddOrUpdateParticipants(event_id uint64, participantList map[uint64]*core.EventParticipant) error {
+/*func (dao *EventDAO) AddOrUpdateParticipants(event_id int64, participantList map[int64]*core.EventParticipant) error {
 
 	dao.checkSession()
 
@@ -68,7 +68,7 @@ import (
 
 // FIXME: Each event of event table is in its own partition, classify events by date
 // or something in order to improve read performance.
-/*func (dao *EventDAO) LoadUserEvents(user_id uint64, fromDate int64) ([]*core.Event, error) {
+/*func (dao *EventDAO) LoadUserEvents(user_id int64, fromDate int64) ([]*core.Event, error) {
 
 	dao.checkSession()
 
@@ -81,7 +81,7 @@ import (
 		return nil, err
 	}
 
-	event_id_list := make([]uint64, 0, len(events_inbox))
+	event_id_list := make([]int64, 0, len(events_inbox))
 	for _, event_inbox := range events_inbox {
 		event_id_list = append(event_id_list, event_inbox.EventId)
 	}
@@ -102,8 +102,8 @@ func (dao *EventDAO) loadUserInboxHelper(query *gocql.Query) ([]*core.EventInbox
 	iter := query.Iter()
 	events := make([]*core.EventInbox, 0, 20)
 
-	var event_id uint64
-	var author_id uint64
+	var event_id int64
+	var author_id int64
 	var author_name string
 	var start_date int64
 	var message string

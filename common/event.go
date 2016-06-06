@@ -18,7 +18,7 @@ var (
 	ErrInvalidEventData = errors.New("invalidad event data")
 )
 
-func CreateNewEvent(event_id uint64, author_id uint64, author_name string, created_date int64, start_date int64,
+func CreateNewEvent(event_id int64, author_id int64, author_name string, created_date int64, start_date int64,
 	end_date int64, message string) *Event {
 	event := &Event{
 		EventId:       event_id,
@@ -85,7 +85,7 @@ func (event *Event) IsValidEndDate() bool {
 	return true
 }
 
-func (event *Event) SetParticipants(participants map[uint64]*EventParticipant) {
+func (event *Event) SetParticipants(participants map[int64]*EventParticipant) {
 	event.Participants = participants
 	if participants != nil {
 		event.NumGuests = int32(len(participants))
