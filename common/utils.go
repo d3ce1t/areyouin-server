@@ -28,6 +28,24 @@ func (self *QueryValues) AddArrayInt32(array []int32) {
 	}
 }
 
+func (self *QueryValues) AddArrayUint32(array []uint32) {
+	for _, val := range array {
+		self.Params = append(self.Params, val)
+	}
+}
+
+func (self *QueryValues) AddArrayUint32AsInt32(array []uint32) {
+	for _, val := range array {
+		self.Params = append(self.Params, int32(val))
+	}
+}
+
+func (self *QueryValues) AddArrayUint64AsInt64(array []uint64) {
+	for _, val := range array {
+		self.Params = append(self.Params, int64(val))
+	}
+}
+
 func (self *QueryValues) AddArrayUint64(array []uint64) {
 	for _, val := range array {
 		self.Params = append(self.Params, val)

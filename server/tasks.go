@@ -472,14 +472,19 @@ func (task *LoadFacebookProfilePicture) Run(ex *TaskExecutor) {
 		return
 	}
 
-	task.User.Picture = picture.RawData
 	task.User.PictureDigest = picture.Digest
 	log.Printf("LoadFacebookProfilePicture: Profile picture updated (digest=%x)\n", picture.Digest)
 
 	session := server.GetSession(task.User.Id)
 	if session != nil {
-		session.Write(session.NewMessage().UserAccount(task.User))
-		log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session.UserId, len(task.User.Picture))
+		if session.ProtocolVersion < 2 {
+			task.User.Picture = picture.RawData
+			session.Write(session.NewMessage().UserAccount(task.User))
+			log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session.UserId, len(task.User.Picture))
+		} else {
+			session.Write(session.NewMessage().UserAccount(task.User))
+			log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session.UserId)
+		}
 	}
 }
 

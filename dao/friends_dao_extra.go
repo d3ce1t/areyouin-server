@@ -5,7 +5,7 @@ import (
 	core "peeple/areyouin/common"
 )
 
-func (dao *FriendDAO) getFriendsIdInGroup(user_id uint64, group_id int32) ([]uint64, error) {
+func (dao *FriendDAO) getFriendsIdInGroup(user_id uint64, group_id uint32) ([]uint64, error) {
 
 	dao.checkSession()
 
@@ -13,12 +13,12 @@ func (dao *FriendDAO) getFriendsIdInGroup(user_id uint64, group_id int32) ([]uin
 		WHERE user_id = ? AND group_id = ?`
 
 	ids_slice := make([]uint64, 0, 20)
-	var friend_id uint64
+	var friend_id int64
 
-	iter := dao.session.Query(stmt, user_id, group_id).Iter()
+	iter := dao.session.Query(stmt, int64(user_id), int32(group_id)).Iter()
 
 	for iter.Scan(&friend_id) {
-		ids_slice = append(ids_slice, friend_id)
+		ids_slice = append(ids_slice, uint64(friend_id))
 	}
 
 	if err := iter.Close(); err != nil {
@@ -36,17 +36,17 @@ func (dao *FriendDAO) getAllFriends(user_id uint64) ([]*core.Friend, error) {
 	stmt := `SELECT friend_id, friend_name, picture_digest FROM friends_by_user
 						WHERE user_id = ? LIMIT ?`
 
-	iter := dao.session.Query(stmt, user_id, MAX_NUM_FRIENDS).Iter()
+	iter := dao.session.Query(stmt, int64(user_id), MAX_NUM_FRIENDS).Iter()
 
 	friend_list := make([]*core.Friend, 0, 10)
 
-	var friend_id uint64
+	var friend_id int64
 	var friend_name string
 	var picture_digest []byte
 
 	for iter.Scan(&friend_id, &friend_name, &picture_digest) {
 		friend_list = append(friend_list, &core.Friend{
-			UserId:        friend_id,
+			UserId:        uint64(friend_id),
 			Name:          friend_name,
 			PictureDigest: picture_digest,
 		})
@@ -69,20 +69,20 @@ func (dao *FriendDAO) getFriends(user_id uint64, friends_id ...uint64) ([]*core.
 
 	values := &core.QueryValues{}
 	values.AddValue(user_id)
-	values.AddArrayUint64(friends_id)
+	values.AddArrayUint64AsInt64(friends_id)
 	values.AddValue(MAX_NUM_FRIENDS)
 
 	iter := dao.session.Query(stmt, values.Params...).Iter()
 
 	friend_list := make([]*core.Friend, 0, 10)
 
-	var friend_id uint64
+	var friend_id int64
 	var friend_name string
 	var picture_digest []byte
 
 	for iter.Scan(&friend_id, &friend_name, &picture_digest) {
 		friend_list = append(friend_list, &core.Friend{
-			UserId:        friend_id,
+			UserId:        uint64(friend_id),
 			Name:          friend_name,
 			PictureDigest: picture_digest,
 		})
@@ -103,8 +103,8 @@ func (dao *FriendDAO) loadMembersIntoGroups(user_id uint64, groups []*core.Group
 	dao.checkSession()
 
 	// Build index (group_id => slice position) and groups ids
-	index := make(map[int32]int)
-	groups_ids := make([]int32, 0, len(groups))
+	index := make(map[uint32]int)
+	groups_ids := make([]uint32, 0, len(groups))
 
 	for i, group := range groups {
 		index[group.Id] = i
@@ -115,17 +115,17 @@ func (dao *FriendDAO) loadMembersIntoGroups(user_id uint64, groups []*core.Group
 		WHERE user_id = ? AND group_id IN (` + core.GenParams(len(groups_ids)) + `)`
 
 	var group_id int32
-	var friend_id uint64
+	var friend_id int64
 
 	values := &core.QueryValues{}
 	values.AddValue(user_id)
-	values.AddArrayInt32(groups_ids)
+	values.AddArrayUint32AsInt32(groups_ids)
 
 	iter := dao.session.Query(stmt, values.Params...).Iter()
 
 	for iter.Scan(&group_id, &friend_id) {
-		pos := index[group_id]
-		groups[pos].Members = append(groups[pos].Members, friend_id)
+		pos := index[uint32(group_id)]
+		groups[pos].Members = append(groups[pos].Members, uint64(friend_id))
 	}
 
 	if err := iter.Close(); err != nil {
@@ -136,7 +136,7 @@ func (dao *FriendDAO) loadMembersIntoGroups(user_id uint64, groups []*core.Group
 	return nil
 }
 
-func (dao *FriendDAO) computeGroupSize(user_id uint64, group_id int32) (int32, error) {
+func (dao *FriendDAO) computeGroupSize(user_id uint64, group_id uint32) (int32, error) {
 
 	dao.checkSession()
 
@@ -145,7 +145,7 @@ func (dao *FriendDAO) computeGroupSize(user_id uint64, group_id int32) (int32, e
 
 	var group_size int32
 
-	err := dao.session.Query(stmt, user_id, group_id).Scan(&group_size)
+	err := dao.session.Query(stmt, int64(user_id), int32(group_id)).Scan(&group_size)
 	if err != nil {
 		return -1, err
 	}
@@ -153,13 +153,13 @@ func (dao *FriendDAO) computeGroupSize(user_id uint64, group_id int32) (int32, e
 	return group_size, nil
 }
 
-func (dao *FriendDAO) setGroupSize(user_id uint64, group_id int32, group_size int32) error {
+func (dao *FriendDAO) setGroupSize(user_id uint64, group_id uint32, group_size int32) error {
 	dao.checkSession()
 	stmt := `UPDATE groups_by_user SET group_size = ? WHERE user_id = ? AND group_id = ?`
-	return dao.session.Query(stmt, group_size, user_id, group_id).Exec()
+	return dao.session.Query(stmt, group_size, int64(user_id), int32(group_id)).Exec()
 }
 
-func (dao *FriendDAO) updateGroupSize(user_id uint64, group_id int32) error {
+func (dao *FriendDAO) updateGroupSize(user_id uint64, group_id uint32) error {
 	size, err := dao.computeGroupSize(user_id, group_id)
 	if err != nil {
 		return err

@@ -80,7 +80,7 @@ type UserDAO interface {
 }
 
 type FriendDAO interface {
-	LoadFriends(user_id uint64, group_id int32) ([]*Friend, error)
+	LoadFriends(user_id uint64, group_id uint32) ([]*Friend, error)
 	LoadFriendsMap(user_id uint64) (map[uint64]*Friend, error)
 	IsFriend(user_id uint64, other_user_id uint64) (bool, error)
 	AreFriends(user_id uint64, other_user_id uint64) (bool, error)
@@ -89,10 +89,10 @@ type FriendDAO interface {
 	LoadGroups(user_id uint64) ([]*Group, error)
 	LoadGroupsAndMembers(user_id uint64) ([]*Group, error)
 	AddGroup(user_id uint64, group *Group) error
-	SetGroupName(user_id uint64, group_id int32, name string) error
-	AddMembers(user_id uint64, group_id int32, friend_ids ...uint64) error
-	DeleteMembers(user_id uint64, group_id int32, friend_ids ...uint64) error
-	DeleteGroup(user_id uint64, group_id int32) error
+	SetGroupName(user_id uint64, group_id uint32, name string) error
+	AddMembers(user_id uint64, group_id uint32, friend_ids ...uint64) error
+	DeleteMembers(user_id uint64, group_id uint32, friend_ids ...uint64) error
+	DeleteGroup(user_id uint64, group_id uint32) error
 }
 
 type ThumbnailDAO interface {

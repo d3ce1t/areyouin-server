@@ -567,7 +567,7 @@ func (s *Server) createParticipantsFromFriends(author_id uint64) map[uint64]*cor
 }
 
 // Called from multiple threads
-// TODO: Update to send events + participants in one single message
+// FIXME: Do not send all of the private events, but limit to a fixed number.
 func sendPrivateEvents(session *AyiSession) {
 
 	server := session.Server
@@ -939,7 +939,7 @@ func (s *Server) syncFriendGroups(owner uint64, serverGroups []*core.Group,
 	friendsDAO := s.NewFriendDAO()
 
 	// Copy map because it's gonna be modified
-	clientGroupsCopy := make(map[int32]*core.Group)
+	clientGroupsCopy := make(map[uint32]*core.Group)
 	for _, group := range clientGroups {
 		clientGroupsCopy[group.Id] = group
 	}
@@ -997,13 +997,30 @@ func (s *Server) syncFriendGroups(owner uint64, serverGroups []*core.Group,
 
 	// clientIndex contains only new groups. So add groups to server
 
+	// Filter groups to remove non-friends.
+	for _, group := range clientGroupsCopy {
+
+		newMembers := make([]uint64, 0, group.Size)
+
+		for _, friendId := range group.Members {
+			ok, err := friendsDAO.IsFriend(friendId, owner)
+			checkNoErrorOrPanic(err)
+			if ok {
+				newMembers = append(newMembers, friendId)
+			}
+		}
+
+		group.Members = newMembers
+		group.Size = int32(len(newMembers))
+	}
+
 	for _, group := range clientGroupsCopy {
 		err := friendsDAO.AddGroup(owner, group)
 		checkNoErrorOrPanic(err)
 	}
 }
 
-func (s *Server) syncGroupMembers(user_id uint64, group_id int32, serverMembers []uint64, clientMembers []uint64) {
+func (s *Server) syncGroupMembers(user_id uint64, group_id uint32, serverMembers []uint64, clientMembers []uint64) {
 
 	// Index client members
 	index := make(map[uint64]bool)
@@ -1011,7 +1028,7 @@ func (s *Server) syncGroupMembers(user_id uint64, group_id int32, serverMembers 
 		index[id] = true
 	}
 
-	// Loop through all of the members of group owned by the server.
+	// Loop through all members group owned by the server.
 	// If member also exists client side, then keep it. Otherwise,
 	// remove it.
 	remove_ids := make([]uint64, 0, len(serverMembers)/2)
@@ -1026,14 +1043,18 @@ func (s *Server) syncGroupMembers(user_id uint64, group_id int32, serverMembers 
 
 	// After removing already existing members. Index contains only new members,
 	// so add them.
+	friendDAO := s.NewFriendDAO()
+
 	add_ids := make([]uint64, 0, len(clientMembers))
 	for id, _ := range index {
-		add_ids = append(add_ids, id)
+		ok, err := friendDAO.IsFriend(id, user_id)
+		checkNoErrorOrPanic(err)
+		if ok {
+			add_ids = append(add_ids, id)
+		}
 	}
 
 	// Proceed database I/O
-	friendDAO := s.NewFriendDAO()
-
 	if len(remove_ids) > 0 {
 		err := friendDAO.DeleteMembers(user_id, group_id, remove_ids...)
 		checkNoErrorOrPanic(err)
@@ -1124,7 +1145,7 @@ func main() {
 	server.RegisterCallback(proto.M_CANCEL_EVENT, onCancelEvent)
 	server.RegisterCallback(proto.M_INVITE_USERS, onInviteUsers)
 	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
-	server.RegisterCallback(proto.M_USER_FRIENDS, onUserFriends)
+	server.RegisterCallback(proto.M_GET_USER_FRIENDS, onGetUserFriends)
 	server.RegisterCallback(proto.M_GET_USER_ACCOUNT, onGetUserAccount)
 	server.RegisterCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
 	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)

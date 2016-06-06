@@ -16,14 +16,14 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 
 	server := session.Server
 	msg := message.(*proto.CreateUserAccount)
-	log.Printf("> (%v) USER CREATE ACCOUNT %v\n", session, msg)
+	log.Printf("> (%v) USER CREATE ACCOUNT (email: %v, fbId: %v)\n", session, msg.Email, msg.Fbid)
 
 	checkUnauthenticated(session)
 
 	// Create new user account
 	user := core.NewUserAccount(server.GetNewID(), msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
 
-	// Check if its a valid user, so the input was correct
+	// Check if it's a valid user, so the input was correct
 	if _, err := user.IsValid(); err != nil {
 		error_code := getNetErrorCode(err, proto.E_INVALID_INPUT)
 		session.Write(session.NewMessage().Error(packet_type, error_code))
@@ -63,15 +63,49 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 		return
 	}
 
-	// Insert OK
+	// Set profile picture
+
+	if session.ProtocolVersion >= 2 {
+
+		if len(msg.Picture) > 0 {
+
+			// Compute digest for picture
+			digest := sha256.Sum256(msg.Picture)
+
+			picture := &core.Picture{
+				RawData: msg.Picture,
+				Digest:  digest[:],
+			}
+
+			// Add profile picture
+			err := server.saveProfilePicture(user.Id, picture)
+
+			if err != nil {
+				log.Printf("* (%v) CREATE ACCOUNT: SET PROFILE PICTURE ERROR: %v\n", session, err)
+			} else {
+				log.Printf("* (%v) CREATE ACCOUNT: PROFILE PICTURE SET\n", session)
+			}
+
+		}
+
+	} else {
+
+		if user.HasFacebookCredentials() {
+
+			// Load profile picture from Facebook
+
+			server.task_executor.Submit(&LoadFacebookProfilePicture{
+				User:    user,
+				Fbtoken: user.Fbtoken,
+			})
+
+		}
+	}
 
 	if user.HasFacebookCredentials() {
-		// Load profie picture from Facebook
-		server.task_executor.Submit(&LoadFacebookProfilePicture{
-			User:    user,
-			Fbtoken: user.Fbtoken,
-		})
+
 		// Import Facebook friends that uses AreYouIN if needed
+
 		server.task_executor.Submit(&ImportFacebookFriends{
 			TargetUser: user,
 			Fbtoken:    user.Fbtoken,
@@ -83,8 +117,6 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	log.Printf("< (%v) CREATE ACCOUNT OK\n", session)
 }
 
-// FIXME: Renew token should also authenticate the user without needing to get the user to call
-// authenticate.
 func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
 	server := session.Server
@@ -109,7 +141,9 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 	if msg.Type == proto.AuthType_A_NATIVE {
 
 		if user_id, err := userDAO.GetIDByEmailAndPassword(msg.Pass1, msg.Pass2); err == nil {
+
 			new_auth_token := uuid.NewV4()
+
 			if err = userDAO.SetAuthToken(user_id, new_auth_token); err == nil {
 				reply = session.NewMessage().UserAccessGranted(user_id, new_auth_token)
 				log.Printf("< (%v) USER NEW AUTH ACCESS GRANTED\n", session)
@@ -117,6 +151,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 				reply = session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
 				log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			}
+			
 		} else if err == dao.ErrNotFound {
 			reply = session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD\n", session)
@@ -150,7 +185,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		user_id, err := userDAO.GetIDByFacebookID(msg.Pass1)
 
 		if err == dao.ErrNotFound {
-			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD (1)", session)
+			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD", session)
 			session.Write(session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD))
 			return
 		} else if err != nil {
@@ -163,14 +198,20 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 		user, err := userDAO.Load(user_id)
 		if err != nil {
-			session.Write(session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD))
-			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
+			if err == dao.ErrNotFound {
+				log.Printf("* (%v) USER NEW AUTH TOKEN WARNING: USER %v NOT FOUND: This means a FbId (%v) points to an AyiId (%v) that does not exist. Admin required.\n",
+				 	session, user_id, msg.Pass1, user_id)
+			}
+			session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
+			log.Printf("< (%v) USER NEW AUTH TOKEN OPERATION FAILED: %v\n", session, err)
 			return
 		}
 
 		if user.Fbid != msg.Pass1 {
-			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD (2)", session)
-			session.Write(session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD))
+			log.Printf("* (%v) WARNING: USER %v FB MISMATCH: This means a FbId (%v) points to an AyiUser (%v) that does point to another FbId (%v). Admin required.\n",
+				session, user_id, msg.Pass1, user_id, user.Fbid)
+			log.Printf("< (%v) USER NEW AUTH TOKEN OPERATION FAILED", session)
+			session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
 		}
 
 		// Check that account linked to given Facebook ID is valid, i.e. it has user_email_credentials (with or without
@@ -229,10 +270,9 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	log.Printf("< (%v) AUTH OK\n", session.UserId)
 	server.RegisterSession(session)
 	server.NewUserDAO().SetLastConnection(session.UserId, core.GetCurrentTimeMillis())
-	server.task_executor.Submit(&SendUserFriends{UserId: user_id})
 
 	if session.ProtocolVersion < 2 {
-		// FIXME: Do not send all of the private events, but limit to a fixed number
+		server.task_executor.Submit(&SendUserFriends{UserId: user_id})
 		sendPrivateEvents(session)
 	}
 }
@@ -320,7 +360,12 @@ func onGetUserAccount(packet_type proto.PacketType, message proto.Message, sessi
 	}
 
 	session.Write(session.NewMessage().UserAccount(user))
-	log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session.UserId, len(user.Picture))
+
+	if session.ProtocolVersion < 2 {
+		log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session.UserId, len(user.Picture))
+	} else {
+		log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session.UserId)
+	}
 }
 
 func onChangeProfilePicture(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
@@ -831,7 +876,7 @@ func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, se
 	events, err := eventDAO.LoadUserEventsAndParticipants(session.UserId, current_time)
 
 	if err != nil {
-		if err ==  dao.ErrEmptyInbox {
+		if err == dao.ErrEmptyInbox {
 			log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session.UserId, 0)
 			session.Write(session.NewMessage().EventsList(nil))
 			return
@@ -914,7 +959,7 @@ func onListEventsHistory(packet_type proto.PacketType, message proto.Message, se
 		startWindow = events[len(events)-1].StartDate
 		endWindow = events[0].StartDate
 	}
-	
+
 	// Filter event's participant list
 	for _, event := range events {
 
@@ -934,23 +979,19 @@ func onListEventsHistory(packet_type proto.PacketType, message proto.Message, se
 	// event delivery status isn't updated
 }
 
-func onUserFriends(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onGetUserFriends(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 
-	log.Println("> USER FRIENDS") // Message does not has payload
+	server := session.Server
 
+	log.Printf("> (%v) GET USER FRIENDS\n", session.UserId) // Message does not has payload
 	checkAuthenticated(session)
 
-	/*server := session.Server
-	var reply []byte
+	friend_dao := server.NewFriendDAO()
+	friends, err := friend_dao.LoadFriends(session.UserId, ALL_CONTACTS_GROUP)
+	checkNoErrorOrPanic(err)
 
-	if !server.udb.ExistID(session.UserId) {
-		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_MALFORMED_MESSAGE).Marshal()
-		writeReply(reply, session)
-		log.Println("FIXME: Received USER FRIENDS message from authenticated user but non-existent")
-	} else if ok := sendUserFriends(session); !ok {
-		reply = proto.NewMessage().Error(proto.M_USER_FRIENDS, proto.E_INVALID_USER).Marshal()
-		writeReply(reply, session)
-	}*/
+	session.Write(session.NewMessage().FriendsList(friends))
+	log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", session.UserId, len(friends))
 }
 
 func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSession) {

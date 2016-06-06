@@ -74,7 +74,7 @@ func (dao *UserDAO) CheckValidAccount(user_id uint64, check_credentials bool) (b
 }
 
 // Find a user_id matching the given e-mail and password. Returns user_id if
-// succeed or 0 otherwise.
+// succeed, error otherwise.
 func (dao *UserDAO) GetIDByEmailAndPassword(email string, password string) (user_id uint64, err error) {
 
 	dao.checkSession()
@@ -98,9 +98,9 @@ func (dao *UserDAO) GetIDByEmailAndPassword(email string, password string) (user
 		hashedPassword := core.HashPasswordWithSalt(password, salt)
 		if hashedPassword == pass {
 			user_id = uid
+		} else {
+			err = ErrNotFound
 		}
-	} else if err != gocql.ErrNotFound {
-		log.Println("CheckEmailCredentials:", err)
 	}
 
 	return
@@ -391,10 +391,10 @@ func (dao *UserDAO) Insert(user *core.UserAccount) error {
 	}
 
 	// 4) Finally, insert e-mail into user_email_credentials. This insert is the most
-	// important because it makes the valid the user account warrantying that user_account
+	// important because it makes valid the user account warrantying that user_account
 	// and user_facebook_credentials also exist. If two users reach this point simultaneously
 	// then only one of them will succeed and the other one will fail.
-	insert_state = 3 // assume it gonna succeed
+	insert_state = 3 // assume it's gonna succeed
 
 	if user.HasEmailCredentials() {
 		if _, err := dao.insertEmailCredentials(user.Id, user.Email, user.Password); err != nil {
@@ -555,22 +555,22 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 		for _, friend_id := range group.Members {
 			batch.Query(`DELETE FROM friends_by_group
 				WHERE user_id = ? AND group_id = ? AND friend_id = ?`,
-				user.Id, group.Id, friend_id)
+				int64(user.Id), int32(group.Id), int64(friend_id))
 		}
 
 		// Remove friends groups
 		batch.Query(`DELETE FROM groups_by_user WHERE user_id = ? AND group_id = ?`,
-			user.Id, group.Id)
+			int64(user.Id), int32(group.Id))
 	}
 
 	// Delete self user from his friends
 	for _, friend := range friends {
 		batch.Query(`DELETE FROM friends_by_user WHERE user_id = ? AND friend_id = ?`,
-			friend.UserId, user.Id)
+			int64(friend.UserId), int64(user.Id))
 	}
 
 	// Delete user's friends: Always after delete self user from other friends
-	batch.Query(`DELETE FROM friends_by_user WHERE user_id = ?`, user.Id)
+	batch.Query(`DELETE FROM friends_by_user WHERE user_id = ?`, int64(user.Id))
 
 	// Delete email_credential. Only delete if this credential belongs to the same user
 	// After this, account will be invalid
@@ -584,10 +584,10 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 	}
 
 	// Delete Thumbnails
-	batch.Query(`DELETE FROM thumbnails WHERE id = ?`, user.Id)
+	batch.Query(`DELETE FROM thumbnails WHERE id = ?`, int64(user.Id))
 
 	// Delete account
-	batch.Query(`DELETE FROM user_account WHERE user_id = ?`, user.Id) // Always last
+	batch.Query(`DELETE FROM user_account WHERE user_id = ?`, int64(user.Id)) // Always last
 
 	return dao.session.ExecuteBatch(batch)
 }
@@ -597,7 +597,7 @@ func (dao *UserDAO) DeleteUserAccount(user_id uint64) error {
 	if user_id == 0 {
 		return ErrInvalidArg
 	}
-	return dao.session.Query(`DELETE FROM user_account WHERE user_id = ?`, user_id).Exec()
+	return dao.session.Query(`DELETE FROM user_account WHERE user_id = ?`, int64(user_id)).Exec()
 }
 
 func (dao *UserDAO) DeleteEmailCredentials(email string) error {

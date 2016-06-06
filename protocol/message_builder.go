@@ -51,7 +51,7 @@ type MessageBuilder interface {
 	//HistoryAuthoredEvents(cursor uint32) *AyiPacket
 	//HistoryPrivateEvents(cursor uint32) *AyiPacket
 	//HistoryPublicEvents(cursor uint32) *AyiPacket
-	UserFriends() *AyiPacket
+	//UserFriends() *AyiPacket
 	Pong() *AyiPacket
 	EventInfo(event *core.Event) *AyiPacket
 	EventsList(events_list []*core.Event) *AyiPacket

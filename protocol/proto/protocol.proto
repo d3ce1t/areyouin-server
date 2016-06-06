@@ -99,6 +99,7 @@ message CreateUserAccount {
   string phone = 4;
   string fbid = 5;   // Facebook User ID (unique for my app)
   string fbtoken = 6; // Facebook User Access Token (unique)
+  bytes picture = 7;
 }
 
 // NEW AUTH TOKEN

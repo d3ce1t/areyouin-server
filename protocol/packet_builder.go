@@ -300,10 +300,10 @@ func (mb *PacketBuilder) ReadEvent(event_id uint64) *AyiPacket {
 	return mb.message
 }*/
 
-func (mb *PacketBuilder) UserFriends() *AyiPacket {
-	mb.message.Header.SetType(M_USER_FRIENDS)
+/*func (mb *PacketBuilder) UserFriends() *AyiPacket {
+	mb.message.Header.SetType(M_GET_USER_FRIENDS)
 	return mb.message
-}
+}*/
 
 // Responses
 func (mb *PacketBuilder) Pong() *AyiPacket {
