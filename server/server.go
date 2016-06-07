@@ -20,6 +20,7 @@ import (
 	"time"
 	"github.com/disintegration/imaging"
 	"github.com/gocql/gocql"
+	"os"
 )
 
 const (
@@ -90,6 +91,7 @@ type Server struct {
 	DbAddress     string
 	serialChannel chan func()
 	Testing       bool
+	MaintenanceMode bool
 }
 
 func (s *Server) DbSession() *gocql.Session {
@@ -165,9 +167,13 @@ func (s *Server) executeSerial(f func()) {
 func (s *Server) Run() {
 
 	// Start webhook
-	s.webhook = wh.New(fb.FB_APP_SECRET)
-	s.webhook.RegisterCallback(s.onFacebookUpdate)
-	s.webhook.Run()
+	if !s.MaintenanceMode {
+		s.webhook = wh.New(fb.FB_APP_SECRET)
+		s.webhook.RegisterCallback(s.onFacebookUpdate)
+		s.webhook.Run()
+	} else {
+		log.Println("Server running in MAINTENANCE MODE")
+	}
 
 	// Start up server listener
 	listener, err := net.Listen("tcp", ":1822")
@@ -209,10 +215,10 @@ func (s *Server) RegisterSession(session *AyiSession) {
 			oldSession.WriteSync(oldSession.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
 			log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", oldSession)
 			oldSession.Exit()
-			log.Printf("Closing old session %v for user %v\n", oldSession, oldSession.UserId)
+			log.Printf("* (%v) Closing old session for endpoint %v\n", oldSession, oldSession.Conn.RemoteAddr().String())
 		}
 		s.sessions.Put(session.UserId, session)
-		log.Printf("Register session %v for user %v\n", session, session.UserId)
+		log.Printf("* (%v) Register session for endpoint %v\n", session, session.Conn.RemoteAddr().String())
 	})
 }
 
@@ -225,7 +231,7 @@ func (s *Server) UnregisterSession(session *AyiSession) {
 		oldSession, ok := s.sessions.Get(user_id)
 		if ok && oldSession == session {
 			s.sessions.Remove(user_id)
-			log.Printf("Unregister session %v for user %v\n", session, user_id)
+			log.Printf("* (%v) Unregister session for endpoint %v\n", session.UserId, session)
 		}
 	})
 }
@@ -275,18 +281,37 @@ func (server *Server) handleSession(session *AyiSession) {
 		session.Exit()
 	}()
 
-	log.Println("New connection from", session)
+	log.Printf("* (%v) New connection\n", session)
 
+	// Packet received
 	session.OnRead = func(s *AyiSession, packet *proto.AyiPacket) {
-		if err := s.Server.serveMessage(packet, s); err != nil { // may block until writes are performed
-			error_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
-			log.Printf("< (%v) ERROR %v: %v\n", session.UserId, error_code, err)
-			//log.Printf("Involved Packet: %v\n", packet)
-			s.Write(s.NewMessage().Error(packet.Type(), error_code))
+
+		if !s.Server.MaintenanceMode {
+
+			// Normal operation
+
+			if err := s.Server.serveMessage(packet, s); err != nil { // may block until writes are performed
+				error_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
+				log.Printf("< (%v) ERROR %v: %v\n", session, error_code, err)
+				//log.Printf("Involved Packet: %v\n", packet)
+				s.Write(s.NewMessage().Error(packet.Type(), error_code))
+			}
+
+		} else {
+
+			// Maintenance Mode
+			log.Printf("> (%v) Packet %v received but ignored\n", session, packet.Type())
+			s.WriteSync(s.NewMessage().Error(packet.Type(), proto.E_SERVER_MAINTENANCE ))
+			log.Printf("< (%v) SERVER IS IN MAINTENANCE MODE\n", session)
+			s.Exit()
+
 		}
+
 	}
 
+	// Error
 	session.OnError = func() func(s *AyiSession, err error) {
+
 		num_errors := 0
 		last_error_time := time.Now()
 		return func(s *AyiSession, err error) {
@@ -299,7 +324,7 @@ func (server *Server) handleSession(session *AyiSession) {
 				s.Exit()
 			}
 
-			log.Println("Session Error:", err)
+			log.Printf("* (%v) Session Error: %v\n", s, err)
 
 			current_time := time.Now()
 			if last_error_time.Add(1 * time.Second).Before(current_time) {
@@ -314,7 +339,9 @@ func (server *Server) handleSession(session *AyiSession) {
 		}
 	}()
 
+	// Closed connection
 	session.OnClosed = func(s *AyiSession, peer bool) {
+
 		if s.IsAuth {
 			//NOTE: If a user is deleted from user_account while it is still connected,
 			// a row in invalid state will be created when updating last connection
@@ -324,9 +351,9 @@ func (server *Server) handleSession(session *AyiSession) {
 		s.Server.UnregisterSession(s)
 
 		if peer {
-			log.Printf("Session closed by client: %v %v\n", s.UserId, s)
+			log.Printf("* (%v) Session closed by remote peer\n", s)
 		} else {
-			log.Printf("Session closed %v %v\n", s.UserId, s)
+			log.Printf("* (%v) Session closed\n", s)
 		}
 	}
 
@@ -576,7 +603,7 @@ func sendPrivateEvents(session *AyiSession) {
 	events, err := dao.LoadUserEventsAndParticipants(session.UserId, current_time)
 
 	if err != nil {
-		log.Printf("sendPrivateEvents() to %v Error: %v\n", session.UserId, err)
+		log.Printf("sendPrivateEvents() to %v Error: %v\n", session, err)
 		return
 	}
 
@@ -587,7 +614,7 @@ func sendPrivateEvents(session *AyiSession) {
 	}
 
 	// Send events list to user
-	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session.UserId, len(half_events))
+	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, len(half_events))
 	session.Write(session.NewMessage().EventsList(half_events)) // TODO: Change after remove compatibility
 
 	// Send participants info for each event,  update participant status as delivered and notify it
@@ -1128,9 +1155,19 @@ func (s *Server) getClosestDpi(reqDpi int32) int32 {
 
 func main() {
 
+	// Flags
+	maintenanceMode := false
+
+	args := os.Args[1:]
+
+	if len(args) > 0 && args[0] == "--enable-maintenance" {
+		maintenanceMode = true
+	}
+
 	// Create and init server
-	server := NewTestServer()
 	//server := NewServer() // Server is global
+	server := NewTestServer()
+	server.MaintenanceMode = maintenanceMode
 
 	// Register callbacks
 	server.RegisterCallback(proto.M_PING, onPing)
@@ -1160,8 +1197,10 @@ func main() {
 	go shell.StartTermSSH()
 
 	// Create images HTTP server and start
-	images_server := imgserv.NewServer("192.168.1.10", "areyouin")
-	images_server.Run()
+	if !maintenanceMode {
+		images_server := imgserv.NewServer("192.168.1.10", "areyouin")
+		images_server.Run()
+	}
 
 	// start server loop
 	server.Run()

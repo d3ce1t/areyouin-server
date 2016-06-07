@@ -370,7 +370,6 @@ func (dao *EventDAO) LoadUserEventsAndParticipants(user_id int64, fromDate int64
 	events_inbox, err := dao.LoadUserInbox(user_id, fromDate)
 
 	if err != nil {
-		log.Println("LoadUserEventsAndParticipants 1 (", user_id, "):", err)
 		return nil, err
 	}
 

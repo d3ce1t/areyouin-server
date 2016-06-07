@@ -1,6 +1,6 @@
 package main
 
-import (
+/*import (
 	"flag"
 	"os"
 	core "peeple/areyouin/common"
@@ -44,7 +44,7 @@ func TestOperationPermission(t *testing.T) {
 	if err := server.serveMessage(packet, session); err != nil {
 		t.Fatal(err)
 	}
-}
+}*/
 
 /*func TestDispatchEvent(t *testing.T) {
 

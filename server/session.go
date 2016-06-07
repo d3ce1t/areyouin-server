@@ -6,6 +6,7 @@ import (
 	"net"
 	proto "peeple/areyouin/protocol"
 	"time"
+	"fmt"
 )
 
 const (
@@ -104,7 +105,11 @@ func (s *AyiSession) IsClosed() bool {
 }
 
 func (s *AyiSession) String() string {
-	return s.Conn.RemoteAddr().String()
+	if s.IsAuth {
+		return fmt.Sprintf("%v", s.UserId)
+	} else {
+		return s.Conn.RemoteAddr().String()
+	}
 }
 
 func (s *AyiSession) NewMessage() proto.MessageBuilder {
@@ -365,7 +370,7 @@ func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 	if packet.Header.GetType() == proto.M_USE_TLS {
 		log.Printf("> (%v) USE TLS\n", s)
 		if tlsconn, ok := s.Conn.(*tls.Conn); !ok {
-			log.Printf("Changing to use TLS for session %v\n", s)
+			log.Printf("* (%v) Changing to use TLS\n", s)
 			if tlsconn = tls.Server(s.Conn, s.Server.TLSConfig); tlsconn != nil {
 				//oldConn := s.Conn
 				s.Conn = tlsconn

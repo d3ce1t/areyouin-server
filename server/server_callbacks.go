@@ -269,7 +269,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 			return
 		}
 	}
-	
+
 	session.IsAuth = true
 	session.UserId = user_id
 	session.IIDToken = user_account.IIDtoken
@@ -990,7 +990,7 @@ func onGetUserFriends(packet_type proto.PacketType, message proto.Message, sessi
 
 	server := session.Server
 
-	log.Printf("> (%v) GET USER FRIENDS\n", session.UserId) // Message does not has payload
+	log.Printf("> (%v) GET USER FRIENDS\n", session) // Message does not has payload
 	checkAuthenticated(session)
 
 	friend_dao := server.NewFriendDAO()
@@ -998,7 +998,7 @@ func onGetUserFriends(packet_type proto.PacketType, message proto.Message, sessi
 	checkNoErrorOrPanic(err)
 
 	session.Write(session.NewMessage().FriendsList(friends))
-	log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", session.UserId, len(friends))
+	log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", session, len(friends))
 }
 
 func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
