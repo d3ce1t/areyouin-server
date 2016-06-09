@@ -1001,6 +1001,141 @@ func onGetUserFriends(packet_type proto.PacketType, message proto.Message, sessi
 	log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", session, len(friends))
 }
 
+func onFriendRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.CreateFriendRequest)
+
+	log.Printf("> (%v) CREATE FRIEND REQUEST: %v\n", session, msg)
+	checkAuthenticated(session)
+
+	user_dao := server.NewUserDAO()
+	friend_dao := server.NewFriendDAO()
+
+	// Load session.UserId account
+	userAccount, err := user_dao.Load(session.UserId)
+	checkNoErrorOrPanic(err)
+
+	// Exist user with provided email
+	friendAccount, err := user_dao.LoadByEmail(msg.Email)
+	if err != nil {
+		if err == dao.ErrNotFound {
+			panic(ErrFriendNotFound)
+		} else {
+			panic(err)
+		}
+	}
+
+	// Not friends
+	if server.areFriends(session.UserId, friendAccount.Id) {
+		panic(ErrSendRequest_AlreadyFriends)
+	}
+
+	// Not exist previous request
+	exist_previous_request, err := friend_dao.ExistFriendRequest(session.UserId, friendAccount.Id)
+	checkNoErrorOrPanic(err)
+	if exist_previous_request {
+		panic(ErrSendRequest_AlreadySent)
+	}
+
+	// Preconditions satisfied
+
+	created_date := core.GetCurrentTimeMillis()
+	err = friend_dao.InsertFriendRequest(friendAccount.Id, userAccount.Id, userAccount.Name,
+																					userAccount.Email, created_date)
+	checkNoErrorOrPanic(err)
+
+	friendRequest := &core.FriendRequest {
+		FriendId: userAccount.Id,
+		Name: userAccount.Name,
+		Email: userAccount.Email,
+		CreatedDate: created_date,
+	}
+
+	server.task_executor.Submit(&NotifyFriendRequest{
+		UserId:  friendAccount.Id,
+		FriendRequest: friendRequest,
+	})
+
+	session.Write(session.NewMessage().Ok(packet_type))
+	log.Printf("< (%v) CREATE FRIEND REQUEST OK\n", session)
+}
+
+func onListFriendRequests(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+
+	log.Printf("> (%v) GET FRIEND REQUESTS\n", session)
+	checkAuthenticated(session)
+
+	friend_dao := server.NewFriendDAO()
+	requests, err := friend_dao.LoadFriendRequests(session.UserId)
+	checkNoErrorOrPanic(err)
+
+	session.Write(session.NewMessage().FriendRequestsList(requests))
+	log.Printf("< (%v) SEND FRIEND REQUESTS (num.requests: %v)\n", session, len(requests))
+}
+
+func onConfirmFriendRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.ConfirmFriendRequest)
+
+	log.Printf("> (%v) CONFIRM FRIEND REQUEST: %v\n", session, msg)
+	checkAuthenticated(session)
+
+	friend_dao := server.NewFriendDAO()
+
+	// Load request from database in order to check that it exists
+	friendRequest, err := friend_dao.LoadFriendRequest(session.UserId, msg.FriendId)
+	checkNoErrorOrPanic(err)
+
+	if msg.Response == proto.ConfirmFriendRequest_CONFIRM {
+
+		// Friend Request has been accepted. Make friends.
+
+		user_dao := server.NewUserDAO()
+
+		// Load current user
+		currentUser, err := user_dao.Load(session.UserId)
+		checkNoErrorOrPanic(err)
+
+		// Load friend
+		friend, err := user_dao.Load(msg.FriendId)
+		checkNoErrorOrPanic(err)
+
+		// Make both friends
+		err = friend_dao.MakeFriends(currentUser, friend)
+		checkNoErrorOrPanic(err)
+		log.Printf("* (%v) User %v and User %v are now friends\n", session, currentUser.Id, friend.Id)
+
+		// Delete Friend Request
+		err = friend_dao.DeleteFriendRequest(session.UserId, msg.FriendId, friendRequest.CreatedDate)
+		checkNoErrorOrPanic(err)
+
+		// Send OK to user
+		session.Write(session.NewMessage().Ok(packet_type))
+		log.Printf("< (%v) CONFIRM FRIEND REQUEST OK (accepted)\n", session)
+
+		// Send Friend List to both users if connected
+		server.task_executor.Submit(&SendUserFriends{UserId: currentUser.Id})
+		server.task_executor.Submit(&SendUserFriends{UserId: friend.Id})
+		//task.sendGcmNotification(friendUser.Id, friendUser.IIDtoken, task.TargetUser)
+
+	} else if msg.Response == proto.ConfirmFriendRequest_CANCEL {
+
+		// Friend Request has been cancelled. Remove it.
+
+		friend_dao.DeleteFriendRequest(session.UserId, msg.FriendId, friendRequest.CreatedDate)
+		session.Write(session.NewMessage().Ok(packet_type))
+		log.Printf("< (%v) CONFIRM FRIEND REQUEST OK (cancelled)\n", session)
+
+	} else {
+		panic(ErrOperationFailed)
+	}
+
+}
+
 func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
 	log.Println("> OK")
 	checkAuthenticated(session)

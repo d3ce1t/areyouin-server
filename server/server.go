@@ -740,17 +740,31 @@ func (s *Server) filterParticipantsSlice(participant int64, participants []*core
 	return result
 }
 
-// Tells if participant p1 can see changes of participant p2
-func (s *Server) canSee(p1 int64, p2 *core.EventParticipant) bool {
-	dao := s.NewFriendDAO()
-	if p2.Response == core.AttendanceResponse_ASSIST ||
-		/*p2.Response == core.AttendanceResponse_CANNOT_ASSIST ||*/
-		p1 == p2.UserId {
-		return true
-	} else if ok, _ := dao.IsFriend(p2.UserId, p1); ok {
+func (s *Server) isFriend(user1 int64, user2 int64) bool {
+
+	if user1 == user2 {
 		return true
 	}
-	return false
+
+	dao := s.NewFriendDAO()
+	ok, err := dao.IsFriend(user2, user1)
+	checkNoErrorOrPanic(err)
+
+	return ok
+}
+
+func (s *Server) areFriends(user1 int64, user2 int64) bool {
+	return s.isFriend(user1, user2) && s.isFriend(user2, user1)
+}
+
+// Tells if participant p1 can see changes of participant p2
+func (s *Server) canSee(p1 int64, p2 *core.EventParticipant) bool {
+	if p2.Response == core.AttendanceResponse_ASSIST ||
+		p1 == p2.UserId || s.isFriend(p2.UserId, p1) {
+		return true
+	} else {
+		return false
+	}
 }
 
 func (s *Server) createUserAccount(user *core.UserAccount) error {
@@ -1029,9 +1043,7 @@ func (s *Server) syncFriendGroups(owner int64, serverGroups []*core.Group,
 		newMembers := make([]int64, 0, group.Size)
 
 		for _, friendId := range group.Members {
-			ok, err := friendsDAO.IsFriend(friendId, owner)
-			checkNoErrorOrPanic(err)
-			if ok {
+			if s.isFriend(friendId, owner) {
 				newMembers = append(newMembers, friendId)
 			}
 		}
@@ -1073,9 +1085,7 @@ func (s *Server) syncGroupMembers(user_id int64, group_id int32, serverMembers [
 
 	add_ids := make([]int64, 0, len(clientMembers))
 	for id, _ := range index {
-		ok, err := friendDAO.IsFriend(id, user_id)
-		checkNoErrorOrPanic(err)
-		if ok {
+		if s.isFriend(id, user_id) {
 			add_ids = append(add_ids, id)
 		}
 	}
@@ -1191,6 +1201,9 @@ func main() {
 	server.RegisterCallback(proto.M_GET_GROUPS, onGetGroups)
 	server.RegisterCallback(proto.M_LIST_PRIVATE_EVENTS, onListPrivateEvents)
 	server.RegisterCallback(proto.M_HISTORY_PRIVATE_EVENTS, onListEventsHistory)
+	server.RegisterCallback(proto.M_CREATE_FRIEND_REQUEST, onFriendRequest)
+	server.RegisterCallback(proto.M_GET_FRIEND_REQUESTS, onListFriendRequests)
+	server.RegisterCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
 
 	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)

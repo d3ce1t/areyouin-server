@@ -2,7 +2,6 @@ package protocol
 
 import (
 	core "peeple/areyouin/common"
-
 	"github.com/twinj/uuid"
 )
 
@@ -60,4 +59,6 @@ type MessageBuilder interface {
 	ClockResponse() *AyiPacket
 	UserAccount(user *core.UserAccount) *AyiPacket
 	GroupsList(groups_list []*core.Group) *AyiPacket
+	FriendRequestReceived(request *core.FriendRequest) *AyiPacket
+	FriendRequestsList(requests_list []*core.FriendRequest) *AyiPacket
 }

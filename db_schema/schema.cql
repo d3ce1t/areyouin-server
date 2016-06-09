@@ -153,10 +153,33 @@ CREATE TABLE user_access_token (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
+// Q11: Get all friend requests received by an user and ordered by date
+DROP TABLE IF EXISTS friend_requests_received;
+CREATE TABLE friend_requests_received (
+	user_id bigint,
+	created_date timestamp,
+	friend_id bigint,
+	name text,
+	email text,
+	PRIMARY KEY (user_id, created_date, friend_id)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
+AND CLUSTERING ORDER BY (created_date DESC, friend_id ASC);
+
+// Q12: Find a friend request sent by user_id and friend_id
+DROP TABLE IF EXISTS friend_requests_sent;
+CREATE TABLE friend_requests_sent (
+	user_id bigint,
+	friend_id bigint,
+	created_date timestamp,
+	PRIMARY KEY (user_id, friend_id)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
+
 //
 // Stats
 //
-// Q11: Find number of users registered each day and be able of aggregating
+// Q13: Find number of users registered each day and be able of aggregating
 // by month and year quickly
 CREATE TABLE users_registered_by_day (
 	year int,
@@ -168,7 +191,7 @@ CREATE TABLE users_registered_by_day (
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
 AND CLUSTERING ORDER BY (month DESC, day DESC);
 
-// Auxiliary table to record registered users in order to provide Q7
+// Auxiliary table to record registered users in order to provide Q13
 CREATE TABLE users_registered_log (
 	year int,
 	month int,

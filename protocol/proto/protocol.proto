@@ -132,6 +132,23 @@ message SyncGroups {
   common.SyncBehaviour sync_behaviour = 3;
 }
 
+// CREATE FRIEND REQUEST
+message CreateFriendRequest {
+  string email = 1;
+}
+
+// CONFIRM FRIEND REQUEST
+message ConfirmFriendRequest {
+
+  enum FriendRequestResponse {
+    CANCEL = 0;
+    CONFIRM = 1;
+  }
+
+  int64 friend_id = 1;
+  FriendRequestResponse response = 2;
+}
+
 //
 // Notifications
 //
@@ -273,4 +290,9 @@ message UserAccount {
 // GROUPS LIST
 message GroupsList {
   repeated common.Group groups = 1;
+}
+
+// FRIEND REQUESTS LIST
+message FriendRequestsList {
+  repeated common.FriendRequest friendRequests = 1;
 }

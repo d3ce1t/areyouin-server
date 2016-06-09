@@ -93,6 +93,11 @@ type FriendDAO interface {
 	AddMembers(user_id int64, group_id int32, friend_ids ...int64) error
 	DeleteMembers(user_id int64, group_id int32, friend_ids ...int64) error
 	DeleteGroup(user_id int64, group_id int32) error
+	LoadFriendRequest(user_id int64, friend_id int64) (*FriendRequest, error)
+	LoadFriendRequests(user_id int64) ([]*FriendRequest, error)
+	ExistFriendRequest(user_id int64, friend_id int64) (bool, error)
+	InsertFriendRequest(user_id int64, friend_id int64, name string, email string, created_date int64) error
+	DeleteFriendRequest(user_id int64, friend_id int64, created_date int64) error
 }
 
 type ThumbnailDAO interface {

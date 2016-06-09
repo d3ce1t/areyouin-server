@@ -16,6 +16,23 @@ import (
 	gcm "github.com/google/go-gcm"
 )
 
+type NotifyFriendRequest struct {
+	UserId 				int64
+	FriendRequest *core.FriendRequest
+}
+
+func (t *NotifyFriendRequest) Run(ex *TaskExecutor) {
+
+	server := ex.server
+	session := server.GetSession(t.UserId)
+
+	if session != nil {
+		session.Write(session.NewMessage().FriendRequestReceived(t.FriendRequest))
+		log.Printf("< (%v) FRIEND REQUEST RECEIVED: %v\n", session, t.FriendRequest)
+	}
+
+}
+
 type NotifyEventCancelled struct {
 	CancelledBy int64
 	Event       *core.Event
@@ -273,26 +290,27 @@ type SendUserFriends struct {
 	UserId int64
 }
 
-func (task *SendUserFriends) Run(ex *TaskExecutor) {
+func (t *SendUserFriends) Run(ex *TaskExecutor) {
 
 	server := ex.server
-	friend_dao := server.NewFriendDAO()
 
-	friends, err := friend_dao.LoadFriends(task.UserId, ALL_CONTACTS_GROUP)
+	if session := server.GetSession(t.UserId); session != nil {
 
-	if err != nil {
-		log.Println("SendUserFriends Error:", err)
-		return
-	}
+		friend_dao := server.NewFriendDAO()
 
-	if len(friends) > 0 {
-		session := server.GetSession(task.UserId)
-		if session != nil {
+		friends, err := friend_dao.LoadFriends(t.UserId, ALL_CONTACTS_GROUP)
+		if err != nil {
+			log.Println("SendUserFriends Error:", err)
+			return
+		}
+
+		if len(friends) > 0 {
 			packet := session.NewMessage().FriendsList(friends)
 			if session.Write(packet) {
-				log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", task.UserId, len(friends))
+				log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", t.UserId, len(friends))
 			}
 		}
+
 	}
 }
 

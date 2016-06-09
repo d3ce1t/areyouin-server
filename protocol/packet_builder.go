@@ -359,3 +359,15 @@ func (mb *PacketBuilder) GroupsList(groups_list []*core.Group) *AyiPacket {
 	mb.message.SetMessage(&GroupsList{Groups: groups_list})
 	return mb.message
 }
+
+func (mb *PacketBuilder) FriendRequestReceived(request *core.FriendRequest) *AyiPacket {
+	mb.message.Header.SetType(M_FRIEND_REQUEST_RECEIVED)
+	mb.message.SetMessage(request)
+	return mb.message
+}
+
+func (mb *PacketBuilder) FriendRequestsList(requests_list []*core.FriendRequest) *AyiPacket {
+	mb.message.Header.SetType(M_FRIEND_REQUESTS_LIST)
+	mb.message.SetMessage(&FriendRequestsList{FriendRequests: requests_list})
+	return mb.message
+}

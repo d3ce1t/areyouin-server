@@ -3,7 +3,6 @@ package dao
 import (
 	"log"
 	core "peeple/areyouin/common"
-
 	"github.com/gocql/gocql"
 )
 
@@ -19,6 +18,10 @@ type FriendDAO struct {
 func (dao *FriendDAO) GetSession() *gocql.Session {
 	return dao.session
 }
+
+//
+// Friends
+//
 
 func (dao *FriendDAO) LoadFriends(user_id int64, group_id int32) ([]*core.Friend, error) {
 
@@ -130,6 +133,10 @@ func (dao *FriendDAO) SetPictureDigest(user_id int64, friend_id int64, digest []
 
 	return dao.session.Query(stmt, digest, user_id, friend_id).Exec()
 }
+
+//
+// Groups
+//
 
 func (dao *FriendDAO) LoadGroups(user_id int64) ([]*core.Group, error) {
 
@@ -273,6 +280,158 @@ func (dao *FriendDAO) DeleteGroup(user_id int64, group_id int32) error {
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 	batch.Query(stmt_empty_group, user_id, group_id)
 	batch.Query(stmt_delete_group, user_id, group_id)
+
+	return dao.session.ExecuteBatch(batch)
+}
+
+//
+// Friend requests
+//
+
+func (dao *FriendDAO) LoadFriendRequest(user_id int64, friend_id int64) (*core.FriendRequest, error) {
+
+	checkSession(dao)
+
+	if user_id == 0 || friend_id == 0 {
+		return nil, ErrNotFound
+	}
+
+	// Load created date from friend_requests_sent
+	stmt_requests_sent := `SELECT created_date FROM friend_requests_sent
+	 	WHERE user_id = ? AND friend_id = ? LIMIT 1`
+
+	var created_date int64
+
+	if err := dao.session.Query(stmt_requests_sent, friend_id, user_id).Scan(&created_date); err != nil {
+		return nil, err
+	}
+
+	// Now load friend request in friend_requests_received
+	stmt_requests_received := `SELECT name, email FROM friend_requests_received
+		WHERE user_id = ? AND created_date = ? AND friend_id = ?`
+
+	var name string
+	var email string
+
+	q := dao.session.Query(stmt_requests_received, user_id, created_date, friend_id)
+	if err := q.Scan(&name, &email); err != nil {
+		return nil, err
+	}
+
+	// All data has been read
+	friendRequest := &core.FriendRequest {
+		FriendId: friend_id,
+		Name: name,
+		Email: email,
+		CreatedDate: created_date,
+	}
+
+	return friendRequest, nil
+}
+
+
+func (dao *FriendDAO) LoadFriendRequests(user_id int64) ([]*core.FriendRequest, error) {
+
+	if user_id == 0 {
+		return nil, ErrNotFound
+	}
+
+	checkSession(dao)
+
+	stmt := `SELECT created_date, friend_id, name, email FROM friend_requests_received
+		WHERE user_id = ?`
+
+	iter := dao.session.Query(stmt, user_id).Iter()
+
+	requests := make([]*core.FriendRequest, 0, 10)
+
+	var created_date int64
+	var friend_id int64
+	var name string
+	var email string
+
+	for iter.Scan(&created_date, &friend_id, &name, &email) {
+		requests = append(requests, &core.FriendRequest{
+			FriendId: friend_id,
+			Name: name,
+			Email: email,
+			CreatedDate: created_date,
+		})
+	}
+
+	if err := iter.Close(); err != nil {
+		return nil, err
+	}
+
+	return requests, nil
+}
+
+// Check if exists a friend request from user_id to friend_id. In other words, if user_id
+// has already sent (or not) a friend request to friend_id.
+func (dao *FriendDAO) ExistFriendRequest(user_id int64, friend_id int64) (bool, error) {
+
+	checkSession(dao)
+
+	if user_id == 0 || friend_id == 0 {
+		return false, ErrInvalidArg
+	}
+
+	stmt := `SELECT created_date FROM friend_requests_sent
+	 	WHERE user_id = ? AND friend_id = ? LIMIT 1`
+
+	var created_date int64
+
+	if err := dao.session.Query(stmt, user_id, friend_id).Scan(&created_date); err != nil {
+
+		if err == ErrNotFound {
+			return false, nil
+		} else {
+			return false, err
+		}
+
+	}
+
+	return true, nil
+}
+
+// Insert a friend request into database. This request means that some user (friend_id)
+// wants to be friend of user_id
+func (dao *FriendDAO) InsertFriendRequest(user_id int64, friend_id int64, name string, email string, created_date int64) error {
+
+	checkSession(dao)
+
+	if user_id == 0 || friend_id == 0 {
+		return ErrInvalidArg
+	}
+
+	stmt_insert_sent := `INSERT INTO friend_requests_sent (user_id, friend_id, created_date)
+		VALUES (?, ?, ?)`
+
+	stmt_insert_received := `INSERT INTO friend_requests_received (user_id, created_date, friend_id, name, email)
+		VALUES (?, ?, ?, ?, ?)`
+
+	batch := dao.session.NewBatch(gocql.LoggedBatch)
+	batch.Query(stmt_insert_sent, friend_id, user_id, created_date)
+	batch.Query(stmt_insert_received, user_id, created_date, friend_id, name, email)
+
+	return dao.session.ExecuteBatch(batch)
+}
+
+func (dao *FriendDAO) DeleteFriendRequest(user_id int64, friend_id int64, created_date int64) error {
+
+	checkSession(dao)
+
+	if user_id == 0 || friend_id == 0 {
+		return ErrInvalidArg
+	}
+
+	stmt_delete_sent := `DELETE FROM friend_requests_sent WHERE user_id = ? AND friend_id = ?`
+	stmt_delete_received := `DELETE FROM friend_requests_received
+		WHERE user_id = ? AND created_date = ? AND friend_id = ?`
+
+	batch := dao.session.NewBatch(gocql.LoggedBatch)
+	batch.Query(stmt_delete_sent, friend_id, user_id)
+	batch.Query(stmt_delete_received, user_id, created_date, friend_id)
 
 	return dao.session.ExecuteBatch(batch)
 }

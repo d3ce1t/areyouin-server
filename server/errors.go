@@ -22,6 +22,9 @@ var (
 	ErrOperationFailed            = errors.New("operation failed")
 	ErrEventNotFound              = errors.New("event not found")
 	ErrImageOutOfBounds           = errors.New("image is out of bounds")
+	ErrFriendNotFound             = errors.New("Friend not found")
+	ErrSendRequest_AlreadySent    = errors.New("Friend request already sent")
+	ErrSendRequest_AlreadyFriends = errors.New("Already friends")
 )
 
 func getNetErrorCode(err error, default_code int32) int32 {
@@ -49,6 +52,7 @@ func getNetErrorCode(err error, default_code int32) int32 {
 		err_code = proto.E_INVALID_EVENT_OR_PARTICIPANT
 	case dao.ErrEmptyInbox:
 		err_code = proto.E_EMPTY_LIST
+
 	case ErrParticipantsRequired:
 		err_code = proto.E_EVENT_PARTICIPANTS_REQUIRED
 	case ErrNonFriendsIgnored:
@@ -61,6 +65,12 @@ func getNetErrorCode(err error, default_code int32) int32 {
 		err_code = proto.E_EVENT_AUTHOR_MISMATCH
 	case ErrEventNotFound:
 		err_code = proto.E_INVALID_EVENT
+	case ErrSendRequest_AlreadySent:
+		err_code = proto.E_FRIEND_REQUEST_ALREADY_SENT
+	case ErrSendRequest_AlreadyFriends:
+		err_code = proto.E_ALREADY_FRIENDS
+	case ErrFriendNotFound:
+		err_code = proto.E_FRIEND_NOT_FOUND
 	default:
 		err_code = default_code
 	}

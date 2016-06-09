@@ -208,6 +208,10 @@ func createEmptyMessage(packet_type PacketType) Message {
 		message = &ModifyEvent{}
 	case M_SYNC_GROUPS:
 		message = &SyncGroups{}
+	case M_CREATE_FRIEND_REQUEST:
+		message = &CreateFriendRequest{}
+	case M_CONFIRM_FRIEND_REQUEST:
+		message = &ConfirmFriendRequest{}
 	case M_HELLO:
 		message = &Hello{}
 	case M_IID_TOKEN:
