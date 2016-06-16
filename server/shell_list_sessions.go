@@ -13,6 +13,7 @@ func (shell *Shell) listSessions(args []string) {
 
 	for _, k := range keys {
 		session, _ := server.sessions.Get(k)
-		fmt.Fprintf(shell.io, "- %v %v (%v %v %v)\n", k, session, session.ProtocolVersion, session.Platform, session.ClientVersion)
+		fmt.Fprintf(shell.io, "- %v %v (protocolVersion=%v, platform=%v, clientVersion=%v)\n", k, session.Conn.RemoteAddr().String(),
+			session.ProtocolVersion, session.Platform, session.ClientVersion)
 	}
 }

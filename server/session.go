@@ -10,11 +10,6 @@ import (
 )
 
 const (
-	// Event types
-	READ_MESSAGE_EVENT      = 0
-	IDLE_EVENT              = 1
-	ERROR_EVENT             = 2
-	CONNECTION_CLOSED_EVENT = 3
 
 	// Times
 	MAX_IDLE_TIME          = 30 * time.Minute
@@ -23,14 +18,8 @@ const (
 	PING_RETRY_INTERVAL_MS = 20 * time.Second
 
 	// Channels Sizes
-	EVENT_CHANNEL_SIZE = 10
 	WRITE_CHANNEL_SIZE = 3
 )
-
-type SessionEvent struct {
-	Id     uint32
-	Object interface{}
-}
 
 type WriteMsg struct {
 	Id     uint16
@@ -58,7 +47,9 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 		ProtocolVersion: 0, // Use v1 by default
 		UserId:          0,
 		IsAuth:          false,
-		eventChan:       make(chan *SessionEvent, EVENT_CHANNEL_SIZE),
+		readReadyChan:   make(chan *proto.AyiPacket),
+		errorChan:       make(chan error),
+		exitChan:        make(chan bool),
 		writeChan:       make(chan *WriteMsg, WRITE_CHANNEL_SIZE),
 		Server:          server,
 		lastRecvMsg:     time.Now().UTC(),
@@ -85,7 +76,9 @@ type AyiSession struct {
 	PlatformVersion string
 
 	IsAuth           bool
-	eventChan        chan *SessionEvent
+	readReadyChan    chan *proto.AyiPacket
+	errorChan        chan error
+	exitChan         chan bool
 	writeChan        chan *WriteMsg
 	ticker           *time.Ticker
 	Server           *Server
@@ -167,14 +160,16 @@ func (s *AyiSession) RunLoop() {
 	}()
 
 	s.startRecv()
-	stop_chan := s.startTicker()
 	s.startWrite()
+	s.ticker = time.NewTicker(5 * time.Second)
 
 	defer func() {
-		stop_chan <- true
-		close(stop_chan)
+		s.ticker.Stop()
+		close(s.writeChan)
+		close(s.readReadyChan)
+		close(s.errorChan)
+		close(s.exitChan)
 		s.IsAuth = false
-		//s.UserId = 0 // Need to preserve UserID in order to unregister session
 	}()
 
 	s.pingTime = time.Now().Add(PING_INTERVAL_MS) // Move to session
@@ -183,8 +178,6 @@ func (s *AyiSession) RunLoop() {
 	for !exit {
 		exit = s.eventLoop() // if panic returns false
 	}
-
-	//log.Println("Event loop stopped")
 }
 
 func (s *AyiSession) eventLoop() (exit bool) {
@@ -196,36 +189,41 @@ func (s *AyiSession) eventLoop() (exit bool) {
 		}
 	}()
 
-	for event := range s.eventChan {
+	for {
 
-		switch event.Id {
-		case READ_MESSAGE_EVENT:
-			s.OnRead(s, event.Object.(*proto.AyiPacket))
-		/*case POST_MESSAGE_EVENT:
-		s.processPost(event.Object.(*Notification))*/
-		case CONNECTION_CLOSED_EVENT:
-			s.OnClosed(s, event.Object.(bool))
-			close(s.eventChan)
-		case ERROR_EVENT:
-			s.OnError(s, event.Object.(error))
-		case IDLE_EVENT:
+		select {
+		case packet := <-s.readReadyChan:
+			s.OnRead(s, packet)
+		case err := <- s.errorChan:
+			s.OnError(s, err)
+		case <- s.ticker.C:
 			s.keepAlive()
+		case peerClosed := <- s.exitChan:
+			if peerClosed {
+				s.closeSocket()
+			}
+			s.OnClosed(s, peerClosed)
+			return true
 		}
 	}
 
-	return s.closed
 }
 
 func (s *AyiSession) Exit() {
-	s.ticker.Stop()
-	s.closeSocket()
+	if !s.closed {
+		s.closed = true
+		s.closeSocket()
+		go func() {
+			s.exitChan <- false
+		}()
+	}
 }
 
 func (s *AyiSession) closeSocket() {
-	if !s.closed {
-		s.closed = true
-		close(s.writeChan)
-		s.Conn.Close()
+	if err := s.Conn.Close(); err != nil {
+		log.Printf("* (%v) Socket error while closing: %v", s, err)
+	} else {
+		log.Printf("* (%v) Socket closed", s)
 	}
 }
 
@@ -237,6 +235,7 @@ func (s *AyiSession) startRecv() {
 			for !s.closed {
 				s.doRead()
 			}
+			//log.Println("Read Loop Finished")
 		}()
 	} else {
 		panic(ErrSessionNotConnected)
@@ -246,6 +245,7 @@ func (s *AyiSession) startRecv() {
 func (s *AyiSession) startWrite() {
 	if s.Conn != nil {
 		go func() {
+			// Loop that will run until s.writeChan gets closed
 			for writeMsg := range s.writeChan {
 				if writeMsg.Future != nil && writeMsg.Future.RequireAck {
 					s.doWriteWithAck(writeMsg)
@@ -253,35 +253,11 @@ func (s *AyiSession) startWrite() {
 					s.doWrite(writeMsg)
 				}
 			}
+			//log.Println("Write Loop Finished")
 		}()
 	} else {
 		panic(ErrSessionNotConnected)
 	}
-}
-
-func (s *AyiSession) startTicker() (stop chan bool) {
-
-	stop = make(chan bool, 1)
-
-	go func() {
-
-		s.ticker = time.NewTicker(5 * time.Second)
-		exit := false
-
-		for !exit {
-			select {
-			case <-s.ticker.C:
-				s.eventChan <- &SessionEvent{Id: IDLE_EVENT}
-			case <-stop:
-				exit = true
-			}
-		}
-
-		//log.Println("Ticker stopped")
-
-	}()
-
-	return stop
 }
 
 // Do a read and blocks until its done or an error happens
@@ -290,6 +266,8 @@ func (s *AyiSession) doRead() {
 	packet, err := proto.ReadPacket(s.Conn) // Blocked here
 
 	if err == nil {
+
+		// Read
 
 		s.lastRecvMsg = time.Now()
 		s.pingTime = s.lastRecvMsg.Add(PING_INTERVAL_MS)
@@ -303,18 +281,23 @@ func (s *AyiSession) doRead() {
 		}
 
 		if !s.manageSessionMsg(packet) {
-			s.eventChan <- &SessionEvent{Id: READ_MESSAGE_EVENT, Object: packet}
+			s.readReadyChan <- packet
 		}
 
 	} else {
+
+		// Manage Error
+
 		if err == proto.ErrConnectionClosed || s.closed {
-			peer := !s.closed
-			if peer {
-				s.Exit()
+
+			// If socket was closed by remote peer, then write to exitChan. Otherwise,
+			// ignore it because Exit() already writes to that channel.
+
+			if !s.closed {
+				s.exitChan <- true
 			}
-			s.eventChan <- &SessionEvent{Id: CONNECTION_CLOSED_EVENT, Object: peer}
 		} else {
-			s.eventChan <- &SessionEvent{Id: ERROR_EVENT, Object: err}
+			s.errorChan <- err
 		}
 	}
 }
@@ -322,7 +305,7 @@ func (s *AyiSession) doRead() {
 func (s *AyiSession) doWrite(msg *WriteMsg) {
 	_, err := proto.WriteBytes(msg.Data, s.Conn)
 	if err != nil {
-		s.eventChan <- &SessionEvent{Id: ERROR_EVENT, Object: err}
+		s.errorChan <- err
 	}
 	if msg.Future != nil && msg.Future.C != nil {
 		msg.Future.C <- err == nil
@@ -341,7 +324,7 @@ func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 	_, err := proto.WriteBytes(msg.Data, s.Conn)
 
 	if err != nil {
-		s.eventChan <- &SessionEvent{Id: ERROR_EVENT, Object: err}
+		s.errorChan <- err
 		msg.Future.C <- false
 		return
 	}
@@ -358,7 +341,7 @@ func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 	msg.Future.C <- err == nil
 
 	if err != nil {
-		s.eventChan <- &SessionEvent{Id: ERROR_EVENT, Object: err}
+		s.errorChan <- err
 	}
 }
 
@@ -372,11 +355,10 @@ func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 		if tlsconn, ok := s.Conn.(*tls.Conn); !ok {
 			log.Printf("* (%v) Changing to use TLS\n", s)
 			if tlsconn = tls.Server(s.Conn, s.Server.TLSConfig); tlsconn != nil {
-				//oldConn := s.Conn
 				s.Conn = tlsconn
-				//oldConn.Close()
-				//defer conn.Close()
 			}
+		} else {
+			log.Printf("* (%v) Error changing to use TLS\n", s)
 		}
 		return true
 	}

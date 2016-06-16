@@ -111,6 +111,7 @@ func (s *Server) init() {
 		ClientAuth:   tls.NoClientCert,
 		Certificates: []tls.Certificate{cert},
 		ServerName:   "service.peeple.es",
+		InsecureSkipVerify: s.Testing,
 	}
 
 	// Init sessions holder
@@ -278,7 +279,7 @@ func (server *Server) handleSession(session *AyiSession) {
 		if r := recover(); r != nil {
 			log.Printf("Session %v Panic: %v\n", session, r)
 		}
-		session.Exit()
+		log.Printf("* (%v) Session finished\n", session)
 	}()
 
 	log.Printf("* (%v) New connection\n", session)
@@ -316,16 +317,19 @@ func (server *Server) handleSession(session *AyiSession) {
 		last_error_time := time.Now()
 		return func(s *AyiSession, err error) {
 
+			log.Printf("* (%v) Session Error: %v (num_errors = %v)\n", s, err, num_errors)
+
 			if err == proto.ErrTimeout {
 				s.Exit()
 
 				// HACK: Compare error string because there is no ErrTlsXXXXX or alike
 			} else if strings.Contains(err.Error(), "tls: first record does not look like a TLS handshake") {
 				s.Exit()
+			} else if strings.Contains(err.Error(), "unknown certificate") {
+				s.Exit()
 			}
 
-			log.Printf("* (%v) Session Error: %v\n", s, err)
-
+			// Protect agains error flood
 			current_time := time.Now()
 			if last_error_time.Add(1 * time.Second).Before(current_time) {
 				last_error_time = current_time
@@ -353,7 +357,7 @@ func (server *Server) handleSession(session *AyiSession) {
 		if peer {
 			log.Printf("* (%v) Session closed by remote peer\n", s)
 		} else {
-			log.Printf("* (%v) Session closed\n", s)
+			log.Printf("* (%v) Session closed by server\n", s)
 		}
 	}
 
