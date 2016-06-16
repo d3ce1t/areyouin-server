@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package protocol;
 
-option java_package = "es.peeple.areyouin.protocol";
+option java_package = "es.peeple.areyouin.api.network";
 option objc_class_prefix="APB";
 
 import "core.proto";

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package common;
 
-option java_package = "es.peeple.areyouin.common";
+option java_package = "es.peeple.areyouin.api.network";
 option objc_class_prefix="Core";
 
 enum SyncBehaviour {
