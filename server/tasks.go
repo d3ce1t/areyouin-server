@@ -67,7 +67,7 @@ func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 
 			iid_token, err := user_dao.GetIIDToken(participant.UserId)
 			if err != nil || iid_token == "" {
-				log.Printf("* (%v) Coudn't send event cancelled notification (%v)", participant.UserId, err)
+				log.Printf("* (%v) Coudn't send GCM event cancelled notification (%v)", participant.UserId, err)
 				continue
 			}
 

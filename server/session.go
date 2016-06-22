@@ -86,7 +86,7 @@ type AyiSession struct {
 	closed           bool
 	lastRecvMsg      time.Time
 	pendingResp      map[uint16]chan bool
-	outputMsgCounter uint16 // Reseat each 65535 messages
+	nextToken        uint16 // most significant bit reserved (1 -> Response, 0 -> Normal). Reset each 32768 messages (0 - 32767)
 	OnRead           func(s *AyiSession, packet *proto.AyiPacket)
 	OnError          func(s *AyiSession, err error)
 	OnClosed         func(s *AyiSession, peer bool)
@@ -107,6 +107,36 @@ func (s *AyiSession) String() string {
 
 func (s *AyiSession) NewMessage() proto.MessageBuilder {
 	return proto.NewPacket(s.ProtocolVersion)
+}
+
+func (s *AyiSession) WriteResponse(token uint16, packets ...*proto.AyiPacket) (ok bool) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			ok = false
+			log.Printf("Session %v Write Error: %v\n", s, r)
+		}
+	}()
+
+	// Set most significant byte to 1 in order to mark
+	// packet to be sent as a response to packet with given token
+	var tokenResponse uint16 = token | (1 << 15)
+
+	data := make([]byte, 0, packets[0].Header.GetSize())
+
+	for _, packet := range packets {
+		packet.Header.SetToken(tokenResponse)
+		data = append(data, packet.Marshal()...)
+	}
+
+	// may panic if writeChan is closed
+	s.writeChan <- &WriteMsg{
+		Id:     tokenResponse,
+		Data:   data,
+		Future: nil,
+	}
+
+	return true
 }
 
 // Alias for WriteAsync without indicating a future
@@ -135,18 +165,19 @@ func (s *AyiSession) WriteAsync(future *Future, packets ...*proto.AyiPacket) (ok
 	data := make([]byte, 0, packets[0].Header.GetSize())
 
 	for _, packet := range packets {
-		packet.Header.SetToken(s.outputMsgCounter)
+		packet.Header.SetToken(s.nextToken)
 		data = append(data, packet.Marshal()...)
 	}
 
 	// may panic if writeChan is closed
 	s.writeChan <- &WriteMsg{
-		Id:     s.outputMsgCounter,
+		Id:     s.nextToken,
 		Data:   data,
 		Future: future,
 	}
 
-	s.outputMsgCounter++
+	//
+	s.nextToken = (s.nextToken + 1) % (1 << 15)
 
 	return true
 }
@@ -170,6 +201,7 @@ func (s *AyiSession) RunLoop() {
 		close(s.errorChan)
 		close(s.exitChan)
 		s.IsAuth = false
+		s.UserId = 0
 	}()
 
 	s.pingTime = time.Now().Add(PING_INTERVAL_MS) // Move to session
@@ -199,9 +231,7 @@ func (s *AyiSession) eventLoop() (exit bool) {
 		case <- s.ticker.C:
 			s.keepAlive()
 		case peerClosed := <- s.exitChan:
-			if peerClosed {
-				s.closeSocket()
-			}
+			s.closeSocket()
 			s.OnClosed(s, peerClosed)
 			return true
 		}
@@ -212,7 +242,6 @@ func (s *AyiSession) eventLoop() (exit bool) {
 func (s *AyiSession) Exit() {
 	if !s.closed {
 		s.closed = true
-		s.closeSocket()
 		go func() {
 			s.exitChan <- false
 		}()
@@ -294,6 +323,7 @@ func (s *AyiSession) doRead() {
 			// ignore it because Exit() already writes to that channel.
 
 			if !s.closed {
+				s.closed = true
 				s.exitChan <- true
 			}
 		} else {
@@ -308,7 +338,7 @@ func (s *AyiSession) doWrite(msg *WriteMsg) {
 		s.errorChan <- err
 	}
 	if msg.Future != nil && msg.Future.C != nil {
-		msg.Future.C <- err == nil
+		msg.Future.C <- (err == nil)
 	}
 }
 
@@ -338,7 +368,7 @@ func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 	}
 
 	timeout.Stop()
-	msg.Future.C <- err == nil
+	msg.Future.C <- (err == nil)
 
 	if err != nil {
 		s.errorChan <- err

@@ -211,30 +211,31 @@ func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
 }
 
 func (s *Server) RegisterSession(session *AyiSession) {
-	s.executeSerial(func() {
-		if oldSession, ok := s.sessions.Get(session.UserId); ok {
-			oldSession.WriteSync(oldSession.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
-			log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", oldSession)
-			oldSession.Exit()
-			log.Printf("* (%v) Closing old session for endpoint %v\n", oldSession, oldSession.Conn.RemoteAddr().String())
-		}
-		s.sessions.Put(session.UserId, session)
-		log.Printf("* (%v) Register session for endpoint %v\n", session, session.Conn.RemoteAddr().String())
-	})
+
+	if oldSession, ok := s.sessions.Get(session.UserId); ok {
+		oldSession.WriteSync(oldSession.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
+		log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", oldSession)
+		oldSession.Exit()
+		log.Printf("* (%v) Closing old session for endpoint %v\n", oldSession, oldSession.Conn.RemoteAddr())
+	}
+
+	s.sessions.Put(session.UserId, session)
+	log.Printf("* (%v) Register session for endpoint %v\n", session, session.Conn.RemoteAddr())
 }
 
 func (s *Server) UnregisterSession(session *AyiSession) {
-	s.executeSerial(func() {
-		user_id := session.UserId
-		if !session.IsClosed() {
-			session.Exit()
-		}
-		oldSession, ok := s.sessions.Get(user_id)
-		if ok && oldSession == session {
-			s.sessions.Remove(user_id)
-			log.Printf("* (%v) Unregister session for endpoint %v\n", session.UserId, session)
-		}
-	})
+
+	user_id := session.UserId
+	if !session.IsClosed() {
+		session.Exit()
+	}
+
+	oldSession, ok := s.sessions.Get(user_id)
+	if ok && oldSession == session {
+		s.sessions.Remove(user_id)
+		log.Printf("* (%v) Unregister session for endpoint %v\n", session, session.Conn.RemoteAddr())
+	}
+
 }
 
 func (s *Server) NewUserDAO() core.UserDAO {
@@ -350,9 +351,8 @@ func (server *Server) handleSession(session *AyiSession) {
 			//NOTE: If a user is deleted from user_account while it is still connected,
 			// a row in invalid state will be created when updating last connection
 			s.Server.NewUserDAO().SetLastConnection(s.UserId, core.GetCurrentTimeMillis())
+			s.Server.UnregisterSession(s)
 		}
-
-		s.Server.UnregisterSession(s)
 
 		if peer {
 			log.Printf("* (%v) Session closed by remote peer\n", s)
