@@ -350,7 +350,8 @@ func (mb *PacketBuilder) UserAccount(user *core.UserAccount) *AyiPacket {
 		Name:          user.Name,
 		Email:         user.Email,
 		Picture:       user.Picture,
-		PictureDigest: user.PictureDigest})
+		PictureDigest: user.PictureDigest,
+		FbId:					 user.Fbid})
 	return mb.message
 }
 

@@ -88,7 +88,7 @@ func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 	} // End loop
 
 	for participant_id, data := range user_data {
-		ok := <-data.Future
+		ok := <-data.Future // TODO: Code is blocked 10 seconds as much for each participant. CHANGE IT!!
 		if !ok {
 			log.Printf("* (%v) ACK Timeout. Fallback to GcmNotification\n", participant_id)
 			t.sendGcmNotification(participant_id, data.IIDToken, t.Event.StartDate, base64_data)
@@ -344,7 +344,6 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 			continue
 		}
 
-		messageToSend := make([]*proto.AyiPacket, 0, 0)
 		eventCopy := &core.Event{}
 		*eventCopy = *t.Event
 
@@ -357,7 +356,22 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 			// Filter event participants to protect privacy and create message
 			eventCopy.Participants = server.filterEventParticipants(user.Id, t.Event.Participants)
 			notify_msg := session.NewMessage().InvitationReceived(eventCopy)
-			messageToSend = append(messageToSend, notify_msg)
+
+			// Notify (use a channel because it is needed to know if message arrived)
+			var future *Future
+
+			if user.IIDtoken != "" {
+				future = NewFuture(true)
+			} else {
+				future = NewFuture(false)
+			}
+
+			if ok := session.WriteAsync(future, notify_msg); ok {
+				futures[user.Id] = future.C // TODO: Code may block here for 10 seconds. CHANGE IT!
+				log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id, t.Event.EventId)
+			} else {
+				t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
+			}
 
 		} else {
 
@@ -367,24 +381,23 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 				filtered_participants := server.filterParticipantsMap(user.Id, t.Event.Participants)
 				notify_msg := session.NewMessage().InvitationReceived(light_event)
 				attendance_status_msg := session.NewMessage().AttendanceStatus(t.Event.EventId, filtered_participants)
-				messageToSend = append(messageToSend, notify_msg, attendance_status_msg)
 
-		}
+				// Notify (use a channel because it is needed to know if message arrived)
+				var future *Future
 
-		// Notify (use a channel because it is needed to know if message arrived)
-		var future *Future
+				if user.IIDtoken != "" {
+					future = NewFuture(true)
+				} else {
+					future = NewFuture(false)
+				}
 
-		if user.IIDtoken != "" {
-			future = NewFuture(true)
-		} else {
-			future = NewFuture(false)
-		}
-
-		if ok := session.WriteAsync(future, messageToSend...); ok {
-			futures[user.Id] = future.C
-			log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id, t.Event.EventId)
-		} else {
-			t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
+				if ok := session.WriteAsync(future, notify_msg); ok {
+					session.Write(attendance_status_msg)
+					futures[user.Id] = future.C // TODO: Code may block here for 10 seconds. CHANGE IT!
+					log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id, t.Event.EventId)
+				} else {
+					t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
+				}
 		}
 	}
 

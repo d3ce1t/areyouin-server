@@ -285,6 +285,7 @@ message UserAccount {
   string email = 2;
   bytes picture = 3;
   bytes picture_digest = 4;
+  string fbId = 5;
 }
 
 // GROUPS LIST

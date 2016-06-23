@@ -18,6 +18,7 @@ const (
 var App *fb.App
 
 func init() {
+	fb.Version = "v2.5"
 	App = fb.New(FB_APP_ID, FB_APP_SECRET)
 	App.EnableAppsecretProof = true
 }

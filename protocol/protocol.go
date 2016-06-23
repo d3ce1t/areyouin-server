@@ -62,13 +62,11 @@ func WriteBytes(data []byte, conn net.Conn) (int, error) {
 
 // Reads a packet from net.Conn. This function reads packets with header formated
 // as v1 or v2.
-func ReadPacket(conn net.Conn) (*AyiPacket, error) {
+func ReadPacket(reader *bufio.Reader) (*AyiPacket, error) {
 
-	if conn == nil {
+	if reader == nil {
 		return nil, ErrInvalidSocket
 	}
-
-	reader := bufio.NewReaderSize(conn, 1500)
 
 	// FIXME: // I'm creating a lot of memory each time. GC will have to work hard
 	packet := &AyiPacket{}

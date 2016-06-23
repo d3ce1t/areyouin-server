@@ -41,6 +41,18 @@ func (packet *AyiPacket) String() string {
 	return str
 }
 
+func (packet *AyiPacket) Id() uint16 {
+	return packet.Header.GetToken()
+}
+
+func (packet *AyiPacket) IsResponse() bool {
+	return (packet.Header.GetToken() >> 15) > 0
+}
+
+func (packet *AyiPacket) ResponseId() uint16 {
+	return packet.Header.GetToken() & 0x7FFF // Remove sign from token (16 bits token)
+}
+
 func (packet *AyiPacket) Type() PacketType {
 	return packet.Header.GetType()
 }

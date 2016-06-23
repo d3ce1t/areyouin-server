@@ -74,7 +74,7 @@ func NewTestServer() *Server {
 	return server
 }
 
-type Callback func(proto.PacketType, proto.Message, *AyiSession)
+type Callback func(*proto.AyiPacket, proto.Message, *AyiSession)
 
 type Server struct {
 	TLSConfig     *tls.Config
@@ -295,8 +295,7 @@ func (server *Server) handleSession(session *AyiSession) {
 			if err := s.Server.serveMessage(packet, s); err != nil { // may block until writes are performed
 				error_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
 				log.Printf("< (%v) ERROR %v: %v\n", session, error_code, err)
-				//log.Printf("Involved Packet: %v\n", packet)
-				s.Write(s.NewMessage().Error(packet.Type(), error_code))
+				s.WriteResponse(packet.Header.GetToken(), s.NewMessage().Error(packet.Type(), error_code))
 			}
 
 		} else {
@@ -407,7 +406,7 @@ func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err
 
 	// Call function to manage this message
 	if f, ok := s.callbacks[packet.Type()]; ok {
-		f(packet.Type(), message, session)
+		f(packet, message, session)
 	} else {
 		err = ErrUnregisteredMessage
 	}
@@ -1184,8 +1183,10 @@ func main() {
 	server.MaintenanceMode = maintenanceMode
 
 	// Register callbacks
+
+	// Client requests
+
 	server.RegisterCallback(proto.M_PING, onPing)
-	server.RegisterCallback(proto.M_PONG, onPong)
 	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
 	server.RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
 	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
@@ -1208,6 +1209,8 @@ func main() {
 	server.RegisterCallback(proto.M_CREATE_FRIEND_REQUEST, onFriendRequest)
 	server.RegisterCallback(proto.M_GET_FRIEND_REQUESTS, onListFriendRequests)
 	server.RegisterCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
+
+	server.RegisterCallback(proto.M_PONG, onPong)
 
 	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)

@@ -8,11 +8,10 @@ import (
 	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
 	"time"
-
 	"github.com/twinj/uuid"
 )
 
-func onCreateAccount(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.CreateUserAccount)
@@ -26,7 +25,7 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// Check if it's a valid user, so the input was correct
 	if _, err := user.IsValid(); err != nil {
 		error_code := getNetErrorCode(err, proto.E_INVALID_INPUT)
-		session.Write(session.NewMessage().Error(packet_type, error_code))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), error_code))
 		log.Printf("< (%v) CREATE ACCOUNT INVALID USER: %v\n", session, err)
 		return
 	}
@@ -40,8 +39,8 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 		fbsession := fb.NewSession(user.Fbtoken)
 
 		if _, err := fb.CheckAccess(user.Fbid, fbsession); err != nil {
-			reply = session.NewMessage().Error(packet_type, proto.E_FB_INVALID_ACCESS)
-			session.Write(reply)
+			reply = session.NewMessage().Error(request.Type(), proto.E_FB_INVALID_ACCESS)
+			session.WriteResponse(request.Header.GetToken(), reply)
 			log.Printf("< (%v) CREATE ACCOUNT FB ERROR: %v\n", session, fb.GetErrorMessage(err))
 			return
 		}
@@ -57,8 +56,8 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	// FAILED message is sent so far. Read UserDAO.insert for more info.
 	if err := userDAO.Insert(user); err != nil {
 		err_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
-		reply = session.NewMessage().Error(packet_type, err_code)
-		session.Write(reply)
+		reply = session.NewMessage().Error(request.Type(), err_code)
+		session.WriteResponse(request.Header.GetToken(), reply)
 		log.Printf("< (%v) CREATE ACCOUNT INSERT ERROR: %v\n", session, err)
 		return
 	}
@@ -113,11 +112,11 @@ func onCreateAccount(packet_type proto.PacketType, message proto.Message, sessio
 	}
 
 	reply = session.NewMessage().UserAccessGranted(user.Id, user.AuthToken)
-	session.Write(reply)
+	session.WriteResponse(request.Header.GetToken(), reply)
 	log.Printf("< (%v) CREATE ACCOUNT OK\n", session)
 }
 
-func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onUserNewAuthToken(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.NewAuthToken)
@@ -128,8 +127,8 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 	var reply *proto.AyiPacket
 
 	if msg.Type != proto.AuthType_A_NATIVE && msg.Type != proto.AuthType_A_FACEBOOK {
-		reply = session.NewMessage().Error(packet_type, proto.E_MALFORMED_MESSAGE)
-		session.Write(reply)
+		reply = session.NewMessage().Error(request.Type(), proto.E_MALFORMED_MESSAGE)
+		session.WriteResponse(request.Header.GetToken(), reply)
 		log.Printf("< (%v) USER NEW AUTH TOKEN MALFORMED MESSAGE\n", session)
 		return
 	}
@@ -148,19 +147,19 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 				reply = session.NewMessage().UserAccessGranted(user_id, new_auth_token)
 				log.Printf("< (%v) USER NEW AUTH ACCESS GRANTED\n", session)
 			} else {
-				reply = session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
+				reply = session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 				log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			}
 
 		} else if err == dao.ErrNotFound {
-			reply = session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD)
+			reply = session.NewMessage().Error(request.Type(), proto.E_INVALID_USER_OR_PASSWORD)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD\n", session)
 		} else {
-			reply = session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
+			reply = session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 		}
 
-		session.Write(reply)
+		session.WriteResponse(request.Header.GetToken(), reply)
 
 	} else if msg.Type == proto.AuthType_A_FACEBOOK {
 
@@ -173,8 +172,8 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		fbsession := fb.NewSession(msg.Pass2)
 
 		if _, err := fb.CheckAccess(msg.Pass1, fbsession); err != nil {
-			reply = session.NewMessage().Error(packet_type, proto.E_FB_INVALID_ACCESS)
-			session.Write(reply)
+			reply = session.NewMessage().Error(request.Type(), proto.E_FB_INVALID_ACCESS)
+			session.WriteResponse(request.Header.GetToken(), reply)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID FB ACCESS %v\n", session, fb.GetErrorMessage(err))
 			return
 		}
@@ -186,11 +185,11 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 
 		if err == dao.ErrNotFound {
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD", session)
-			session.Write(session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD))
+			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_INVALID_USER_OR_PASSWORD))
 			return
 		} else if err != nil {
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
-			session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
+			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
 			return
 		}
 
@@ -202,7 +201,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 				log.Printf("* (%v) USER NEW AUTH TOKEN WARNING: USER %v NOT FOUND: This means a FbId (%v) points to an AyiId (%v) that does not exist. Admin required.\n",
 				 	session, user_id, msg.Pass1, user_id)
 			}
-			session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
+			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
 			log.Printf("< (%v) USER NEW AUTH TOKEN OPERATION FAILED: %v\n", session, err)
 			return
 		}
@@ -211,7 +210,7 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 			log.Printf("* (%v) WARNING: USER %v FB MISMATCH: This means a FbId (%v) points to an AyiUser (%v) that does point to another FbId (%v). Admin required.\n",
 				session, user_id, msg.Pass1, user_id, user.Fbid)
 			log.Printf("< (%v) USER NEW AUTH TOKEN OPERATION FAILED", session)
-			session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
+			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
 		}
 
 		// Check that account linked to given Facebook ID is valid, i.e. it has user_email_credentials (with or without
@@ -221,8 +220,8 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		// happened. So, at this point only existence of e-mail are checked (credentials are ignored).
 
 		if _, err := userDAO.CheckValidAccountObject(user.Id, user.Email, user.Fbid, false); err != nil {
-			reply = session.NewMessage().Error(packet_type, proto.E_INVALID_USER_OR_PASSWORD)
-			session.Write(reply)
+			reply = session.NewMessage().Error(request.Type(), proto.E_INVALID_USER_OR_PASSWORD)
+			session.WriteResponse(request.Header.GetToken(), reply)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 			return
 		}
@@ -230,19 +229,19 @@ func onUserNewAuthToken(packet_type proto.PacketType, message proto.Message, ses
 		new_auth_token := uuid.NewV4()
 
 		if err := userDAO.SetAuthTokenAndFBToken(user_id, new_auth_token, msg.Pass1, msg.Pass2); err != nil {
-			reply = session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
+			reply = session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
-			session.Write(reply)
+			session.WriteResponse(request.Header.GetToken(), reply)
 			return
 		}
 
 		reply = session.NewMessage().UserAccessGranted(user_id, new_auth_token)
-		session.Write(reply)
+		session.WriteResponse(request.Header.GetToken(), reply)
 		log.Printf("< (%v) USER NEW AUTH TOKEN ACCESS GRANTED\n", session)
 	}
 }
 
-func onUserAuthentication(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onUserAuthentication(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.AccessToken)
@@ -258,7 +257,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 		if err == dao.ErrNotFound {
 			sendAuthError(session)
 		} else {
-			session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
+			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
 			log.Printf("< (%v) AUTH ERROR %v\n", session, err)
 		}
 		return
@@ -273,7 +272,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	session.IsAuth = true
 	session.UserId = user_id
 	session.IIDToken = user_account.IIDtoken
-	session.Write(session.NewMessage().Ok(packet_type))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) AUTH OK\n", session)
 	server.RegisterSession(session)
 	server.NewUserDAO().SetLastConnection(session.UserId, core.GetCurrentTimeMillis())
@@ -284,7 +283,7 @@ func onUserAuthentication(packet_type proto.PacketType, message proto.Message, s
 	}
 }
 
-func onNewAccessToken(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onNewAccessToken(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	log.Printf("> (%v) REQUEST NEW ACCESS TOKEN\n", session)
@@ -297,17 +296,17 @@ func onNewAccessToken(packet_type proto.PacketType, message proto.Message, sessi
 	// Overwrites previous one if exists
 	err := accessTokenDAO.Insert(session.UserId, new_access_token.String())
 	if err != nil {
-		reply := session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
+		reply := session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 		log.Printf("< (%v) REQUEST NEW ACCESS TOKEN ERROR: %v\n", session, err)
-		session.Write(reply)
+		session.WriteResponse(request.Header.GetToken(), reply)
 		return
 	}
 
-	session.Write(session.NewMessage().NewAccessToken(session.UserId, new_access_token))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().NewAccessToken(session.UserId, new_access_token))
 	log.Printf("< (%v) ACCESS TOKEN: %v\n", session, new_access_token)
 }
 
-func onIIDTokenReceived(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onIIDTokenReceived(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.InstanceIDToken)
@@ -316,25 +315,25 @@ func onIIDTokenReceived(packet_type proto.PacketType, message proto.Message, ses
 	checkAuthenticated(session)
 
 	if msg.Token == "" || len(msg.Token) < 10 {
-		reply := session.NewMessage().Error(packet_type, proto.E_INVALID_INPUT)
+		reply := session.NewMessage().Error(request.Type(), proto.E_INVALID_INPUT)
 		log.Printf("< (%v) IID TOKEN ERROR: INVALID INPUT\n", session)
-		session.Write(reply)
+		session.WriteResponse(request.Header.GetToken(), reply)
 		return
 	}
 
 	userDAO := server.NewUserDAO()
 	if err := userDAO.SetIIDToken(session.UserId, msg.Token); err != nil {
-		reply := session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED)
+		reply := session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 		log.Printf("< (%v) IID TOKEN ERROR: %v\n", session, err)
-		session.Write(reply)
+		session.WriteResponse(request.Header.GetToken(), reply)
 		return
 	}
 
-	session.Write(session.NewMessage().Ok(packet_type))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) IID TOKEN OK\n", session)
 }
 
-func onGetUserAccount(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onGetUserAccount(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	log.Printf("> (%v) GET USER ACCOUNT\n", session)
@@ -361,7 +360,7 @@ func onGetUserAccount(packet_type proto.PacketType, message proto.Message, sessi
 
 	checkNoErrorOrPanic(err)
 
-	session.Write(session.NewMessage().UserAccount(user))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccount(user))
 
 	if session.ProtocolVersion < 2 {
 		log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session, len(user.Picture))
@@ -370,7 +369,7 @@ func onGetUserAccount(packet_type proto.PacketType, message proto.Message, sessi
 	}
 }
 
-func onChangeProfilePicture(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onChangeProfilePicture(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.UserAccount)
@@ -404,17 +403,17 @@ func onChangeProfilePicture(packet_type proto.PacketType, message proto.Message,
 	user.PictureDigest = picture.Digest
 
 	if (session.ProtocolVersion < 2) {
-		session.Write(session.NewMessage().OkWithPayload(packet_type, picture.Digest))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().OkWithPayload(request.Type(), picture.Digest))
 		log.Printf("< (%v) PROFILE PICTURE CHANGED\n", session)
 	} else {
-		session.Write(session.NewMessage().Ok(packet_type))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 		log.Printf("< (%v) PROFILE PICTURE CHANGED\n", session)
-		session.Write(session.NewMessage().UserAccount(user))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccount(user))
 		log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session)
 	}
 }
 
-func onSyncGroups(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onSyncGroups(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.SyncGroups)
@@ -434,11 +433,11 @@ func onSyncGroups(packet_type proto.PacketType, message proto.Message, session *
 	// Sync
 	server.syncFriendGroups(msg.Owner, serverGroups, msg.Groups, msg.SyncBehaviour)
 
-	session.Write(session.NewMessage().Ok(packet_type))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) SYNC GROUPS OK\n", session)
 }
 
-func onGetGroups(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onGetGroups(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	log.Printf("> (%v) GET GROUPS\n", session)
@@ -449,11 +448,11 @@ func onGetGroups(packet_type proto.PacketType, message proto.Message, session *A
 	groups, err := friendDAO.LoadGroupsAndMembers(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	session.Write(session.NewMessage().GroupsList(groups))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().GroupsList(groups))
 	log.Printf("< (%v) GROUPS LIST (num.groups: %v)\n", session, len(groups))
 }
 
-func onCreateEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.CreateEvent)
@@ -468,7 +467,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 
 	valid, err := userDAO.CheckValidAccountObject(author.Id, author.Email, author.Fbid, true)
 	if !valid || err != nil {
-		session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
 		log.Printf("< (%v) CREATE EVENT AUTHOR ERROR (2) %v\n", session, err)
 		return
 	}
@@ -478,7 +477,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	createdDate := core.UnixMillisToTime(msg.CreatedDate)
 
 	if createdDate.Before(currentDate.Add(-time.Minute)) || createdDate.After(currentDate.Add(time.Minute)) {
-		session.Write(session.NewMessage().Error(packet_type, proto.E_EVENT_OUT_OF_CREATE_WINDOW))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_EVENT_OUT_OF_CREATE_WINDOW))
 		log.Printf("< (%v) CREATE EVENT ERROR OUT OF WINDOW\n", session)
 		return
 	}
@@ -487,7 +486,7 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	event := core.CreateNewEvent(server.GetNewID(), author.Id, author.Name, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
 
 	if _, err = event.IsValid(); err != nil {
-		session.Write(session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_INVALID_INPUT)))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_INVALID_INPUT)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session, err)
 		return
 	}
@@ -495,13 +494,13 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 	// Load users participants
 	userParticipants, warning, err := server.loadUserParticipants(author.Id, msg.Participants)
 	if err != nil {
-		session.Write(session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session, err)
 		return
 	}
 
 	if len(userParticipants) == 0 {
-		session.Write(session.NewMessage().Error(packet_type, getNetErrorCode(warning, proto.E_EVENT_PARTICIPANTS_REQUIRED)))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(warning, proto.E_EVENT_PARTICIPANTS_REQUIRED)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v %v\n", session, err, warning)
 		return
 	}
@@ -544,17 +543,18 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 			// From protocol v2 onward, OK message is removed in favour of only one message that
 			// includes all of the event info (including participants)
 
-			session.Write(session.NewMessage().EventCreated(event))
+			session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventCreated(event))
 			log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session, event.EventId, len(event.Participants))
 
 		} else {
 			// Keep this code for clients that uses v0 and v1
-			session.Write(session.NewMessage().Ok(packet_type))
+			session.Write(session.NewMessage().Ok(request.Type()))
 			log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session, event.EventId, len(event.Participants))
 
 			event_created_msg := session.NewMessage().EventCreated(event.GetEventWithoutParticipants())
 			status_msg := session.NewMessage().AttendanceStatus(event.EventId, server.createParticipantListFromMap(event.Participants))
-			session.Write(event_created_msg, status_msg)
+			session.Write(event_created_msg)
+			session.Write(status_msg)
 			log.Printf("< (%v) SEND NEW EVENT %v\n", session, event.EventId)
 		}
 
@@ -565,12 +565,12 @@ func onCreateEvent(packet_type proto.PacketType, message proto.Message, session 
 		server.task_executor.Submit(notification)
 
 	} else {
-		session.Write(session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session, err)
 	}
 }
 
-func onChangeEventPicture(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.ModifyEvent)
@@ -625,7 +625,7 @@ func onChangeEventPicture(packet_type proto.PacketType, message proto.Message, s
 	event.PictureDigest = picture.Digest
 
 	// Send ACK to caller
-	session.Write(session.NewMessage().Ok(packet_type))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) EVENT PICTURE CHANGED\n", session)
 
 	// Notify change to participants
@@ -635,7 +635,7 @@ func onChangeEventPicture(packet_type proto.PacketType, message proto.Message, s
 	})
 }
 
-func onCancelEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.CancelEvent)
@@ -679,7 +679,7 @@ func onCancelEvent(packet_type proto.PacketType, message proto.Message, session 
 	// FIXME: Could send directly the event canceled message, and ignore author from
 	// NotifyEventCancelled task
 	log.Printf("< (%v) CANCEL EVENT OK\n", session)
-	session.Write(session.NewMessage().Ok(packet_type))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 
 	// Notify participants
 	server.task_executor.Submit(&NotifyEventCancelled{
@@ -688,7 +688,7 @@ func onCancelEvent(packet_type proto.PacketType, message proto.Message, session 
 	})
 }
 
-func onInviteUsers(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.InviteUsers)
@@ -698,7 +698,7 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 
 	// First of all, check participants
 	if len(msg.Participants) == 0 {
-		session.Write(session.NewMessage().Error(packet_type, proto.E_EVENT_PARTICIPANTS_REQUIRED))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_EVENT_PARTICIPANTS_REQUIRED))
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) PARTICIPANTS REQUIRED\n", session, msg.EventId)
 		return
 	}
@@ -723,13 +723,13 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 	userParticipants, warning, err := server.loadUserParticipants(author_id, participants_id)
 
 	if err != nil {
-		session.Write(session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) %v\n", session, msg.EventId, err)
 		return
 	}
 
 	if len(userParticipants) == 0 {
-		session.Write(session.NewMessage().Error(packet_type, getNetErrorCode(warning, proto.E_INVALID_PARTICIPANT)))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(warning, proto.E_INVALID_PARTICIPANT)))
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) INVALID PARTICIPANTS %v\n", session, msg.EventId, warning)
 		return
 	}
@@ -762,7 +762,7 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 
 		event.NumGuests = int32(len(event.Participants))
 
-		session.Write(session.NewMessage().Ok(packet_type))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 		log.Printf("< (%v) INVITE USERS OK (event_id=%v, invitations_send=%v, total=%v)\n", session, msg.EventId, succeedCounter, len(msg.Participants))
 
 		// Notify previous participants of the new ones added
@@ -779,12 +779,12 @@ func onInviteUsers(packet_type proto.PacketType, message proto.Message, session 
 		})
 
 	} else {
-		session.Write(session.NewMessage().Error(packet_type, getNetErrorCode(err, proto.E_OPERATION_FAILED)))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) Couldn't invite at least one participant\n", session, msg.EventId)
 	}
 }
 
-func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onCancelUsersInvitation(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	checkAuthenticated(session)
 
@@ -794,7 +794,7 @@ func onCancelUsersInvitation(packet_type proto.PacketType, message proto.Message
 // in the participant event list is changed and notified to the other participants. It is
 // important to note that num_attendees is not changed server-side till the event has started.
 // Clients are cool counting attendees :)
-func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.ConfirmAttendance)
@@ -814,25 +814,25 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 
 	if participant.StartDate < current_time || participant.EventState == core.EventState_CANCELLED {
 		log.Printf("< (%v) CONFIRM ATTENDANCE %v EVENT CANNOT BE MODIFIED\n", session, msg.EventId)
-		session.Write(session.NewMessage().Error(packet_type, proto.E_EVENT_CANNOT_BE_MODIFIED))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_EVENT_CANNOT_BE_MODIFIED))
 		return
 	}
 
 	// If the stored response is the same as the provided, send OK response inmediately
 	if participant.Response == msg.ActionCode {
-		session.Write(session.NewMessage().Ok(packet_type))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 		return
 	}
 
 	if err := event_dao.SetParticipantResponse(participant, msg.ActionCode); err != nil {
-		session.Write(session.NewMessage().Error(packet_type, proto.E_OPERATION_FAILED))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
 		log.Printf("< (%v) CONFIRM ATTENDANCE %v ERROR %v\n", session, msg.EventId, err)
 		return
 	}
 
 	// Send OK Response
 	participant.Response = msg.ActionCode
-	session.Write(session.NewMessage().Ok(packet_type))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) CONFIRM ATTENDANCE %v OK\n", session, msg.EventId)
 
 	// Notify participants
@@ -849,31 +849,31 @@ func onConfirmAttendance(packet_type proto.PacketType, message proto.Message, se
 	}
 }
 
-func onVoteChange(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onVoteChange(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	checkAuthenticated(session)
 
 }
 
-func onUserPosition(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onUserPosition(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	checkAuthenticated(session)
 
 }
 
-func onUserPositionRange(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onUserPositionRange(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	checkAuthenticated(session)
 
 }
 
-func onReadEvent(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onReadEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	checkAuthenticated(session)
 
 }
 
-func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	log.Printf("> (%v) REQUEST PRIVATE EVENTS\n", session) // Message does not has payload
 	checkAuthenticated(session)
@@ -887,7 +887,7 @@ func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, se
 	if err != nil {
 		if err == dao.ErrEmptyInbox {
 			log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, 0)
-			session.Write(session.NewMessage().EventsList(nil))
+			session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(nil))
 			return
 		} else {
 			panic(err)
@@ -907,7 +907,7 @@ func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, se
 
 	// Send event list to user
 	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, len(events))
-	session.Write(session.NewMessage().EventsList(events))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(events))
 
 	// Update delivery status
 	for _, event := range events {
@@ -933,7 +933,7 @@ func onListPrivateEvents(packet_type proto.PacketType, message proto.Message, se
 	}
 }
 
-func onListEventsHistory(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onListEventsHistory(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.EventListRequest)
@@ -982,13 +982,13 @@ func onListEventsHistory(packet_type proto.PacketType, message proto.Message, se
 
 	// Send event list to user
 	log.Printf("< (%v) SEND EVENTS HISTORY (num.events: %v)", session, len(events))
-	session.Write(session.NewMessage().EventsHistoryList(events, startWindow, endWindow))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsHistoryList(events, startWindow, endWindow))
 
 	// NOTE: Retrieval of events history does not cause any change to events involved, i.e.
 	// event delivery status isn't updated
 }
 
-func onGetUserFriends(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onGetUserFriends(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 
@@ -999,11 +999,11 @@ func onGetUserFriends(packet_type proto.PacketType, message proto.Message, sessi
 	friends, err := friend_dao.LoadFriends(session.UserId, ALL_CONTACTS_GROUP)
 	checkNoErrorOrPanic(err)
 
-	session.Write(session.NewMessage().FriendsList(friends))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().FriendsList(friends))
 	log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", session, len(friends))
 }
 
-func onFriendRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onFriendRequest(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.CreateFriendRequest)
@@ -1059,11 +1059,11 @@ func onFriendRequest(packet_type proto.PacketType, message proto.Message, sessio
 		FriendRequest: friendRequest,
 	})
 
-	session.Write(session.NewMessage().Ok(packet_type))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) CREATE FRIEND REQUEST OK\n", session)
 }
 
-func onListFriendRequests(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onListFriendRequests(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 
@@ -1074,11 +1074,11 @@ func onListFriendRequests(packet_type proto.PacketType, message proto.Message, s
 	requests, err := friend_dao.LoadFriendRequests(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	session.Write(session.NewMessage().FriendRequestsList(requests))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().FriendRequestsList(requests))
 	log.Printf("< (%v) SEND FRIEND REQUESTS (num.requests: %v)\n", session, len(requests))
 }
 
-func onConfirmFriendRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onConfirmFriendRequest(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
 	msg := message.(*proto.ConfirmFriendRequest)
@@ -1116,7 +1116,7 @@ func onConfirmFriendRequest(packet_type proto.PacketType, message proto.Message,
 		checkNoErrorOrPanic(err)
 
 		// Send OK to user
-		session.Write(session.NewMessage().Ok(packet_type))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 		log.Printf("< (%v) CONFIRM FRIEND REQUEST OK (accepted)\n", session)
 
 		// Send Friend List to both users if connected
@@ -1129,7 +1129,7 @@ func onConfirmFriendRequest(packet_type proto.PacketType, message proto.Message,
 		// Friend Request has been cancelled. Remove it.
 
 		friend_dao.DeleteFriendRequest(session.UserId, msg.FriendId, friendRequest.CreatedDate)
-		session.Write(session.NewMessage().Ok(packet_type))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 		log.Printf("< (%v) CONFIRM FRIEND REQUEST OK (cancelled)\n", session)
 
 	} else {
@@ -1138,27 +1138,27 @@ func onConfirmFriendRequest(packet_type proto.PacketType, message proto.Message,
 
 }
 
-func onOk(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onOk(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 	log.Println("> OK")
 	checkAuthenticated(session)
 }
 
-func onClockRequest(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onClockRequest(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 	log.Printf("> (%v) CLOCK REQUEST\n", session)
 	checkAuthenticated(session)
-	session.Write(session.NewMessage().ClockResponse())
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().ClockResponse())
 	log.Printf("< (%v) CLOCK RESPONSE\n", session)
 }
 
-func onPing(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onPing(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 	msg := message.(*proto.TimeInfo)
 	log.Printf("> (%v) PING %v\n", session, msg.CurrentTime)
 	checkAuthenticated(session)
-	session.Write(session.NewMessage().Pong())
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Pong())
 	log.Printf("< (%v) PONG\n", session)
 }
 
-func onPong(packet_type proto.PacketType, message proto.Message, session *AyiSession) {
+func onPong(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 	msg := message.(*proto.TimeInfo)
 	checkAuthenticated(session)
 	log.Printf("> (%v) PONG %v\n", session, msg.CurrentTime)

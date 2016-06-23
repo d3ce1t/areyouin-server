@@ -7,6 +7,7 @@ import (
 	proto "peeple/areyouin/protocol"
 	"time"
 	"fmt"
+	"bufio"
 )
 
 const (
@@ -22,8 +23,7 @@ const (
 )
 
 type WriteMsg struct {
-	Id     uint16
-	Data   []byte
+	Packet *proto.AyiPacket
 	Future *Future
 }
 
@@ -44,6 +44,7 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 
 	session := &AyiSession{
 		Conn:            conn,
+		Reader:          bufio.NewReaderSize(conn, 1500),
 		ProtocolVersion: 0, // Use v1 by default
 		UserId:          0,
 		IsAuth:          false,
@@ -61,6 +62,7 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 
 type AyiSession struct {
 	Conn   net.Conn
+	Reader *bufio.Reader
 	UserId int64
 
 	// Network protocol version
@@ -109,39 +111,9 @@ func (s *AyiSession) NewMessage() proto.MessageBuilder {
 	return proto.NewPacket(s.ProtocolVersion)
 }
 
-func (s *AyiSession) WriteResponse(token uint16, packets ...*proto.AyiPacket) (ok bool) {
-
-	defer func() {
-		if r := recover(); r != nil {
-			ok = false
-			log.Printf("Session %v Write Error: %v\n", s, r)
-		}
-	}()
-
-	// Set most significant byte to 1 in order to mark
-	// packet to be sent as a response to packet with given token
-	var tokenResponse uint16 = token | (1 << 15)
-
-	data := make([]byte, 0, packets[0].Header.GetSize())
-
-	for _, packet := range packets {
-		packet.Header.SetToken(tokenResponse)
-		data = append(data, packet.Marshal()...)
-	}
-
-	// may panic if writeChan is closed
-	s.writeChan <- &WriteMsg{
-		Id:     tokenResponse,
-		Data:   data,
-		Future: nil,
-	}
-
-	return true
-}
-
 // Alias for WriteAsync without indicating a future
-func (s *AyiSession) Write(packet ...*proto.AyiPacket) (ok bool) {
-	return s.WriteAsync(nil, packet...)
+func (s *AyiSession) Write(packet *proto.AyiPacket) (ok bool) {
+	return s.WriteAsync(nil, packet)
 }
 
 func (s *AyiSession) WriteSync(packet *proto.AyiPacket) bool {
@@ -153,7 +125,7 @@ func (s *AyiSession) WriteSync(packet *proto.AyiPacket) bool {
 	return ok
 }
 
-func (s *AyiSession) WriteAsync(future *Future, packets ...*proto.AyiPacket) (ok bool) {
+func (s *AyiSession) WriteResponse(token uint16, packet *proto.AyiPacket) (ok bool) {
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -162,21 +134,38 @@ func (s *AyiSession) WriteAsync(future *Future, packets ...*proto.AyiPacket) (ok
 		}
 	}()
 
-	data := make([]byte, 0, packets[0].Header.GetSize())
-
-	for _, packet := range packets {
-		packet.Header.SetToken(s.nextToken)
-		data = append(data, packet.Marshal()...)
-	}
+	// Set most significant byte to 1 in order to mark
+	// packet to be sent as a response to packet with given token
+	var tokenResponse uint16 = token | (1 << 15)
+	packet.Header.SetToken(tokenResponse)
 
 	// may panic if writeChan is closed
 	s.writeChan <- &WriteMsg{
-		Id:     s.nextToken,
-		Data:   data,
+		Packet:   packet,
+		Future: nil,
+	}
+
+	return true
+}
+
+func (s *AyiSession) WriteAsync(future *Future, packet *proto.AyiPacket) (ok bool) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			ok = false
+			log.Printf("Session %v Write Error: %v\n", s, r)
+		}
+	}()
+
+	packet.Header.SetToken(s.nextToken)
+
+	// may panic if writeChan is closed
+	s.writeChan <- &WriteMsg{
+		Packet:   packet,
 		Future: future,
 	}
 
-	//
+	// Update next token
 	s.nextToken = (s.nextToken + 1) % (1 << 15)
 
 	return true
@@ -292,7 +281,7 @@ func (s *AyiSession) startWrite() {
 // Do a read and blocks until its done or an error happens
 func (s *AyiSession) doRead() {
 
-	packet, err := proto.ReadPacket(s.Conn) // Blocked here
+	packet, err := proto.ReadPacket(s.Reader) // Blocked here
 
 	if err == nil {
 
@@ -333,7 +322,7 @@ func (s *AyiSession) doRead() {
 }
 
 func (s *AyiSession) doWrite(msg *WriteMsg) {
-	_, err := proto.WriteBytes(msg.Data, s.Conn)
+	_, err := proto.WriteBytes(msg.Packet.Marshal(), s.Conn)
 	if err != nil {
 		s.errorChan <- err
 	}
@@ -345,13 +334,13 @@ func (s *AyiSession) doWrite(msg *WriteMsg) {
 func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 
 	waitResponse := make(chan bool, 1)
-	s.pendingResp[msg.Id] = waitResponse
+	s.pendingResp[msg.Packet.Id()] = waitResponse
 
 	defer func() {
-		delete(s.pendingResp, msg.Id)
+		delete(s.pendingResp, msg.Packet.Id())
 	}()
 
-	_, err := proto.WriteBytes(msg.Data, s.Conn)
+	_, err := proto.WriteBytes(msg.Packet.Marshal(), s.Conn)
 
 	if err != nil {
 		s.errorChan <- err
@@ -408,8 +397,8 @@ func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 	}
 
 	// REQUIRE ACK
-	if packet.Header.GetType() == proto.M_OK && packet.Header.GetToken() != 0 {
-		if c, ok := s.pendingResp[packet.Header.GetToken()]; ok {
+	if packet.Header.GetType() == proto.M_OK && packet.Id() != 0 && !packet.HasPayload() {
+		if c, ok := s.pendingResp[packet.Id()]; ok {
 			log.Printf("> (%v) ACK %v\n", s.UserId, packet.Header.GetToken())
 			c <- true
 		}
