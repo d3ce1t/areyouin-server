@@ -111,7 +111,6 @@ func (s *Server) init() {
 		ClientAuth:   tls.NoClientCert,
 		Certificates: []tls.Certificate{cert},
 		ServerName:   "service.peeple.es",
-		InsecureSkipVerify: s.Testing,
 	}
 
 	// Init sessions holder

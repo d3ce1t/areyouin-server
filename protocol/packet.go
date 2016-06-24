@@ -8,7 +8,7 @@ import (
 	"runtime/debug"
 )
 
-func newPacketV2() *AyiPacket {
+func newPacket() *AyiPacket {
 	packet := &AyiPacket{
 		Header: &AyiHeaderV2{},
 	}
@@ -16,17 +16,6 @@ func newPacketV2() *AyiPacket {
 	packet.Header.SetToken(0)
 	packet.Header.SetType(M_ERROR)
 	packet.Header.SetSize(0) // Payload size
-	return packet
-}
-
-func newPacketV1() *AyiPacket {
-	packet := &AyiPacket{
-		Header: &AyiHeaderV1{},
-	}
-	packet.Header.SetVersion(0)
-	packet.Header.SetToken(0)
-	packet.Header.SetType(M_ERROR)
-	packet.Header.SetSize(0) // Payload size (internally stores header + payload size)
 	return packet
 }
 

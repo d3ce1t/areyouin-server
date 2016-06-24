@@ -7,7 +7,6 @@ import (
 	proto "peeple/areyouin/protocol"
 	"time"
 	"fmt"
-	"bufio"
 )
 
 const (
@@ -18,7 +17,7 @@ const (
 	PING_RETRY_INTERVAL_MS = 20 * time.Second
 
 	// Channels Sizes
-	WRITE_CHANNEL_SIZE = 3
+	WRITE_CHANNEL_SIZE = 5
 )
 
 type WriteMsg struct {
@@ -43,7 +42,6 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 
 	session := &AyiSession{
 		Conn:            conn,
-		Reader:          bufio.NewReaderSize(conn, 1500),
 		ProtocolVersion: 0, // Use v1 by default
 		UserId:          0,
 		IsAuth:          false,
@@ -61,7 +59,6 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 
 type AyiSession struct {
 	Conn   net.Conn
-	Reader *bufio.Reader
 	UserId int64
 
 	// Network protocol version
@@ -209,6 +206,7 @@ func (s *AyiSession) eventLoop() (exit bool) {
 	}()
 
 	for {
+
 		select {
 		case packet := <-s.readReadyChan:
 			s.OnRead(s, packet)
@@ -265,22 +263,11 @@ func (s *AyiSession) doRead() {
 		}
 	}()
 
-	packet, err := proto.ReadPacket(s.Reader) // Blocked here
+	packet, err := proto.ReadPacket(s.Conn) // Blocked here
 
 	if err == nil {
 
 		// Read
-
-		s.lastRecvMsg = time.Now()
-		s.pingTime = s.lastRecvMsg.Add(PING_INTERVAL_MS)
-
-		// Before HELLO message was introduced, the protocol version was set from the
-		// received packet each time. Now protocol version is set by HELLO message.
-		// For compatibility purposes keep doing the same thing but get it from the first
-		// received packet so that version from a posterior HELLO message doesn't get overrided.
-		if s.ProtocolVersion == 0 {
-			s.ProtocolVersion = uint8(packet.Version())
-		}
 
 		if !s.manageSessionMsg(packet) {
 			s.readReadyChan <- packet
@@ -377,6 +364,27 @@ func (s *AyiSession) manageWrite(writeMsg *WriteMsg) {
 // Manage session messages. Returns true if message has been
 // managed or false otherwise
 func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
+
+	s.lastRecvMsg = time.Now()
+	s.pingTime = s.lastRecvMsg.Add(PING_INTERVAL_MS)
+
+	if packet.Version() > 0 {
+
+		// Before HELLO message was introduced, the protocol version was set from the
+		// received packet each time. Now protocol version is set by HELLO message.
+		// For compatibility purposes keep doing the same thing but get it from the first
+		// received packet so that version from a posterior HELLO message doesn't get overrided.
+
+		if s.ProtocolVersion == 0 {
+			s.ProtocolVersion = uint8(packet.Version())
+		}
+
+	} else {
+		// Do not allow connections from protocol version 0 (i.e AreYouIn Android/1.0.7 and lower)
+		log.Printf("* (%v) Session is gonna be closed because of a deprecated app version being used\n", s)
+		s.Exit()
+		return true
+	}
 
 	// USE TLS
 	if packet.Header.GetType() == proto.M_USE_TLS {

@@ -1,8 +1,6 @@
 package protocol
 
 import (
-	"bufio"
-	"encoding/binary"
 	"io"
 	"net"
 	"syscall"
@@ -12,17 +10,15 @@ import (
 const (
 	MAX_WRITE_TIMEOUT = 15 * time.Second
 	MAX_PAYLOAD_SIZE  = 1024000 // 1 Mb
-	VERSION_1         = 0
-	VERSION_2         = 1
+	VERSION_1         = 0 // Use old packet v1
+	VERSION_2         = 1 // Use new header format pb based
+	VERSION_3         = 2 // Same header but different behaviour
 )
 
 func NewPacket(version uint8) *PacketBuilder {
 	mb := &PacketBuilder{}
-	if version == 0 {
-		mb.message = newPacketV1()
-	} else {
-		mb.message = newPacketV2()
-	}
+	mb.message = newPacket()
+	mb.message.Header.SetVersion(uint32(version))
 	return mb
 }
 
@@ -45,7 +41,7 @@ func getError(err error) (protoerror error) {
 }
 
 func WriteBytes(data []byte, conn net.Conn) (int, error) {
-
+	
 	if conn == nil {
 		return -1, ErrInvalidSocket
 	}
@@ -62,7 +58,7 @@ func WriteBytes(data []byte, conn net.Conn) (int, error) {
 
 // Reads a packet from net.Conn. This function reads packets with header formated
 // as v1 or v2.
-func ReadPacket(reader *bufio.Reader) (*AyiPacket, error) {
+func ReadPacket(reader io.Reader) (*AyiPacket, error) {
 
 	if reader == nil {
 		return nil, ErrInvalidSocket
@@ -115,39 +111,7 @@ func readLimit(reader io.Reader, limit uint, data []byte) error {
 	return nil
 }
 
-// In header v1 first byte is version. However, this byte
-// is header size in header v2. So max.size for header is 256 bytes.
-func readHeader(reader *bufio.Reader) (AyiHeader, error) {
-
-	packet_version, err := reader.ReadByte()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := reader.UnreadByte(); err != nil {
-		return nil, err
-	}
-
-	if packet_version == 0 {
-		return readHeaderV1(reader)
-	} else {
-		return readHeaderV2(reader)
-	}
-}
-
-func readHeaderV1(reader *bufio.Reader) (AyiHeader, error) {
-
-	header := &AyiHeaderV1{}
-
-	err := binary.Read(reader, binary.BigEndian, header)
-	if err != nil {
-		return nil, err
-	}
-
-	return header, nil
-}
-
-func readHeaderV2(reader *bufio.Reader) (AyiHeader, error) {
+func readHeader(reader io.Reader) (AyiHeader, error) {
 
 	header := &AyiHeaderV2{}
 
