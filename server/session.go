@@ -11,7 +11,6 @@ import (
 )
 
 const (
-
 	// Times
 	MAX_IDLE_TIME          = 30 * time.Minute
 	MAX_LOGIN_TIME         = 30 * time.Second
@@ -95,16 +94,16 @@ type AyiSession struct {
 	pingTime         time.Time
 }
 
-func (s *AyiSession) IsClosed() bool {
-	return s.closed
-}
-
 func (s *AyiSession) String() string {
 	if s.IsAuth {
 		return fmt.Sprintf("%v", s.UserId)
 	} else {
 		return s.Conn.RemoteAddr().String()
 	}
+}
+
+func (s *AyiSession) IsClosed() bool {
+	return s.closed
 }
 
 func (s *AyiSession) NewMessage() proto.MessageBuilder {
@@ -180,7 +179,6 @@ func (s *AyiSession) RunLoop() {
 	}()
 
 	s.startRecv()
-	s.startWrite()
 	s.ticker = time.NewTicker(5 * time.Second)
 
 	defer func() {
@@ -211,10 +209,11 @@ func (s *AyiSession) eventLoop() (exit bool) {
 	}()
 
 	for {
-
 		select {
 		case packet := <-s.readReadyChan:
 			s.OnRead(s, packet)
+		case writeMsg := <-s.writeChan:
+			s.manageWrite(writeMsg)
 		case err := <- s.errorChan:
 			s.OnError(s, err)
 		case <- s.ticker.C:
@@ -225,7 +224,6 @@ func (s *AyiSession) eventLoop() (exit bool) {
 			return true
 		}
 	}
-
 }
 
 func (s *AyiSession) Exit() {
@@ -249,29 +247,9 @@ func (s *AyiSession) closeSocket() {
 func (s *AyiSession) startRecv() {
 	if s.Conn != nil {
 		go func() {
-			// FIXME: Capture Panic here or in doRead()
 			for !s.closed {
 				s.doRead()
 			}
-			//log.Println("Read Loop Finished")
-		}()
-	} else {
-		panic(ErrSessionNotConnected)
-	}
-}
-
-func (s *AyiSession) startWrite() {
-	if s.Conn != nil {
-		go func() {
-			// Loop that will run until s.writeChan gets closed
-			for writeMsg := range s.writeChan {
-				if writeMsg.Future != nil && writeMsg.Future.RequireAck {
-					s.doWriteWithAck(writeMsg)
-				} else {
-					s.doWrite(writeMsg)
-				}
-			}
-			//log.Println("Write Loop Finished")
 		}()
 	} else {
 		panic(ErrSessionNotConnected)
@@ -280,6 +258,12 @@ func (s *AyiSession) startWrite() {
 
 // Do a read and blocks until its done or an error happens
 func (s *AyiSession) doRead() {
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Session %v doRead panic: %v\n", s, r)
+		}
+	}()
 
 	packet, err := proto.ReadPacket(s.Reader) // Blocked here
 
@@ -322,6 +306,13 @@ func (s *AyiSession) doRead() {
 }
 
 func (s *AyiSession) doWrite(msg *WriteMsg) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Session %v doWrite panic: %v\n", s, r)
+		}
+	}()
+
 	_, err := proto.WriteBytes(msg.Packet.Marshal(), s.Conn)
 	if err != nil {
 		s.errorChan <- err
@@ -332,6 +323,12 @@ func (s *AyiSession) doWrite(msg *WriteMsg) {
 }
 
 func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Session %v doWriteWithAck panic: %v\n", s, r)
+		}
+	}()
 
 	waitResponse := make(chan bool, 1)
 	s.pendingResp[msg.Packet.Id()] = waitResponse
@@ -361,6 +358,19 @@ func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 
 	if err != nil {
 		s.errorChan <- err
+	}
+}
+
+func (s *AyiSession) manageWrite(writeMsg *WriteMsg) {
+
+	if s.Conn == nil {
+		panic(ErrSessionNotConnected)
+	}
+
+	if writeMsg.Future != nil && writeMsg.Future.RequireAck {
+			s.doWriteWithAck(writeMsg)
+	} else {
+			s.doWrite(writeMsg)
 	}
 }
 
