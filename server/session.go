@@ -17,7 +17,7 @@ const (
 	PING_RETRY_INTERVAL_MS = 20 * time.Second
 
 	// Channels Sizes
-	WRITE_CHANNEL_SIZE = 5
+	//WRITE_CHANNEL_SIZE = 5
 )
 
 type WriteMsg struct {
@@ -45,10 +45,10 @@ func NewSession(conn net.Conn, server *Server) *AyiSession {
 		ProtocolVersion: 0, // Use v1 by default
 		UserId:          0,
 		IsAuth:          false,
-		readReadyChan:   make(chan *proto.AyiPacket),
-		errorChan:       make(chan error),
-		exitChan:        make(chan bool),
-		writeChan:       make(chan *WriteMsg, WRITE_CHANNEL_SIZE),
+		readReadyChan:   make(chan *proto.AyiPacket, 1),
+		errorChan:       make(chan error, 1),
+		exitChan:        make(chan bool, 1),
+		writeChan:       make(chan *WriteMsg, 1),
 		Server:          server,
 		lastRecvMsg:     time.Now().UTC(),
 		pendingResp:     make(map[uint16]chan bool),
@@ -176,6 +176,7 @@ func (s *AyiSession) RunLoop() {
 	}()
 
 	s.startRecv()
+	s.startWrite()
 	s.ticker = time.NewTicker(5 * time.Second)
 
 	defer func() {
@@ -206,12 +207,9 @@ func (s *AyiSession) eventLoop() (exit bool) {
 	}()
 
 	for {
-
 		select {
 		case packet := <-s.readReadyChan:
 			s.OnRead(s, packet)
-		case writeMsg := <-s.writeChan:
-			s.manageWrite(writeMsg)
 		case err := <- s.errorChan:
 			s.OnError(s, err)
 		case <- s.ticker.C:
@@ -247,6 +245,20 @@ func (s *AyiSession) startRecv() {
 		go func() {
 			for !s.closed {
 				s.doRead()
+			}
+		}()
+	} else {
+		panic(ErrSessionNotConnected)
+	}
+}
+
+func (s *AyiSession) startWrite() {
+	if s.Conn != nil {
+		go func () {
+			for !s.closed {
+				for writeMsg := range s.writeChan {
+					s.manageWrite(writeMsg)
+				}
 			}
 		}()
 	} else {
@@ -294,12 +306,6 @@ func (s *AyiSession) doRead() {
 
 func (s *AyiSession) doWrite(msg *WriteMsg) {
 
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("Session %v doWrite panic: %v\n", s, r)
-		}
-	}()
-
 	_, err := proto.WriteBytes(msg.Packet.Marshal(), s.Conn)
 	if err != nil {
 		s.errorChan <- err
@@ -311,48 +317,49 @@ func (s *AyiSession) doWrite(msg *WriteMsg) {
 
 func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("Session %v doWriteWithAck panic: %v\n", s, r)
-		}
-	}()
-
 	waitResponse := make(chan bool, 1)
 	s.pendingResp[msg.Packet.Id()] = waitResponse
-
-	defer func() {
-		delete(s.pendingResp, msg.Packet.Id())
-	}()
+	log.Printf("* (%v) Register write with ACK for packet %v\n", s, msg.Packet.Id())
 
 	_, err := proto.WriteBytes(msg.Packet.Marshal(), s.Conn)
-
 	if err != nil {
+		delete(s.pendingResp, msg.Packet.Id())
+		close(waitResponse)
 		s.errorChan <- err
 		msg.Future.C <- false
 		return
 	}
 
-	timeout := time.NewTicker(10 * time.Second)
+	go func() {
+		var err error
+		timeout := time.NewTicker(10 * time.Second)
 
-	select {
-	case <-waitResponse:
-	case <-timeout.C:
-		err = proto.ErrTimeout
-	}
+		defer func() {
+			delete(s.pendingResp, msg.Packet.Id())
+			close(waitResponse)
+			timeout.Stop()
 
-	timeout.Stop()
-	msg.Future.C <- (err == nil)
+			msg.Future.C <- (err == nil)
+			if err != nil {
+				s.errorChan <- err
+			}
+		}()
 
-	if err != nil {
-		s.errorChan <- err
-	}
+		select {
+		case <-waitResponse:
+		case <-timeout.C:
+			err = proto.ErrTimeout
+		}
+	}()
 }
 
 func (s *AyiSession) manageWrite(writeMsg *WriteMsg) {
 
-	if s.Conn == nil {
-		panic(ErrSessionNotConnected)
-	}
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Session %v manageWrite panic: %v\n", s, r)
+		}
+	}()
 
 	if writeMsg.Future != nil && writeMsg.Future.RequireAck {
 			s.doWriteWithAck(writeMsg)
@@ -415,9 +422,9 @@ func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 	}
 
 	// REQUIRE ACK
-	if packet.Header.GetType() == proto.M_OK && packet.Id() != 0 && !packet.HasPayload() {
+	if packet.Header.GetType() == proto.M_OK && !packet.HasPayload() {
 		if c, ok := s.pendingResp[packet.Id()]; ok {
-			log.Printf("> (%v) ACK %v\n", s.UserId, packet.Header.GetToken())
+			log.Printf("> (%v) ACK for packet with id %v\n", s.UserId, packet.Id())
 			c <- true
 		}
 		return true

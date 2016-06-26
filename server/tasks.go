@@ -367,7 +367,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 			}
 
 			if ok := session.WriteAsync(future, notify_msg); ok {
-				futures[user.Id] = future.C // TODO: Code may block here for 10 seconds. CHANGE IT!
+				futures[user.Id] = future.C
 				log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id, t.Event.EventId)
 			} else {
 				t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
@@ -393,7 +393,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 
 				if ok := session.WriteAsync(future, notify_msg); ok {
 					session.Write(attendance_status_msg)
-					futures[user.Id] = future.C // TODO: Code may block here for 10 seconds. CHANGE IT!
+					futures[user.Id] = future.C
 					log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id, t.Event.EventId)
 				} else {
 					t.sendGcmNotification(user.Id, user.IIDtoken, t.Event)
@@ -407,7 +407,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 
 	for participant_id, c := range futures {
 
-		ok := <-c // Blocks until ACK (true) or timeout (false)
+		ok := <-c // Blocks until ACK (true) or timeout (false) // TODO: Code may block here for 10 seconds. CHANGE IT!
 
 		if ok {
 
