@@ -408,7 +408,7 @@ func onChangeProfilePicture(request *proto.AyiPacket, message proto.Message, ses
 	} else {
 		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 		log.Printf("< (%v) PROFILE PICTURE CHANGED\n", session)
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccount(user))
+		session.Write(session.NewMessage().UserAccount(user))
 		log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session)
 	}
 }
