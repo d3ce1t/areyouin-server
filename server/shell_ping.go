@@ -2,6 +2,7 @@ package main
 
 import (
 	"strconv"
+	"fmt"
 )
 
 // ping client
@@ -21,6 +22,9 @@ func (shell *Shell) pingClient(args []string) {
 	if session, ok := server.sessions.Get(user_id); ok {
 		for i := uint64(0); i < repeat_times; i++ {
 			session.Write(session.NewMessage().Ping())
+			fmt.Fprintln(shell.io, "Ping sent")
 		}
+	} else {
+		fmt.Fprintln(shell.io, "User isn't connected")
 	}
 }

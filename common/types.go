@@ -20,6 +20,11 @@ type UserFriend interface {
 	GetPictureDigest() []byte
 }
 
+type IIDToken struct {
+	Token string
+	Version int
+}
+
 type Picture struct {
 	RawData []byte
 	Digest  []byte
@@ -64,14 +69,14 @@ type UserDAO interface {
 	LoadEmailCredential(email string) (credent *EmailCredential, err error)
 	LoadFacebookCredential(fbid string) (credent *FacebookCredential, err error)
 	LoadUserPicture(user_id int64) ([]byte, error)
-	GetIIDToken(user_id int64) (string, error)
+	GetIIDToken(user_id int64) (*IIDToken, error)
 	Insert(user *UserAccount) error
 	SaveProfilePicture(user_id int64, picture *Picture) error
 	SetAuthToken(user_id int64, auth_token uuid.UUID) error
 	SetLastConnection(user_id int64, time int64) error
 	SetFacebookAccessToken(user_id int64, fb_id string, fb_token string) error
 	SetAuthTokenAndFBToken(user_id int64, auth_token uuid.UUID, fb_id string, fb_token string) error
-	SetIIDToken(user_id int64, iid_token string) error
+	SetIIDToken(user_id int64, iid_token *IIDToken) error
 	ResetEmailCredentialPassword(user_id int64, email string, password string) (ok bool, err error)
 	Delete(user *UserAccount) error
 	DeleteUserAccount(user_id int64) error

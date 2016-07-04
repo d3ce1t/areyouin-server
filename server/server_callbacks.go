@@ -66,6 +66,8 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 
 	if session.ProtocolVersion >= 2 {
 
+		// Protocol V2
+
 		if len(msg.Picture) > 0 {
 
 			// Compute digest for picture
@@ -88,6 +90,8 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 		}
 
 	} else {
+
+		// Compatibility code for protocol v0 y v1
 
 		if user.HasFacebookCredentials() {
 
@@ -271,7 +275,7 @@ func onUserAuthentication(request *proto.AyiPacket, message proto.Message, sessi
 
 	session.IsAuth = true
 	session.UserId = user_id
-	session.IIDToken = user_account.IIDtoken
+	session.IIDToken = &core.IIDToken{Token: user_account.IIDtoken, Version: user_account.NetworkVersion}
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) AUTH OK\n", session)
 	server.RegisterSession(session)
@@ -322,13 +326,15 @@ func onIIDTokenReceived(request *proto.AyiPacket, message proto.Message, session
 	}
 
 	userDAO := server.NewUserDAO()
-	if err := userDAO.SetIIDToken(session.UserId, msg.Token); err != nil {
+	iidToken := &core.IIDToken{Token: msg.Token, Version: int(session.ProtocolVersion)}
+	if err := userDAO.SetIIDToken(session.UserId, iidToken); err != nil {
 		reply := session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 		log.Printf("< (%v) IID TOKEN ERROR: %v\n", session, err)
 		session.WriteResponse(request.Header.GetToken(), reply)
 		return
 	}
 
+	session.IIDToken = iidToken
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) IID TOKEN OK\n", session)
 }
@@ -493,11 +499,7 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	// Load users participants
 	userParticipants, warning, err := server.loadUserParticipants(author.Id, msg.Participants)
-	if err != nil {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
-		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session, err)
-		return
-	}
+	checkNoErrorOrPanic(err)
 
 	if len(userParticipants) == 0 {
 		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(warning, proto.E_EVENT_PARTICIPANTS_REQUIRED)))
@@ -547,7 +549,9 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 			log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session, event.EventId, len(event.Participants))
 
 		} else {
+
 			// Keep this code for clients that uses v0 and v1
+
 			session.Write(session.NewMessage().Ok(request.Type()))
 			log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session, event.EventId, len(event.Participants))
 
@@ -556,9 +560,10 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 			session.Write(event_created_msg)
 			session.Write(status_msg)
 			log.Printf("< (%v) SEND NEW EVENT %v\n", session, event.EventId)
+
 		}
 
-		notification := &NotifyEventInvitation{
+		notification := &NotifyEventInvitation {
 			Event:  event,
 			Target: userParticipants,
 		}
@@ -1156,10 +1161,4 @@ func onPing(request *proto.AyiPacket, message proto.Message, session *AyiSession
 	checkAuthenticated(session)
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Pong())
 	log.Printf("< (%v) PONG\n", session)
-}
-
-func onPong(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
-	msg := message.(*proto.TimeInfo)
-	checkAuthenticated(session)
-	log.Printf("> (%v) PONG %v\n", session, msg.CurrentTime)
 }

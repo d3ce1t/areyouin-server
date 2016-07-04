@@ -41,13 +41,6 @@ const (
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 )
 
-// GCM MESSAGES
-const (
-	GCM_NEW_EVENT_MESSAGE       = 1
-	GCM_NEW_FRIEND_MESSAGE      = 2
-	GCM_EVENT_CANCELLED_MESSAGE = 3
-)
-
 func NewServer() *Server {
 	server := &Server{
 		DbAddress: "192.168.1.2",
@@ -1208,8 +1201,6 @@ func main() {
 	server.RegisterCallback(proto.M_CREATE_FRIEND_REQUEST, onFriendRequest)
 	server.RegisterCallback(proto.M_GET_FRIEND_REQUESTS, onListFriendRequests)
 	server.RegisterCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
-
-	server.RegisterCallback(proto.M_PONG, onPong)
 
 	// Create shell and start listening in 2022 tcp port
 	shell := NewShell(server)

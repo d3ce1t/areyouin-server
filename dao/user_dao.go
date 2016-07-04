@@ -145,7 +145,7 @@ func (dao *UserDAO) LoadWithPicture(user_id int64) (*core.UserAccount, error) {
 	}
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, last_connection, created_date, profile_picture, picture_digest
+						iid_token, network_version, last_connection, created_date, profile_picture, picture_digest
 						FROM user_account
 						WHERE user_id = ? LIMIT 1`
 
@@ -155,7 +155,7 @@ func (dao *UserDAO) LoadWithPicture(user_id int64) (*core.UserAccount, error) {
 	var auth_token gocql.UUID
 
 	err := q.Scan(&user.Id, &auth_token, &user.Email, &user.EmailVerified, &user.Name,
-		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection, &user.CreatedDate,
+		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.NetworkVersion, &user.LastConnection, &user.CreatedDate,
 		&user.Picture, &user.PictureDigest)
 
 	if err != nil {
@@ -179,7 +179,7 @@ func (dao *UserDAO) Load(user_id int64) (*core.UserAccount, error) {
 	}
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, last_connection, created_date, picture_digest
+						iid_token, network_version, last_connection, created_date, picture_digest
 						FROM user_account
 						WHERE user_id = ? LIMIT 1`
 
@@ -189,7 +189,7 @@ func (dao *UserDAO) Load(user_id int64) (*core.UserAccount, error) {
 	var auth_token gocql.UUID
 
 	err := q.Scan(&user.Id, &auth_token, &user.Email, &user.EmailVerified, &user.Name,
-		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.LastConnection,
+		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.NetworkVersion, &user.LastConnection,
 		&user.CreatedDate, &user.PictureDigest)
 
 	if err != nil {
@@ -350,21 +350,21 @@ func (dao *UserDAO) LoadFacebookCredential(fbid string) (credent *core.FacebookC
 	return
 }
 
-func (dao *UserDAO) GetIIDToken(user_id int64) (string, error) {
+func (dao *UserDAO) GetIIDToken(user_id int64) (*core.IIDToken, error) {
 
 	checkSession(dao)
 
 	if user_id == 0 {
-		return "", ErrNotFound
+		return nil, ErrNotFound
 	}
 
-	stmt := `SELECT iid_token FROM user_account WHERE user_id = ?`
+	stmt := `SELECT iid_token, network_version FROM user_account WHERE user_id = ?`
 	q := dao.session.Query(stmt, user_id)
 
-	var iid_token string
+	iid_token := &core.IIDToken{}
 
-	if err := q.Scan(&iid_token); err != nil {
-		return "", err
+	if err := q.Scan(&iid_token.Token, &iid_token.Version); err != nil {
+		return nil, err
 	}
 
 	return iid_token, nil
@@ -527,7 +527,7 @@ func (dao *UserDAO) SetAuthTokenAndFBToken(user_id int64, auth_token uuid.UUID, 
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *UserDAO) SetIIDToken(user_id int64, iid_token string) error {
+func (dao *UserDAO) SetIIDToken(user_id int64, iid_token *core.IIDToken) error {
 
 	checkSession(dao)
 
@@ -535,10 +535,10 @@ func (dao *UserDAO) SetIIDToken(user_id int64, iid_token string) error {
 		return ErrInvalidArg
 	}
 
-	stmt := `UPDATE user_account SET iid_token = ?
+	stmt := `UPDATE user_account SET iid_token = ?, network_version = ?
 						WHERE user_id = ?`
 
-	return dao.session.Query(stmt, iid_token, user_id).Exec()
+	return dao.session.Query(stmt, iid_token.Token, iid_token.Version, user_id).Exec()
 }
 
 func (dao *UserDAO) ResetEmailCredentialPassword(user_id int64, email string, password string) (ok bool, err error) {

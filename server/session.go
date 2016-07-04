@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	proto "peeple/areyouin/protocol"
+	core "peeple/areyouin/common"
 	"time"
 	"fmt"
 )
@@ -14,7 +15,8 @@ const (
 	MAX_IDLE_TIME          = 30 * time.Minute
 	MAX_LOGIN_TIME         = 30 * time.Second
 	PING_INTERVAL_MS       = 29 * time.Minute
-	PING_RETRY_INTERVAL_MS = 20 * time.Second
+	PING_RETRY_INTERVAL_MS = 1 * time.Minute
+	TICKER_INTERVAL        = 30 * time.Second
 
 	// Channels Sizes
 	//WRITE_CHANNEL_SIZE = 5
@@ -80,7 +82,7 @@ type AyiSession struct {
 	writeChan        chan *WriteMsg
 	ticker           *time.Ticker
 	Server           *Server
-	IIDToken         string
+	IIDToken         *core.IIDToken
 	closed           bool
 	lastRecvMsg      time.Time
 	pendingResp      map[uint16]chan bool
@@ -177,7 +179,7 @@ func (s *AyiSession) RunLoop() {
 
 	s.startRecv()
 	s.startWrite()
-	s.ticker = time.NewTicker(5 * time.Second)
+	s.ticker = time.NewTicker(TICKER_INTERVAL)
 
 	defer func() {
 		s.ticker.Stop()
@@ -427,6 +429,12 @@ func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 			log.Printf("> (%v) ACK for packet with id %v\n", s.UserId, packet.Id())
 			c <- true
 		}
+		return true
+	}
+
+	// PONG
+	if packet.Header.GetType() == proto.M_PONG {
+		log.Printf("> (%v) PONG\n", s)
 		return true
 	}
 

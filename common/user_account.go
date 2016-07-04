@@ -72,6 +72,7 @@ type UserAccount struct {
 	Fbid           string // Facebook ID
 	Fbtoken        string // Facebook User Access token
 	IIDtoken       string // Instance ID token
+	NetworkVersion int // Protocol Version stored when IIDtoken was received
 	LastConnection int64
 	CreatedDate    int64
 	Picture        []byte
