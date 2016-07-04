@@ -75,7 +75,7 @@ func (t *NotifyEventCancelled) sendNotificationFallback(participant_id int64, gc
   userDAO := t.server.NewUserDAO()
   user, err := userDAO.Load(participant_id)
   if err != nil {
-    log.Printf("* Notify event cancelled error (userId %v) %v\n", user.GetUserId(), err)
+    log.Printf("* Notify event cancelled error (userId %v) %v\n", participant_id, err)
     return
   }
 
