@@ -58,6 +58,12 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+
 // NEW AUTH TOKEN
 type AuthType int32
 
@@ -118,10 +124,10 @@ func (*AyiHeaderV2) Descriptor() ([]byte, []int) { return fileDescriptor0, []int
 
 // Hello
 type Hello struct {
-	ProtocolVersion uint32 `protobuf:"varint,1,opt,name=protocol_version" json:"protocol_version,omitempty"`
-	ClientVersion   string `protobuf:"bytes,2,opt,name=client_version" json:"client_version,omitempty"`
+	ProtocolVersion uint32 `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion" json:"protocol_version,omitempty"`
+	ClientVersion   string `protobuf:"bytes,2,opt,name=client_version,json=clientVersion" json:"client_version,omitempty"`
 	Platform        string `protobuf:"bytes,3,opt,name=platform" json:"platform,omitempty"`
-	PlatformVersion string `protobuf:"bytes,4,opt,name=platform_version" json:"platform_version,omitempty"`
+	PlatformVersion string `protobuf:"bytes,4,opt,name=platform_version,json=platformVersion" json:"platform_version,omitempty"`
 }
 
 func (m *Hello) Reset()                    { *m = Hello{} }
@@ -132,9 +138,9 @@ func (*Hello) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 // CREATE EVENT
 type CreateEvent struct {
 	Message      string  `protobuf:"bytes,1,opt,name=message" json:"message,omitempty"`
-	CreatedDate  int64   `protobuf:"varint,2,opt,name=created_date" json:"created_date,omitempty"`
-	StartDate    int64   `protobuf:"varint,3,opt,name=start_date" json:"start_date,omitempty"`
-	EndDate      int64   `protobuf:"varint,4,opt,name=end_date" json:"end_date,omitempty"`
+	CreatedDate  int64   `protobuf:"varint,2,opt,name=created_date,json=createdDate" json:"created_date,omitempty"`
+	StartDate    int64   `protobuf:"varint,3,opt,name=start_date,json=startDate" json:"start_date,omitempty"`
+	EndDate      int64   `protobuf:"varint,4,opt,name=end_date,json=endDate" json:"end_date,omitempty"`
 	Participants []int64 `protobuf:"varint,5,rep,name=participants" json:"participants,omitempty"`
 	Picture      []byte  `protobuf:"bytes,6,opt,name=picture,proto3" json:"picture,omitempty"`
 }
@@ -146,7 +152,7 @@ func (*CreateEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int
 
 // CANCEL EVENT
 type CancelEvent struct {
-	EventId int64  `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	EventId int64  `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
 	Reason  string `protobuf:"bytes,2,opt,name=reason" json:"reason,omitempty"`
 }
 
@@ -157,7 +163,7 @@ func (*CancelEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int
 
 // INVITE USERS
 type InviteUsers struct {
-	EventId      int64   `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	EventId      int64   `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
 	Participants []int64 `protobuf:"varint,2,rep,name=participants" json:"participants,omitempty"`
 }
 
@@ -168,7 +174,7 @@ func (*InviteUsers) Descriptor() ([]byte, []int) { return fileDescriptor0, []int
 
 // CANCEL USERS INVITATION
 type CancelUsersInvitation struct {
-	EventId      int64   `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	EventId      int64   `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
 	Participants []int64 `protobuf:"varint,2,rep,name=participants" json:"participants,omitempty"`
 }
 
@@ -179,8 +185,8 @@ func (*CancelUsersInvitation) Descriptor() ([]byte, []int) { return fileDescript
 
 // CONFIRM ATTENDANCE
 type ConfirmAttendance struct {
-	EventId    int64                     `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	ActionCode common.AttendanceResponse `protobuf:"varint,2,opt,name=action_code,enum=common.AttendanceResponse" json:"action_code,omitempty"`
+	EventId    int64                     `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
+	ActionCode common.AttendanceResponse `protobuf:"varint,2,opt,name=action_code,json=actionCode,enum=common.AttendanceResponse" json:"action_code,omitempty"`
 }
 
 func (m *ConfirmAttendance) Reset()                    { *m = ConfirmAttendance{} }
@@ -192,10 +198,10 @@ func (*ConfirmAttendance) Descriptor() ([]byte, []int) { return fileDescriptor0,
 // MODIFY EVENT MESSAGE
 // MODIFY EVENT
 type ModifyEvent struct {
-	EventId   int64  `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	EventId   int64  `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
 	Message   string `protobuf:"bytes,2,opt,name=message" json:"message,omitempty"`
-	StartDate int64  `protobuf:"varint,3,opt,name=start_date" json:"start_date,omitempty"`
-	EndDate   int64  `protobuf:"varint,4,opt,name=end_date" json:"end_date,omitempty"`
+	StartDate int64  `protobuf:"varint,3,opt,name=start_date,json=startDate" json:"start_date,omitempty"`
+	EndDate   int64  `protobuf:"varint,4,opt,name=end_date,json=endDate" json:"end_date,omitempty"`
 	Picture   []byte `protobuf:"bytes,5,opt,name=picture,proto3" json:"picture,omitempty"`
 }
 
@@ -206,9 +212,9 @@ func (*ModifyEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int
 
 // VOTE CHANGE
 type VoteChange struct {
-	EventId      int64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	ChangeId     int32 `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
-	AcceptChange bool  `protobuf:"varint,3,opt,name=accept_change" json:"accept_change,omitempty"`
+	EventId      int64 `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
+	ChangeId     int32 `protobuf:"varint,2,opt,name=change_id,json=changeId" json:"change_id,omitempty"`
+	AcceptChange bool  `protobuf:"varint,3,opt,name=accept_change,json=acceptChange" json:"accept_change,omitempty"`
 }
 
 func (m *VoteChange) Reset()                    { *m = VoteChange{} }
@@ -218,8 +224,8 @@ func (*VoteChange) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{
 
 // USER POSITION
 type UserPosition struct {
-	GlobalCoordinates *common.Location `protobuf:"bytes,1,opt,name=global_coordinates" json:"global_coordinates,omitempty"`
-	EstimationError   float32          `protobuf:"fixed32,2,opt,name=estimation_error" json:"estimation_error,omitempty"`
+	GlobalCoordinates *common.Location `protobuf:"bytes,1,opt,name=global_coordinates,json=globalCoordinates" json:"global_coordinates,omitempty"`
+	EstimationError   float32          `protobuf:"fixed32,2,opt,name=estimation_error,json=estimationError" json:"estimation_error,omitempty"`
 }
 
 func (m *UserPosition) Reset()                    { *m = UserPosition{} }
@@ -236,7 +242,7 @@ func (m *UserPosition) GetGlobalCoordinates() *common.Location {
 
 // USER POSITION RANGE
 type UserPositionRange struct {
-	RangeInMeters float32 `protobuf:"fixed32,1,opt,name=range_in_meters" json:"range_in_meters,omitempty"`
+	RangeInMeters float32 `protobuf:"fixed32,1,opt,name=range_in_meters,json=rangeInMeters" json:"range_in_meters,omitempty"`
 }
 
 func (m *UserPositionRange) Reset()                    { *m = UserPositionRange{} }
@@ -273,8 +279,8 @@ func (*NewAuthToken) Descriptor() ([]byte, []int) { return fileDescriptor0, []in
 
 // ACCESS GRANTED / USER AUTH / GET ACCESS TOKEN
 type AccessToken struct {
-	UserId    int64  `protobuf:"varint,1,opt,name=user_id" json:"user_id,omitempty"`
-	AuthToken string `protobuf:"bytes,2,opt,name=auth_token" json:"auth_token,omitempty"`
+	UserId    int64  `protobuf:"varint,1,opt,name=user_id,json=userId" json:"user_id,omitempty"`
+	AuthToken string `protobuf:"bytes,2,opt,name=auth_token,json=authToken" json:"auth_token,omitempty"`
 }
 
 func (m *AccessToken) Reset()                    { *m = AccessToken{} }
@@ -296,7 +302,7 @@ func (*InstanceIDToken) Descriptor() ([]byte, []int) { return fileDescriptor0, [
 type SyncGroups struct {
 	Owner         int64                `protobuf:"varint,1,opt,name=owner" json:"owner,omitempty"`
 	Groups        []*common.Group      `protobuf:"bytes,2,rep,name=groups" json:"groups,omitempty"`
-	SyncBehaviour common.SyncBehaviour `protobuf:"varint,3,opt,name=sync_behaviour,enum=common.SyncBehaviour" json:"sync_behaviour,omitempty"`
+	SyncBehaviour common.SyncBehaviour `protobuf:"varint,3,opt,name=sync_behaviour,json=syncBehaviour,enum=common.SyncBehaviour" json:"sync_behaviour,omitempty"`
 }
 
 func (m *SyncGroups) Reset()                    { *m = SyncGroups{} }
@@ -323,7 +329,7 @@ func (*CreateFriendRequest) Descriptor() ([]byte, []int) { return fileDescriptor
 
 // CONFIRM FRIEND REQUEST
 type ConfirmFriendRequest struct {
-	FriendId int64                                      `protobuf:"varint,1,opt,name=friend_id" json:"friend_id,omitempty"`
+	FriendId int64                                      `protobuf:"varint,1,opt,name=friend_id,json=friendId" json:"friend_id,omitempty"`
 	Response ConfirmFriendRequest_FriendRequestResponse `protobuf:"varint,2,opt,name=response,enum=protocol.ConfirmFriendRequest_FriendRequestResponse" json:"response,omitempty"`
 }
 
@@ -334,8 +340,8 @@ func (*ConfirmFriendRequest) Descriptor() ([]byte, []int) { return fileDescripto
 
 // EVENT CANCELLED
 type EventCancelled struct {
-	WhoId   int64         `protobuf:"varint,1,opt,name=who_id" json:"who_id,omitempty"`
-	EventId int64         `protobuf:"varint,2,opt,name=event_id" json:"event_id,omitempty"`
+	WhoId   int64         `protobuf:"varint,1,opt,name=who_id,json=whoId" json:"who_id,omitempty"`
+	EventId int64         `protobuf:"varint,2,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
 	Reason  string        `protobuf:"bytes,3,opt,name=reason" json:"reason,omitempty"`
 	Event   *common.Event `protobuf:"bytes,4,opt,name=event" json:"event,omitempty"`
 }
@@ -354,7 +360,7 @@ func (m *EventCancelled) GetEvent() *common.Event {
 
 // EVENT EXPIRED
 type EventExpired struct {
-	EventId int64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	EventId int64 `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
 }
 
 func (m *EventExpired) Reset()                    { *m = EventExpired{} }
@@ -364,7 +370,7 @@ func (*EventExpired) Descriptor() ([]byte, []int) { return fileDescriptor0, []in
 
 // INVITATION CANCELLED
 type InvitationCancelled struct {
-	EventId int64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	EventId int64 `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
 }
 
 func (m *InvitationCancelled) Reset()                    { *m = InvitationCancelled{} }
@@ -374,9 +380,9 @@ func (*InvitationCancelled) Descriptor() ([]byte, []int) { return fileDescriptor
 
 // ATTENDANCE STATUS
 type AttendanceStatus struct {
-	EventId          int64                      `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	AttendanceStatus []*common.EventParticipant `protobuf:"bytes,2,rep,name=attendance_status" json:"attendance_status,omitempty"`
-	NumGuests        int32                      `protobuf:"varint,3,opt,name=num_guests" json:"num_guests,omitempty"`
+	EventId          int64                      `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
+	AttendanceStatus []*common.EventParticipant `protobuf:"bytes,2,rep,name=attendance_status,json=attendanceStatus" json:"attendance_status,omitempty"`
+	NumGuests        int32                      `protobuf:"varint,3,opt,name=num_guests,json=numGuests" json:"num_guests,omitempty"`
 }
 
 func (m *AttendanceStatus) Reset()                    { *m = AttendanceStatus{} }
@@ -395,10 +401,10 @@ func (m *AttendanceStatus) GetAttendanceStatus() []*common.EventParticipant {
 // EVENT CHANGE MESSAGE PROPOSED
 // EVENT CHANGE PROPOSED
 type EventChangeProposed struct {
-	EventId   int64  `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	ChangeId  int32  `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
-	StartDate int64  `protobuf:"varint,3,opt,name=start_date" json:"start_date,omitempty"`
-	EndDate   int64  `protobuf:"varint,4,opt,name=end_date" json:"end_date,omitempty"`
+	EventId   int64  `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
+	ChangeId  int32  `protobuf:"varint,2,opt,name=change_id,json=changeId" json:"change_id,omitempty"`
+	StartDate int64  `protobuf:"varint,3,opt,name=start_date,json=startDate" json:"start_date,omitempty"`
+	EndDate   int64  `protobuf:"varint,4,opt,name=end_date,json=endDate" json:"end_date,omitempty"`
 	Message   string `protobuf:"bytes,5,opt,name=message" json:"message,omitempty"`
 }
 
@@ -410,13 +416,13 @@ func (*EventChangeProposed) Descriptor() ([]byte, []int) { return fileDescriptor
 // VOTING STATUS
 // VOTING FINISHED
 type VotingStatus struct {
-	EventId       int64  `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	ChangeId      int32  `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
-	StartDate     int64  `protobuf:"varint,3,opt,name=start_date" json:"start_date,omitempty"`
-	EndDate       int64  `protobuf:"varint,4,opt,name=end_date" json:"end_date,omitempty"`
-	ElapsedTime   int64  `protobuf:"varint,5,opt,name=elapsed_time" json:"elapsed_time,omitempty"`
-	VotesReceived uint32 `protobuf:"varint,6,opt,name=votes_received" json:"votes_received,omitempty"`
-	VotesTotal    uint32 `protobuf:"varint,7,opt,name=votes_total" json:"votes_total,omitempty"`
+	EventId       int64  `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
+	ChangeId      int32  `protobuf:"varint,2,opt,name=change_id,json=changeId" json:"change_id,omitempty"`
+	StartDate     int64  `protobuf:"varint,3,opt,name=start_date,json=startDate" json:"start_date,omitempty"`
+	EndDate       int64  `protobuf:"varint,4,opt,name=end_date,json=endDate" json:"end_date,omitempty"`
+	ElapsedTime   int64  `protobuf:"varint,5,opt,name=elapsed_time,json=elapsedTime" json:"elapsed_time,omitempty"`
+	VotesReceived uint32 `protobuf:"varint,6,opt,name=votes_received,json=votesReceived" json:"votes_received,omitempty"`
+	VotesTotal    uint32 `protobuf:"varint,7,opt,name=votes_total,json=votesTotal" json:"votes_total,omitempty"`
 	Finished      bool   `protobuf:"varint,8,opt,name=finished" json:"finished,omitempty"`
 }
 
@@ -427,8 +433,8 @@ func (*VotingStatus) Descriptor() ([]byte, []int) { return fileDescriptor0, []in
 
 // CHANGE ACCEPTED
 type ChangeAccepted struct {
-	EventId  int64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	ChangeId int32 `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
+	EventId  int64 `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
+	ChangeId int32 `protobuf:"varint,2,opt,name=change_id,json=changeId" json:"change_id,omitempty"`
 }
 
 func (m *ChangeAccepted) Reset()                    { *m = ChangeAccepted{} }
@@ -438,8 +444,8 @@ func (*ChangeAccepted) Descriptor() ([]byte, []int) { return fileDescriptor0, []
 
 // CHANGE DISCARDED
 type ChangeDiscarded struct {
-	EventId  int64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
-	ChangeId int32 `protobuf:"varint,2,opt,name=change_id" json:"change_id,omitempty"`
+	EventId  int64 `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
+	ChangeId int32 `protobuf:"varint,2,opt,name=change_id,json=changeId" json:"change_id,omitempty"`
 }
 
 func (m *ChangeDiscarded) Reset()                    { *m = ChangeDiscarded{} }
@@ -471,7 +477,7 @@ func (*Error) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{27} }
 
 // PING/PONG/CLOCK_RESPONSE
 type TimeInfo struct {
-	CurrentTime int64 `protobuf:"varint,1,opt,name=current_time" json:"current_time,omitempty"`
+	CurrentTime int64 `protobuf:"varint,1,opt,name=current_time,json=currentTime" json:"current_time,omitempty"`
 }
 
 func (m *TimeInfo) Reset()                    { *m = TimeInfo{} }
@@ -481,7 +487,7 @@ func (*TimeInfo) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{28
 
 // READ EVENT
 type ReadEvent struct {
-	EventId int64 `protobuf:"varint,1,opt,name=event_id" json:"event_id,omitempty"`
+	EventId int64 `protobuf:"varint,1,opt,name=event_id,json=eventId" json:"event_id,omitempty"`
 }
 
 func (m *ReadEvent) Reset()                    { *m = ReadEvent{} }
@@ -496,10 +502,10 @@ func (*ReadEvent) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2
 // HISTORY PRIVATE EVENTS
 // HISTORY PUBLIC EVENTS
 type EventListRequest struct {
-	StartWindow     int64            `protobuf:"varint,1,opt,name=start_window" json:"start_window,omitempty"`
-	EndWindow       int64            `protobuf:"varint,2,opt,name=end_window" json:"end_window,omitempty"`
-	UserCoordinates *common.Location `protobuf:"bytes,3,opt,name=user_coordinates" json:"user_coordinates,omitempty"`
-	RangeInMeters   uint32           `protobuf:"varint,4,opt,name=range_in_meters" json:"range_in_meters,omitempty"`
+	StartWindow     int64            `protobuf:"varint,1,opt,name=start_window,json=startWindow" json:"start_window,omitempty"`
+	EndWindow       int64            `protobuf:"varint,2,opt,name=end_window,json=endWindow" json:"end_window,omitempty"`
+	UserCoordinates *common.Location `protobuf:"bytes,3,opt,name=user_coordinates,json=userCoordinates" json:"user_coordinates,omitempty"`
+	RangeInMeters   uint32           `protobuf:"varint,4,opt,name=range_in_meters,json=rangeInMeters" json:"range_in_meters,omitempty"`
 }
 
 func (m *EventListRequest) Reset()                    { *m = EventListRequest{} }
@@ -555,7 +561,7 @@ type UserAccount struct {
 	Name          string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
 	Email         string `protobuf:"bytes,2,opt,name=email" json:"email,omitempty"`
 	Picture       []byte `protobuf:"bytes,3,opt,name=picture,proto3" json:"picture,omitempty"`
-	PictureDigest []byte `protobuf:"bytes,4,opt,name=picture_digest,proto3" json:"picture_digest,omitempty"`
+	PictureDigest []byte `protobuf:"bytes,4,opt,name=picture_digest,json=pictureDigest,proto3" json:"picture_digest,omitempty"`
 	FbId          string `protobuf:"bytes,5,opt,name=fbId" json:"fbId,omitempty"`
 }
 
@@ -638,6 +644,8 @@ func init() {
 	proto.RegisterEnum("protocol.AuthType", AuthType_name, AuthType_value)
 	proto.RegisterEnum("protocol.ConfirmFriendRequest_FriendRequestResponse", ConfirmFriendRequest_FriendRequestResponse_name, ConfirmFriendRequest_FriendRequestResponse_value)
 }
+
+func init() { proto.RegisterFile("protocol.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
 	// 1525 bytes of a gzipped FileDescriptorProto
@@ -734,7 +742,7 @@ var fileDescriptor0 = []byte{
 	0xaf, 0x28, 0x7f, 0x7c, 0x17, 0x6a, 0xd9, 0xa0, 0x63, 0x37, 0xf1, 0xdb, 0xdd, 0xed, 0x1f, 0x8e,
 	0x8e, 0x86, 0xd8, 0x1c, 0xdb, 0x00, 0x7d, 0xf7, 0x51, 0x7f, 0x30, 0xdc, 0xda, 0xdb, 0xfb, 0xb6,
 	0x63, 0x6d, 0xdd, 0x81, 0x77, 0xb9, 0xec, 0xc5, 0x9c, 0xc7, 0x13, 0xde, 0xf3, 0x12, 0x7e, 0x29,
-	0x66, 0x61, 0xd4, 0xf3, 0xe2, 0xb0, 0x17, 0xf1, 0x14, 0x87, 0xbc, 0xb3, 0xdf, 0x4b, 0xe5, 0xfe,
-	0xfe, 0xd6, 0x71, 0x95, 0x1a, 0xf7, 0x83, 0xbf, 0x03, 0x00, 0x00, 0xff, 0xff, 0x1f, 0x7b, 0xc7,
-	0x10, 0x64, 0x0f, 0x00, 0x00,
+	0x66, 0x61, 0xd4, 0x93, 0xc1, 0x59, 0x2f, 0xe2, 0x29, 0x0e, 0x79, 0x67, 0xbf, 0x97, 0xca, 0xfd,
+	0xfd, 0xad, 0xe3, 0x2a, 0x35, 0xee, 0x07, 0x7f, 0x07, 0x00, 0x00, 0xff, 0xff, 0xa7, 0x48, 0x4d,
+	0x23, 0x64, 0x0f, 0x00, 0x00,
 }
