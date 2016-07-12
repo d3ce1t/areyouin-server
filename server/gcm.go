@@ -81,6 +81,7 @@ func sendGcmNewEventNotification(user_id int64, token string, event *core.Event)
 	sendGcmMessage(user_id, gcm_message)
 }
 
+// Send-to-Sync PUSH Message
 func sendGcmDataAvailableNotification(user_id int64, token string, ttl uint32) {
 
   if token == "" {
@@ -93,6 +94,8 @@ func sendGcmDataAvailableNotification(user_id int64, token string, ttl uint32) {
 		To:         token,
 		TimeToLive: uint(gcm_ttl),
 		Priority:   "high",
+    CollapseKey: "send-to-sync",
+    ContentAvailable: true, // For iOS
 		Data: gcm.Data{
 			"msg_type":    "notification",
 			"notify_type": GCM_NEW_DATA_AVAILABLE,
