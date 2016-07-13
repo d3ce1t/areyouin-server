@@ -84,6 +84,7 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 			if err != nil {
 				log.Printf("* (%v) CREATE ACCOUNT: SET PROFILE PICTURE ERROR: %v\n", session, err)
 			} else {
+				user.PictureDigest = picture.Digest
 				log.Printf("* (%v) CREATE ACCOUNT: PROFILE PICTURE SET\n", session)
 			}
 
