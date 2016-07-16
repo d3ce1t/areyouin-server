@@ -1126,6 +1126,8 @@ func onConfirmFriendRequest(request *proto.AyiPacket, message proto.Message, ses
 		log.Printf("< (%v) CONFIRM FRIEND REQUEST OK (accepted)\n", session)
 
 		// Send Friend List to both users if connected
+		// TODO: In this case, FRIENDS_LIST is sent as a notification. Because of this,
+		// it should be only a subset of all friends in server. 
 		server.task_executor.Submit(&SendUserFriends{UserId: currentUser.Id})
 		server.task_executor.Submit(&SendUserFriends{UserId: friend.Id})
 		//task.sendGcmNotification(friendUser.Id, friendUser.IIDtoken, task.TargetUser)
