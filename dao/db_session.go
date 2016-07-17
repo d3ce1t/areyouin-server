@@ -2,6 +2,7 @@ package dao
 
 import (
   "github.com/gocql/gocql"
+  "time"
 )
 
 func NewSession(keyspace string, hosts ...string) *GocqlSession {
@@ -9,6 +10,7 @@ func NewSession(keyspace string, hosts ...string) *GocqlSession {
   session.cluster = gocql.NewCluster(hosts...)
   session.cluster.Keyspace = keyspace
   session.cluster.Consistency = gocql.LocalQuorum
+  session.cluster.Timeout = 3 * time.Second
   return session
 }
 

@@ -47,14 +47,11 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 		// Compatibility code for protocol v0 y v1
 
 		if userAccount.HasFacebookCredentials() {
-
 			// Load profile picture from Facebook
-
 			server.task_executor.Submit(&LoadFacebookProfilePicture{
 				User:    userAccount,
 				Fbtoken: userAccount.Fbtoken,
 			})
-
 		}
 	}
 

@@ -334,6 +334,7 @@ func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 
 	go func() {
 		var err error
+		// TODO: Change ticker by timer
 		timeout := time.NewTicker(10 * time.Second)
 
 		defer func() {

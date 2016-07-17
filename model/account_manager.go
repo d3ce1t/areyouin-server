@@ -30,11 +30,12 @@ type AccountManager struct {
   friendDAO core.FriendDAO
 }
 
-// core.ErrInvalidName
-// core.ErrInvalidEmail
-// core.ErrInvalidPassword
-// core.ErrNoCredentials
-// facebook.ErrFacebookAccessForbidden
+// Prominent Errors:
+// - core.ErrInvalidName
+// - core.ErrInvalidEmail
+// - core.ErrInvalidPassword
+// - core.ErrNoCredentials
+// - facebook.ErrFacebookAccessForbidden
 func (self *AccountManager) CreateUserAccount(name string, email string, password string, phone string, fbId string, fbToken string) (*core.UserAccount, error) {
 
   // Create new user account object
@@ -216,12 +217,19 @@ func (self *AccountManager) GetFacebookFriends(user *core.UserAccount) ([]*core.
   for _, fbFriend := range fbFriends {
 
     friend_id, err := self.userDAO.GetIDByFacebookID(fbFriend.Id)
-    if err != nil && err != dao.ErrNotFound {
+    if err == dao.ErrNotFound {
+      // Skip: Facebook user has AreYouIN Facebook App but it's not registered (strangely)
+      continue
+    } else if err != nil {
 			return nil, err
 		}
 
     friendUser, err := self.userDAO.Load(friend_id)
-		if err != nil {
+    if err == dao.ErrNotFound {
+      // TODO: Send e-mail to Admin
+      log.Printf("* GET FACEBOOK FRIENDS WARNING: USER %v NOT FOUND: This means a FbId (%v) points to an AyiId (%v) that does not exist. Admin required.\n", friend_id, fbFriend.Id, friend_id)
+      return nil, ErrModelInconsistency
+    } else if err != nil {
 			return nil, err
 		}
 

@@ -33,6 +33,8 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 		return
 	}
 
+	log.Printf("ImportFacebookFriends: %v friends imported\n", len(addedFriends))
+
 	// Loop through added friends in order to notify them
 	for _, newFriend := range addedFriends {
 
