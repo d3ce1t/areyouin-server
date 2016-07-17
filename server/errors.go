@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	core "peeple/areyouin/common"
+	"peeple/areyouin/facebook"
 	"peeple/areyouin/dao"
 	proto "peeple/areyouin/protocol"
 )
@@ -52,6 +53,9 @@ func getNetErrorCode(err error, default_code int32) int32 {
 		err_code = proto.E_INVALID_EVENT_OR_PARTICIPANT
 	case dao.ErrEmptyInbox:
 		err_code = proto.E_EMPTY_LIST
+
+	case facebook.ErrFacebookAccessForbidden:
+		err_code = proto.E_FB_INVALID_ACCESS
 
 	case ErrParticipantsRequired:
 		err_code = proto.E_EVENT_PARTICIPANTS_REQUIRED

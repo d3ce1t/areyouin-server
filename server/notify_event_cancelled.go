@@ -2,6 +2,7 @@ package main
 
 import (
   core "peeple/areyouin/common"
+  "peeple/areyouin/dao"
   proto "peeple/areyouin/protocol"
   "log"
   "encoding/base64"
@@ -72,7 +73,7 @@ func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 
 func (t *NotifyEventCancelled) sendNotificationFallback(participant_id int64, gcm_data string) {
 
-  userDAO := t.server.NewUserDAO()
+  userDAO := dao.NewUserDAO(t.server.DbSession)
   user, err := userDAO.Load(participant_id)
   if err != nil {
     log.Printf("* Notify event cancelled error (userId %v) %v\n", participant_id, err)

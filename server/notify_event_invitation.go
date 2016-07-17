@@ -2,6 +2,7 @@ package main
 
 import (
   core "peeple/areyouin/common"
+  "peeple/areyouin/dao"
   "log"
 )
 
@@ -41,7 +42,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 
 	// Update invitation delivery status
 	participants_changed := make([]int64, 0, len(t.Target))
-	eventDAO := ex.server.NewEventDAO()
+	eventDAO := dao.NewEventDAO(ex.server.DbSession)
 
 	for participant_id, c := range t.futures {
 

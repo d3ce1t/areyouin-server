@@ -2,11 +2,11 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"image"
 	_ "image/jpeg"
 	core "peeple/areyouin/common"
+	"peeple/areyouin/dao"
 	fb "peeple/areyouin/facebook"
 	"strconv"
 )
@@ -18,7 +18,7 @@ func (shell *Shell) resetPicture(args []string) {
 	manageShellError(err)
 
 	server := shell.server
-	userDAO := server.NewUserDAO()
+	userDAO := dao.NewUserDAO(server.DbSession)
 
 	// Load user
 	user_account, err := userDAO.Load(user_id)
@@ -34,19 +34,11 @@ func (shell *Shell) resetPicture(args []string) {
 	manageShellError(err)
 
 	// Resize image to 512x512
-	picture_bytes, err = server.resizeImage(original_image, 512)
+	picture_bytes, err = core.ResizeImage(original_image, core.PROFILE_PICTURE_MAX_WIDTH)
 	manageShellError(err)
 
-	// Compute digest and prepare image
-	digest := sha256.Sum256(picture_bytes)
-
-	picture := &core.Picture{
-		RawData: picture_bytes,
-		Digest:  digest[:],
-	}
-
-	// Save profile Picture
-	err = server.saveProfilePicture(user_id, picture)
+	// Change image
+	err = server.Accounts.ChangeProfilePicture(user_account, picture_bytes)
 	manageShellError(err)
 
 	fmt.Fprintf(shell.io, "Picture size %v bytes\n", len(picture_bytes))

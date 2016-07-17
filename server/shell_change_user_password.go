@@ -4,6 +4,7 @@ import (
 	"strconv"
   "errors"
   "fmt"
+	"peeple/areyouin/dao"
 )
 
 func (shell *Shell) changeUserPassword(args []string) {
@@ -18,11 +19,11 @@ func (shell *Shell) changeUserPassword(args []string) {
   var newPassword string = args[2]
 
   server := shell.server
-	dao := server.NewUserDAO()
-	user, err := dao.Load(user_id)
+	userDAO := dao.NewUserDAO(server.DbSession)
+	user, err := userDAO.Load(user_id)
 	manageShellError(err)
 
-  _, err = dao.ResetEmailCredentialPassword(user.Id, user.Email, newPassword)
+  _, err = userDAO.ResetEmailCredentialPassword(user.Id, user.Email, newPassword)
   manageShellError(err)
   fmt.Fprint(shell.io, "Password changed\n")
 }

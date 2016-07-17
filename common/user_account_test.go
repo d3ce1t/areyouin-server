@@ -36,7 +36,7 @@ func TestValidEmail(t *testing.T) {
 }
 
 // This test is the same as user_dao_test.go TestInsert1
-func TestValidUserAccounts(t *testing.T) {
+/*func TestValidUserAccounts(t *testing.T) {
 
 	var tests = []struct {
 		user *UserAccount
@@ -61,4 +61,4 @@ func TestValidUserAccounts(t *testing.T) {
 			t.Fatalf("Failed at test %v (wanted=%v, obtained=%v): Error %v", i, test.want, valid, err)
 		}
 	}
-}
+}*/

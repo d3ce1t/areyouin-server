@@ -2,6 +2,7 @@ package main
 
 import (
   core "peeple/areyouin/common"
+  "peeple/areyouin/dao"
   "log"
 )
 
@@ -20,7 +21,7 @@ func (t *NotifyFriendRequest) Run(ex *TaskExecutor) {
 		log.Printf("< (%v) FRIEND REQUEST RECEIVED: %v\n", session, t.FriendRequest)
 	} else {
 
-    userDAO := server.NewUserDAO()
+    userDAO := dao.NewUserDAO(server.DbSession)
     iid_token, err := userDAO.GetIIDToken(t.UserId)
     if err != nil {
       log.Printf("* NotifyFriendRequest error (userId %v) %v\n", t.UserId, err)

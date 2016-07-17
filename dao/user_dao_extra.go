@@ -65,7 +65,7 @@ func (dao *UserDAO) checkFacebookCredential(user_id int64, fb_id string) (bool, 
 // Returns true if given e-mail exists, otherwise it returns false.
 func (dao *UserDAO) existEmail(email string) (bool, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `SELECT user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
 
@@ -84,7 +84,7 @@ func (dao *UserDAO) existEmail(email string) (bool, error) {
 // or an error happens, returns (0, error).
 func (dao *UserDAO) getIDByEmail(email string) (int64, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `SELECT user_id FROM user_email_credentials WHERE email = ? LIMIT 1`
 	var user_id int64
@@ -141,7 +141,7 @@ func (dao *UserDAO) getIDByEmail(email string) (int64, error) {
 
 func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	var query *gocql.Query
 
@@ -182,7 +182,7 @@ func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err erro
 
 func (dao *UserDAO) insertEmailCredentials(user_id int64, email string, password string) (ok bool, err error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if email == "" || password == "" || user_id == 0 {
 		return false, ErrInvalidArg
@@ -207,7 +207,7 @@ func (dao *UserDAO) insertEmailCredentials(user_id int64, email string, password
 
 func (dao *UserDAO) insertEmail(user_id int64, email string) (ok bool, err error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if email == "" || user_id == 0 {
 		return false, ErrInvalidArg
@@ -229,7 +229,7 @@ func (dao *UserDAO) insertEmail(user_id int64, email string) (ok bool, err error
 // seconds haven't elapsed yet since created_date then return ErrGracePeriod .
 func (dao *UserDAO) insertFacebookCredentials(fb_id string, fb_token string, user_id int64) (ok bool, err error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if fb_id == "" || fb_token == "" || user_id == 0 {
 		return false, ErrInvalidArg

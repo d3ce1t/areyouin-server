@@ -1,4 +1,4 @@
-package common
+package idgen
 
 import (
 	"testing"
@@ -7,10 +7,10 @@ import (
 func TestIDGenerator(t *testing.T) {
 
 	hash := make(map[uint64]bool)
-	idgen := NewIDGen(1)
+	idgen := newIDGen(1)
 
 	for i := 0; i < 40000; i++ {
-		newId := idgen.GenerateID()
+		newId := idgen.generateID()
 
 		if _, ok := hash[newId]; ok {
 			t.Fatal("The generated ID", newId, "already exists on iteration", i)

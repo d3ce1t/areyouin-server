@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	core "peeple/areyouin/common"
+	"peeple/areyouin/dao"
 	"strconv"
 )
 
@@ -13,12 +14,12 @@ func (shell *Shell) showUser(args []string) {
 	manageShellError(err)
 
 	server := shell.server
-	dao := server.NewUserDAO()
-	user, err := dao.Load(user_id)
+	userDAO := dao.NewUserDAO(server.DbSession)
+	user, err := userDAO.Load(user_id)
 	manageShellError(err)
 
 	valid_user, _ := user.IsValid()
-	valid_account, err := dao.CheckValidAccount(user_id, true)
+	valid_account, err := userDAO.CheckValidAccount(user_id, true)
 
 	if err != nil {
 		fmt.Fprintln(shell.io, "Error checking account:", err)
@@ -46,7 +47,7 @@ func (shell *Shell) showUser(args []string) {
 	fmt.Fprintln(shell.io, "E-mail credentials")
 	fmt.Fprintln(shell.io, "---------------------------------")
 
-	if email, err := dao.LoadEmailCredential(user.Email); err == nil {
+	if email, err := userDAO.LoadEmailCredential(user.Email); err == nil {
 		fmt.Fprintln(shell.io, "E-mail:", email.Email == user.Email)
 		if email.Password == core.EMPTY_ARRAY_32B || email.Salt == core.EMPTY_ARRAY_32B {
 			fmt.Fprintln(shell.io, "No password set")
@@ -64,7 +65,7 @@ func (shell *Shell) showUser(args []string) {
 	fmt.Fprintln(shell.io, "---------------------------------")
 
 	if user.HasFacebookCredentials() {
-		facebook, err := dao.LoadFacebookCredential(user.Fbid)
+		facebook, err := userDAO.LoadFacebookCredential(user.Fbid)
 		if err == nil {
 			fmt.Fprintln(shell.io, "Fbid:", facebook.Fbid == user.Fbid)
 			fmt.Fprintln(shell.io, "Fbtoken:", facebook.Fbtoken == user.Fbtoken)

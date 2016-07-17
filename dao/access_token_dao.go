@@ -1,25 +1,17 @@
 package dao
 
 import (
-	"github.com/gocql/gocql"
 	core "peeple/areyouin/common"
+	"github.com/gocql/gocql"
 )
 
-func NewAccessTokenDAO(session *gocql.Session) core.AccessTokenDAO {
-	return &AccessTokenDAO{session: session}
-}
-
 type AccessTokenDAO struct {
-	session *gocql.Session
-}
-
-func (dao *AccessTokenDAO) GetSession() *gocql.Session {
-	return dao.session
+	session *GocqlSession
 }
 
 func (dao *AccessTokenDAO) Insert(user_id int64, token string) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 || token == "" {
 		return ErrInvalidArg
@@ -33,7 +25,7 @@ func (dao *AccessTokenDAO) Insert(user_id int64, token string) error {
 
 func (dao *AccessTokenDAO) CheckAccessToken(user_id int64, access_token string) (bool, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `SELECT access_token FROM user_access_token WHERE user_id = ? LIMIT 1`
 	q := dao.session.Query(stmt, user_id)
@@ -57,7 +49,7 @@ func (dao *AccessTokenDAO) CheckAccessToken(user_id int64, access_token string) 
 
 func (dao *AccessTokenDAO) SetLastUsed(user_id int64, time int64) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 || time < 0 {
 		return ErrInvalidArg
@@ -69,7 +61,7 @@ func (dao *AccessTokenDAO) SetLastUsed(user_id int64, time int64) error {
 
 func (dao *AccessTokenDAO) Remove(user_id int64) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return ErrInvalidArg

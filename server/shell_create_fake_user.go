@@ -2,15 +2,14 @@ package main // create_fake_user
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"image"
 	_ "image/jpeg"
 	"io/ioutil"
 	"net/http"
-	core "peeple/areyouin/common"
 	"unicode"
+	core "peeple/areyouin/common"
 )
 
 func (shell *Shell) createFakeUser(args []string) {
@@ -57,12 +56,11 @@ func (shell *Shell) createFakeUser(args []string) {
 	manageShellError(err)
 
 	// Resize image to 512xauto
-	picture_bytes, err = shell.server.resizeImage(original_image, 512)
+	picture_bytes, err = core.ResizeImage(original_image, core.PROFILE_PICTURE_MAX_WIDTH)
 	manageShellError(err)
 
 	// Create new user account
-	user := core.NewUserAccount(shell.server.GetNewID(), name, email, password, "", "", "")
-	err = shell.server.createUserAccount(user)
+	user, err := shell.server.Accounts.CreateUserAccount(name, email, password, "", "", "")
 	manageShellError(err)
 
 	// Success
@@ -70,15 +68,7 @@ func (shell *Shell) createFakeUser(args []string) {
 	fmt.Fprintf(shell.io, "Name: %v\nEmail: %v\nPassword: %v\nPicture: %v\n",
 		name, email, password, picture_url)
 
-	// Save profile Picture
-	digest := sha256.Sum256(picture_bytes)
-
-	picture := &core.Picture{
-		RawData: picture_bytes,
-		Digest:  digest[:],
-	}
-
-	err = shell.server.saveProfilePicture(user.Id, picture)
+	err = shell.server.Accounts.ChangeProfilePicture(user, picture_bytes)
 	manageShellError(err)
 
 	fmt.Fprintf(shell.io, "Profile picture changed\n")

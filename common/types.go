@@ -30,6 +30,12 @@ type Picture struct {
 	Digest  []byte
 }
 
+type DbSession interface {
+	Connect() error
+	IsValid() bool
+	Closed() bool
+}
+
 type EventDAO interface {
 	InsertEventAndParticipants(event *Event) error
 	LoadEventPicture(event_id int64) ([]byte, error)

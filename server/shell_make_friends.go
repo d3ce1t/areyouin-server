@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"peeple/areyouin/dao"
 )
 
 // make_friends user1 user2
@@ -15,8 +16,8 @@ func (shell *Shell) makeFriends(args []string) {
 	manageShellError(err)
 
 	server := shell.server
-	userDAO := server.NewUserDAO()
-	friendDAO := server.NewFriendDAO()
+	userDAO := dao.NewUserDAO(server.DbSession)
+	friendDAO := dao.NewFriendDAO(server.DbSession)
 
 	user1, err := userDAO.Load(friend_one_id)
 	manageShellError(err)

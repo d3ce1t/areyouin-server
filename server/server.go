@@ -1,43 +1,26 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"image"
-	"image/jpeg"
 	"log"
-	"math"
 	"net"
 	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
+	"peeple/areyouin/model"
 	fb "peeple/areyouin/facebook"
 	imgserv "peeple/areyouin/images_server"
 	proto "peeple/areyouin/protocol"
 	wh "peeple/areyouin/webhook"
 	"strings"
 	"time"
-	"github.com/disintegration/imaging"
-	"github.com/gocql/gocql"
 	"os"
 )
 
 const (
-	ALL_CONTACTS_GROUP         = 0 // Id for the main friend group of a user
 	GCM_API_KEY                = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
 	GCM_MAX_TTL                = 2419200
-	PROFILE_PICTURE_MAX_WIDTH  = 512
-	PROFILE_PICTURE_MAX_HEIGHT = 512
-	EVENT_PICTURE_MAX_WIDTH    = 1280
-	EVENT_PICTURE_MAX_HEIGHT   = 720
-	EVENT_THUMBNAIL            = 100              // 100 px
-	THUMBNAIL_MDPI_SIZE        = 50               // 50 px
-	IMAGE_MDPI                 = 160              // 160dpi
-	IMAGE_HDPI                 = 1.5 * IMAGE_MDPI // 240dpi
-	IMAGE_XHDPI                = 2 * IMAGE_MDPI   // 320dpi
-	IMAGE_XXHDPI               = 3 * IMAGE_MDPI   // 480dpi
-	IMAGE_XXXHDPI              = 4 * IMAGE_MDPI   // 640dpi
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 )
 
@@ -73,22 +56,16 @@ type Server struct {
 	TLSConfig     *tls.Config
 	sessions      *SessionsMap
 	task_executor *TaskExecutor
-	id_gen_ch     chan uint64
 	callbacks     map[proto.PacketType]Callback
-	id_generators map[uint16]*core.IDGen
-	cluster       *gocql.ClusterConfig
-	dbsession     *gocql.Session
+	Accounts      *model.AccountManager
+	Events        *model.EventManager
+	DbSession     *dao.GocqlSession
+	DbAddress     string
 	Keyspace      string
 	webhook       *wh.WebHookServer
-	supportedDpi  []int32
-	DbAddress     string
 	serialChannel chan func()
 	Testing       bool
 	MaintenanceMode bool
-}
-
-func (s *Server) DbSession() *gocql.Session {
-	return s.dbsession
 }
 
 // Setup server components
@@ -118,39 +95,21 @@ func (s *Server) init() {
 		}
 	}()
 
-	// ID generator
-	s.id_generators = make(map[uint16]*core.IDGen)
-	s.id_gen_ch = make(chan uint64)
-	go s.generatorTask(1)
-
 	// Task Executor
 	s.task_executor = NewTaskExecutor(s)
 	s.task_executor.Start()
 
-	// Supported Screen densities
-	s.supportedDpi = []int32{IMAGE_MDPI, IMAGE_HDPI, IMAGE_XHDPI,
-		IMAGE_XXHDPI, IMAGE_XXXHDPI}
+	// Initiliase database objects and connect
+	s.DbSession = dao.NewSession(s.Keyspace, s.DbAddress)
+	s.Accounts = model.NewAccountManager(s.DbSession)
+	s.Events = model.NewEventManager(s.DbSession)
 
-	// Connect to Cassandra
-	s.cluster = gocql.NewCluster(s.DbAddress /*"192.168.1.3"*/)
-	s.cluster.Keyspace = s.Keyspace
-	s.cluster.Consistency = gocql.LocalQuorum
-
-	for s.connectToDB() != nil {
+	for err := s.DbSession.Connect(); err != nil; {
+		log.Println("Error connecting to cassandra:", err)
 		time.Sleep(5 * time.Second)
 	}
 
 	log.Println("Connected to Cassandra successfully")
-}
-
-func (s *Server) connectToDB() error {
-	if session, err := s.cluster.CreateSession(); err == nil {
-		s.dbsession = session
-		return nil
-	} else {
-		log.Println("Error connecting to cassandra:", err)
-		return err
-	}
 }
 
 func (s *Server) executeSerial(f func()) {
@@ -191,10 +150,6 @@ func (s *Server) Run() {
 	}
 }
 
-func (s *Server) GetNewID() int64 {
-	return int64(<-s.id_gen_ch)
-}
-
 func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
 	if s.callbacks == nil {
 		s.callbacks = make(map[proto.PacketType]Callback)
@@ -228,41 +183,6 @@ func (s *Server) UnregisterSession(session *AyiSession) {
 		log.Printf("* (%v) Unregister session for endpoint %v\n", session, session.Conn.RemoteAddr())
 	}
 
-}
-
-func (s *Server) NewUserDAO() core.UserDAO {
-	if s.dbsession == nil || s.dbsession.Closed() {
-		s.connectToDB()
-	}
-	return dao.NewUserDAO(s.dbsession)
-}
-
-func (s *Server) NewFriendDAO() core.FriendDAO {
-	if s.dbsession == nil || s.dbsession.Closed() {
-		s.connectToDB()
-	}
-	return dao.NewFriendDAO(s.dbsession)
-}
-
-func (s *Server) NewEventDAO() core.EventDAO {
-	if s.dbsession == nil || s.dbsession.Closed() {
-		s.connectToDB()
-	}
-	return dao.NewEventDAO(s.dbsession)
-}
-
-func (s *Server) NewThumbnailDAO() core.ThumbnailDAO {
-	if s.dbsession == nil || s.dbsession.Closed() {
-		s.connectToDB()
-	}
-	return dao.NewThumbnailDAO(s.dbsession)
-}
-
-func (s *Server) NewAccessTokenDAO() core.AccessTokenDAO {
-	if s.dbsession == nil || s.dbsession.Closed() {
-		s.connectToDB()
-	}
-	return dao.NewAccessTokenDAO(s.dbsession)
 }
 
 // Private methods
@@ -341,7 +261,7 @@ func (server *Server) handleSession(session *AyiSession) {
 		if s.IsAuth {
 			//NOTE: If a user is deleted from user_account while it is still connected,
 			// a row in invalid state will be created when updating last connection
-			s.Server.NewUserDAO().SetLastConnection(s.UserId, core.GetCurrentTimeMillis())
+			dao.NewUserDAO(s.Server.DbSession).SetLastConnection(s.UserId, core.GetCurrentTimeMillis())
 			s.Server.UnregisterSession(s)
 		}
 
@@ -355,27 +275,6 @@ func (server *Server) handleSession(session *AyiSession) {
 	session.RunLoop() // Block here
 }
 
-func (s *Server) getIDGenerator(id uint16) *core.IDGen {
-
-	generator, ok := s.id_generators[id]
-
-	if !ok {
-		generator = core.NewIDGen(id)
-		s.id_generators[id] = generator
-	}
-
-	return generator
-}
-
-func (s *Server) generatorTask(gid uint16) {
-
-	gen := s.getIDGenerator(gid)
-
-	for {
-		newId := gen.GenerateID()
-		s.id_gen_ch <- newId
-	}
-}
 
 func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err error) {
 
@@ -426,7 +325,7 @@ func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 		return
 	}
 
-	userDao := s.NewUserDAO()
+	userDao := dao.NewUserDAO(s.DbSession)
 
 	for _, entry := range updateInfo.Entries {
 
@@ -474,7 +373,7 @@ func (s *Server) GetNewParticipants(participants_id []int64, event *core.Event) 
 // Insert an event into database, add participants to it and send it to users' inbox.
 func (s *Server) PublishEvent(event *core.Event) error {
 
-	eventDAO := s.NewEventDAO()
+	eventDAO := dao.NewEventDAO(s.DbSession)
 
 	if len(event.Participants) <= 1 { // I need more than the only author
 		return ErrParticipantsRequired
@@ -505,7 +404,7 @@ func (s *Server) PublishEvent(event *core.Event) error {
 
 func (s *Server) inviteParticipantToEvent(event *core.Event, participant *core.EventParticipant) error {
 
-	eventDAO := s.NewEventDAO()
+	eventDAO := dao.NewEventDAO(s.DbSession)
 
 	if err := eventDAO.InsertEventToUserInbox(participant, event); err != nil {
 		log.Println("Coudn't deliver event", event.EventId, err)
@@ -525,8 +424,8 @@ func (s *Server) loadUserParticipants(author_id int64, participants_id []int64) 
 
 	var last_warning error
 	result := make(map[int64]*core.UserAccount)
-	userDAO := s.NewUserDAO()
-	friend_dao := s.NewFriendDAO()
+	userDAO := dao.NewUserDAO(s.DbSession)
+	friend_dao := dao.NewFriendDAO(s.DbSession)
 
 	for _, p_id := range participants_id {
 
@@ -576,8 +475,8 @@ func (s *Server) createParticipantListFromMap(participants map[int64]*core.Event
 
 func (s *Server) createParticipantsFromFriends(author_id int64) map[int64]*core.EventParticipant {
 
-	dao := s.NewFriendDAO()
-	friends, _ := dao.LoadFriends(author_id, ALL_CONTACTS_GROUP)
+	friendDAO := dao.NewFriendDAO(s.DbSession)
+	friends, _ := friendDAO.LoadFriends(author_id, 0)
 
 	if friends != nil {
 		return core.CreateParticipantsFromFriends(author_id, friends)
@@ -592,10 +491,10 @@ func (s *Server) createParticipantsFromFriends(author_id int64) map[int64]*core.
 func sendPrivateEvents(session *AyiSession) {
 
 	server := session.Server
-	dao := server.NewEventDAO()
+	eventDAO := dao.NewEventDAO(server.DbSession)
 
 	current_time := core.GetCurrentTimeMillis()
-	events, err := dao.LoadUserEventsAndParticipants(session.UserId, current_time)
+	events, err := eventDAO.LoadUserEventsAndParticipants(session.UserId, current_time)
 
 	if err != nil {
 		log.Printf("sendPrivateEvents() to %v Error: %v\n", session, err)
@@ -630,7 +529,7 @@ func sendPrivateEvents(session *AyiSession) {
 
 		if ok && ownParticipant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
 			ownParticipant.Delivered = core.MessageStatus_CLIENT_DELIVERED
-			dao.SetParticipantStatus(session.UserId, event.EventId, ownParticipant.Delivered)
+			eventDAO.SetParticipantStatus(session.UserId, event.EventId, ownParticipant.Delivered)
 
 			// Notify change in participant status to the other participants
 			task := &NotifyParticipantChange{
@@ -741,8 +640,8 @@ func (s *Server) isFriend(user1 int64, user2 int64) bool {
 		return true
 	}
 
-	dao := s.NewFriendDAO()
-	ok, err := dao.IsFriend(user2, user1)
+	friendDAO := dao.NewFriendDAO(s.DbSession)
+	ok, err := friendDAO.IsFriend(user2, user1)
 	checkNoErrorOrPanic(err)
 
 	return ok
@@ -762,199 +661,6 @@ func (s *Server) canSee(p1 int64, p2 *core.EventParticipant) bool {
 	}
 }
 
-func (s *Server) createUserAccount(user *core.UserAccount) error {
-
-	// Check if its a valid user, so the input was correct
-	if _, err := user.IsValid(); err != nil {
-		return err
-	}
-
-	userDAO := s.NewUserDAO()
-
-	// If it's a Facebook account (fbid and fbtoken are not empty) check token
-	if user.HasFacebookCredentials() {
-		fbsession := fb.NewSession(user.Fbtoken)
-		if _, err := fb.CheckAccess(user.Fbid, fbsession); err != nil {
-			return err
-		}
-	}
-
-	// Insert into users database. Insert will fail if an existing user with the same
-	// e-mail address already exists, or if the Facebook address is already being used
-	// by another user. It also controls orphaned user_facebook_credentials rows due
-	// to the way insertion is performed in Cassandra. When orphaned row is found and
-	// grace period has not elapsed, an ErrGracePeriod error is triggered. A different
-	// error message could be sent to the client whenever this happens. This way client
-	// could be notified to wait grace period seconds and retry. However, an OPERATION
-	// FAILED message is sent so far. Read UserDAO.insert for more info.
-	if err := userDAO.Insert(user); err != nil {
-		return err
-	}
-
-	// Insert OK
-	if user.HasFacebookCredentials() {
-		// Load profie picture from Facebook
-		s.task_executor.Submit(&LoadFacebookProfilePicture{
-			User:    user,
-			Fbtoken: user.Fbtoken,
-		})
-		// Import Facebook friends that uses AreYouIN if needed
-		s.task_executor.Submit(&ImportFacebookFriends{
-			TargetUser: user,
-			Fbtoken:    user.Fbtoken,
-		})
-	}
-
-	return nil
-}
-
-// Assume picture is 512x512
-func (s *Server) saveProfilePicture(user_id int64, picture *core.Picture) error {
-
-	// Decode image
-	srcImage, _, err := image.Decode(bytes.NewReader(picture.RawData))
-	if err != nil {
-		return err
-	}
-
-	// Check image size is inside bounds
-	if srcImage.Bounds().Dx() > PROFILE_PICTURE_MAX_WIDTH || srcImage.Bounds().Dy() > PROFILE_PICTURE_MAX_HEIGHT {
-		return ErrImageOutOfBounds
-	}
-
-	// Create thumbnails
-	thumbnails, err := s.createThumbnails(srcImage, THUMBNAIL_MDPI_SIZE)
-	if err != nil {
-		return err
-	}
-
-	// Save profile picture (max 512x512)
-	user_dao := s.NewUserDAO()
-
-	err = user_dao.SaveProfilePicture(user_id, picture)
-	if err != nil {
-		return err
-	}
-
-	// Save thumbnails (50x50 to 200x200)
-	thumbDAO := s.NewThumbnailDAO()
-	err = thumbDAO.Insert(user_id, picture.Digest, thumbnails)
-	if err != nil {
-		return err
-	}
-
-	// Store digest in user's friends so that friends can know that
-	// user profile picture has been changed next time they retrieve
-	// user list
-	friend_dao := s.NewFriendDAO()
-	friends, err := friend_dao.LoadFriends(user_id, ALL_CONTACTS_GROUP)
-	if err != nil {
-		return err
-	}
-
-	for _, friend := range friends {
-		err := friend_dao.SetPictureDigest(friend.GetUserId(), user_id, picture.Digest)
-		if err != nil {
-			log.Printf("Error setting picture digest for user %v and friend %v\n", user_id, friend.GetUserId())
-		}
-	}
-
-	return nil
-}
-
-func (s *Server) removeProfilePicture(user_id int64, picture *core.Picture) error {
-
-	// Save empty profile picture
-	user_dao := s.NewUserDAO()
-
-	err := user_dao.SaveProfilePicture(user_id, picture)
-	if err != nil {
-		return err
-	}
-
-	// Remove thumbnails
-	thumbDAO := s.NewThumbnailDAO()
-	err = thumbDAO.Remove(user_id)
-	if err != nil {
-		return err
-	}
-
-	// Update digest in user's friends
-	friend_dao := s.NewFriendDAO()
-	friends, err := friend_dao.LoadFriends(user_id, ALL_CONTACTS_GROUP)
-	if err != nil {
-		return err
-	}
-
-	for _, friend := range friends {
-		err := friend_dao.SetPictureDigest(friend.GetUserId(), user_id, picture.Digest)
-		if err != nil {
-			log.Printf("Error setting picture digest for user %v and friend %v\n", user_id, friend.GetUserId())
-		}
-	}
-
-	return nil
-}
-
-func (s *Server) saveEventPicture(event_id int64, picture *core.Picture) error {
-
-	// The whole picture is the header. But It is also needed thumbnails for
-	// event icon.
-
-	// Decode image
-	srcImage, _, err := image.Decode(bytes.NewReader(picture.RawData))
-	if err != nil {
-		return err
-	}
-
-	// Check image size is inside bounds
-	if srcImage.Bounds().Dx() > EVENT_PICTURE_MAX_WIDTH || srcImage.Bounds().Dy() > EVENT_PICTURE_MAX_HEIGHT {
-		log.Printf("Image Bounds: %v x %v\n", srcImage.Bounds().Dx(), srcImage.Bounds().Dy())
-		return ErrImageOutOfBounds
-	}
-
-	// Create thumbnails
-	thumbnails, err := s.createThumbnails(srcImage, EVENT_THUMBNAIL)
-	if err != nil {
-		return err
-	}
-
-	// Save thumbnails
-	thumbDAO := s.NewThumbnailDAO()
-	err = thumbDAO.Insert(event_id, picture.Digest, thumbnails)
-	if err != nil {
-		return err
-	}
-
-	// Save event picture (always does it after thumbnails)
-	eventDAO := s.NewEventDAO()
-	err = eventDAO.SetEventPicture(event_id, picture)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Server) removeEventPicture(event_id int64, picture *core.Picture) error {
-
-	// Remove event picture
-	eventDAO := s.NewEventDAO()
-	err := eventDAO.SetEventPicture(event_id, picture)
-	if err != nil {
-		return err
-	}
-
-	// Remove thumbnails
-	thumbDAO := s.NewThumbnailDAO()
-	err = thumbDAO.Remove(event_id)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Sync server-side friends groups with client-side friends groups. If groups
 // provided by the client contains all of the groups, then a full sync is required,
 // i.e. server-side groups that does not exist client-side are removed. Otherwise,
@@ -971,7 +677,7 @@ func (s *Server) removeEventPicture(event_id int64, picture *core.Picture) error
 func (s *Server) syncFriendGroups(owner int64, serverGroups []*core.Group,
 	clientGroups []*core.Group, syncBehaviour core.SyncBehaviour) {
 
-	friendsDAO := s.NewFriendDAO()
+	friendsDAO := dao.NewFriendDAO(s.DbSession)
 
 	// Copy map because it's gonna be modified
 	clientGroupsCopy := make(map[int32]*core.Group)
@@ -1076,7 +782,7 @@ func (s *Server) syncGroupMembers(user_id int64, group_id int32, serverMembers [
 
 	// After removing already existing members. Index contains only new members,
 	// so add them.
-	friendDAO := s.NewFriendDAO()
+	friendDAO := dao.NewFriendDAO(s.DbSession)
 
 	add_ids := make([]int64, 0, len(clientMembers))
 	for id, _ := range index {
@@ -1095,67 +801,6 @@ func (s *Server) syncGroupMembers(user_id int64, group_id int32, serverMembers [
 		err := friendDAO.AddMembers(user_id, group_id, add_ids...)
 		checkNoErrorOrPanic(err)
 	}
-}
-
-// Creates picture thumbnails for every supported dpi. Thumbnails size are
-// (size_xy, size_xy)*scale_factor. Thumbnails are returned as byte slide
-// JPEG encoded.
-func (s *Server) createThumbnails(srcImage image.Image, size_xy int) (map[int32][]byte, error) {
-
-	// Create thumbnails for distinct sizes
-	thumbnails := make(map[int32][]byte)
-
-	for _, dpi := range s.supportedDpi {
-		// Compute size
-		size := float32(size_xy) * (float32(dpi) / float32(IMAGE_MDPI))
-		// Resize and crop image to fill size x size area
-		dstImage := imaging.Thumbnail(srcImage, int(size), int(size), imaging.Lanczos)
-		// Encode
-		bytes := &bytes.Buffer{}
-		err := jpeg.Encode(bytes, dstImage, nil)
-		if err != nil {
-			return nil, err
-		}
-		thumbnails[dpi] = bytes.Bytes()
-	}
-
-	return thumbnails, nil
-}
-
-func (s *Server) resizeImage(picture image.Image, width int) ([]byte, error) {
-	resize_image := imaging.Resize(picture, width, 0, imaging.Lanczos)
-	bytes := &bytes.Buffer{}
-	err := jpeg.Encode(bytes, resize_image, nil)
-	if err != nil {
-		return nil, err
-	}
-	return bytes.Bytes(), nil
-}
-
-func (s *Server) getClosestDpi(reqDpi int32) int32 {
-
-	if reqDpi <= IMAGE_MDPI {
-		return IMAGE_MDPI
-	} else if reqDpi >= IMAGE_XXXHDPI {
-		return IMAGE_XXXHDPI
-	}
-
-	min_dist := math.MaxFloat32
-	dpi_index := 0
-
-	for i, dpi := range s.supportedDpi {
-		dist := math.Abs(float64(reqDpi - dpi))
-		if dist < min_dist {
-			min_dist = dist
-			dpi_index = i
-		}
-	}
-
-	if s.supportedDpi[dpi_index] < reqDpi {
-		dpi_index++
-	}
-
-	return s.supportedDpi[dpi_index]
 }
 
 func main() {

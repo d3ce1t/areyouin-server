@@ -1,7 +1,6 @@
 package facebook
 
 import (
-	"errors"
 	"fmt"
 	fb "github.com/huandu/facebook"
 	"io/ioutil"
@@ -35,7 +34,7 @@ func CheckAccess(id string, session *fb.Session) (*FacebookAccount, error) {
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, ErrFacebookAccessForbidden
 	}
 
 	// Get info
@@ -60,7 +59,7 @@ func CheckAccess(id string, session *fb.Session) (*FacebookAccount, error) {
 
 	// Check
 	if account.Id != id {
-		return nil, errors.New("Fbid does not match provided User ID")
+		return nil, ErrFacebookAccessForbidden
 	}
 
 	return account, nil

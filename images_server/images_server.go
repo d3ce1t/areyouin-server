@@ -2,24 +2,15 @@ package images_server
 
 import (
 	"errors"
+	"time"
 	"fmt"
 	"log"
-	"math"
 	"net/http"
 	"net/url"
+	"peeple/areyouin/model"
 	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
 	"strconv"
-
-	"github.com/gocql/gocql"
-)
-
-const (
-	IMAGE_MDPI    = 160              // 160dpi
-	IMAGE_HDPI    = 1.5 * IMAGE_MDPI // 240dpi
-	IMAGE_XHDPI   = 2 * IMAGE_MDPI   // 320dpi
-	IMAGE_XXHDPI  = 3 * IMAGE_MDPI   // 480dpi
-	IMAGE_XXXHDPI = 4 * IMAGE_MDPI   // 640dpi
 )
 
 var (
@@ -29,8 +20,8 @@ var (
 func NewServer(db_address string, keyspace string) *ImageServer {
 	server := &ImageServer{
 		listen_port: 40187,
-		db_address:  db_address,
-		keyspace:    keyspace,
+		DbAddress:  db_address,
+		Keyspace:    keyspace,
 	}
 	server.init()
 	return server
@@ -38,63 +29,29 @@ func NewServer(db_address string, keyspace string) *ImageServer {
 
 type ImageServer struct {
 	listen_port  int
-	cluster      *gocql.ClusterConfig
-	db_session   *gocql.Session
-	keyspace     string
-	db_address   string
-	supportedDpi []int32
+	DbSession     core.DbSession
+	DbAddress     string
+	Keyspace      string
 }
 
 func (s *ImageServer) init() {
-	// Cassandra
-	s.cluster = gocql.NewCluster(s.db_address)
-	s.cluster.Keyspace = s.keyspace
-	s.cluster.Consistency = gocql.LocalQuorum
-
-	// Supported Screen densities
-	s.supportedDpi = []int32{IMAGE_MDPI, IMAGE_HDPI, IMAGE_XHDPI,
-		IMAGE_XXHDPI, IMAGE_XXXHDPI}
-}
-
-func (s *ImageServer) getClosestDpi(reqDpi int32) int32 {
-
-	if reqDpi <= IMAGE_MDPI {
-		return IMAGE_MDPI
-	} else if reqDpi >= IMAGE_XXXHDPI {
-		return IMAGE_XXXHDPI
-	}
-
-	min_dist := math.MaxFloat32
-	dpi_index := 0
-
-	for i, dpi := range s.supportedDpi {
-		dist := math.Abs(float64(reqDpi - dpi))
-		if dist < min_dist {
-			min_dist = dist
-			dpi_index = i
-		}
-	}
-
-	if s.supportedDpi[dpi_index] < reqDpi {
-		dpi_index++
-	}
-
-	return s.supportedDpi[dpi_index]
+	// Initiliase database objects and connect
+	s.DbSession = dao.NewSession(s.Keyspace, s.DbAddress)
 }
 
 func (s *ImageServer) loadThumbnail(id int64, reqDpi int32) ([]byte, error) {
-	thumbnail_dao := dao.NewThumbnailDAO(s.db_session)
-	dpi := s.getClosestDpi(reqDpi)
+	thumbnail_dao := dao.NewThumbnailDAO(s.DbSession)
+	dpi := model.GetClosestDpi(reqDpi)
 	return thumbnail_dao.Load(id, dpi)
 }
 
 func (s *ImageServer) loadEventImage(id int64) ([]byte, error) {
-	event_dao := dao.NewEventDAO(s.db_session)
+	event_dao := dao.NewEventDAO(s.DbSession)
 	return event_dao.LoadEventPicture(id)
 }
 
 func (s *ImageServer) loadUserImage(id int64) ([]byte, error) {
-	user_dao := dao.NewUserDAO(s.db_session)
+	user_dao := dao.NewUserDAO(s.DbSession)
 	return user_dao.LoadUserPicture(id)
 }
 
@@ -114,7 +71,7 @@ func (s *ImageServer) checkAccess(header http.Header) (int64, error) {
 		return 0, err
 	}
 
-	access_dao := dao.NewAccessTokenDAO(s.db_session)
+	access_dao := dao.NewAccessTokenDAO(s.DbSession)
 	ok, err := access_dao.CheckAccessToken(user_id, token)
 	if err != nil || !ok {
 		return 0, err
@@ -323,14 +280,6 @@ func (s *ImageServer) handleUserImageRequest(w http.ResponseWriter, r *http.Requ
 	log.Printf("< (%v) SEND USER IMAGE (%v/%v bytes)\n", user_id, n, len(data))
 }
 
-func (s *ImageServer) connectToDB() {
-	if session, err := s.cluster.CreateSession(); err == nil {
-		s.db_session = session
-	} else {
-		log.Println("Error connecting to cassandra:", err)
-	}
-}
-
 func manageError(err error) {
 	if err != nil {
 		panic(err)
@@ -340,7 +289,12 @@ func manageError(err error) {
 func (s *ImageServer) Run() {
 
 	// Connect to Cassandra
-	s.connectToDB()
+	for err := s.DbSession.Connect(); err != nil; {
+		log.Println("ImageServer: Error connecting to cassandra:", err)
+		time.Sleep(5 * time.Second)
+	}
+
+	log.Println("ImageServer: Connected to Cassandra successfully")
 
 	go func() {
 		http.HandleFunc("/api/", s.handleThumbnailRequest)

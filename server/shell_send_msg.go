@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"peeple/areyouin/dao"
 )
 
 // send_msg client
@@ -16,8 +17,7 @@ func (shell *Shell) sendMsg(args []string) {
 	}
 
 	server := shell.server
-	userDAO := server.NewUserDAO()
-
+	userDAO := dao.NewUserDAO(server.DbSession)
 	user_account, err := userDAO.Load(user_id)
 	manageShellError(err)
 

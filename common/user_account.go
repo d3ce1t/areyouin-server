@@ -4,8 +4,8 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-
 	"github.com/twinj/uuid"
+	"peeple/areyouin/idgen"
 )
 
 var validEmail = regexp.MustCompile(`\w[-._\w]*\w@\w[-._\w]*\w\.\w{2,3}`)
@@ -17,16 +17,23 @@ var (
 	ErrNoCredentials   = errors.New("no credentials")
 )
 
+const (
+	USER_NAME_MIN_LENGTH         = 3
+	USER_NAME_MAX_LENGTH         = 50
+	PROFILE_PICTURE_MAX_WIDTH  = 512
+	PROFILE_PICTURE_MAX_HEIGHT = 512
+)
+
 func NewEmptyUserAccount() *UserAccount {
 	user := &UserAccount{}
 	return user
 }
 
 // TODO: Password should always be hashed
-func NewUserAccount(id int64, name string, email string, password string, phone string, fbid string, fbtoken string) *UserAccount {
+func NewUserAccount(name string, email string, password string, phone string, fbid string, fbtoken string) *UserAccount {
 
 	user := &UserAccount{
-		Id:          id,
+		Id:          idgen.NewID(),
 		Name:        name,
 		Email:       strings.ToLower(email),
 		Password:    password,

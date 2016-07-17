@@ -3,7 +3,6 @@ package dao
 import (
 	"log"
 	core "peeple/areyouin/common"
-
 	"github.com/gocql/gocql"
 	"github.com/twinj/uuid"
 )
@@ -13,11 +12,7 @@ const (
 )
 
 type UserDAO struct {
-	session *gocql.Session
-}
-
-func (dao *UserDAO) GetSession() *gocql.Session {
-	return dao.session
+	session *GocqlSession
 }
 
 // Checks that email exists and belongs to user_id. If fb_id exists, then check it also
@@ -59,7 +54,7 @@ func (dao *UserDAO) CheckValidAccountObject(user_id int64, email string, fb_id s
 // unexpected happens, it returns also an error.
 func (dao *UserDAO) CheckValidAccount(user_id int64, check_credentials bool) (bool, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return false, ErrNotFound
@@ -83,7 +78,7 @@ func (dao *UserDAO) CheckValidAccount(user_id int64, check_credentials bool) (bo
 // succeed, error otherwise.
 func (dao *UserDAO) GetIDByEmailAndPassword(email string, password string) (int64, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if email == "" || password == "" {
 		return 0, ErrNotFound
@@ -119,7 +114,7 @@ func (dao *UserDAO) GetIDByEmailAndPassword(email string, password string) (int6
 // an empty slide is returned
 func (dao *UserDAO) GetIDByFacebookID(fb_id string) (int64, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if fb_id == "" {
 		return 0, ErrNotFound
@@ -138,7 +133,7 @@ func (dao *UserDAO) GetIDByFacebookID(fb_id string) (int64, error) {
 // Load a user from database and includes profile picture
 func (dao *UserDAO) LoadWithPicture(user_id int64) (*core.UserAccount, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return nil, ErrNotFound
@@ -172,7 +167,7 @@ func (dao *UserDAO) LoadWithPicture(user_id int64) (*core.UserAccount, error) {
 // Load a user from database but do not include profile picture
 func (dao *UserDAO) Load(user_id int64) (*core.UserAccount, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return nil, ErrNotFound
@@ -204,7 +199,7 @@ func (dao *UserDAO) Load(user_id int64) (*core.UserAccount, error) {
 
 func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if email == "" {
 		return nil, ErrNotFound
@@ -219,7 +214,7 @@ func (dao *UserDAO) LoadByEmail(email string) (*core.UserAccount, error) {
 
 func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
 						iid_token, last_connection, created_date, picture_digest
@@ -271,7 +266,7 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 
 func (dao *UserDAO) LoadUserPicture(user_id int64) ([]byte, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return nil, ErrNotFound
@@ -293,7 +288,7 @@ func (dao *UserDAO) LoadUserPicture(user_id int64) ([]byte, error) {
 
 func (dao *UserDAO) LoadEmailCredential(email string) (credent *core.EmailCredential, err error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if email == "" {
 		return nil, ErrInvalidEmail
@@ -324,7 +319,7 @@ func (dao *UserDAO) LoadEmailCredential(email string) (credent *core.EmailCreden
 
 func (dao *UserDAO) LoadFacebookCredential(fbid string) (credent *core.FacebookCredential, err error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if fbid == "" {
 		return nil, ErrInvalidArg
@@ -352,7 +347,7 @@ func (dao *UserDAO) LoadFacebookCredential(fbid string) (credent *core.FacebookC
 
 func (dao *UserDAO) GetIIDToken(user_id int64) (*core.IIDToken, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return nil, ErrNotFound
@@ -384,7 +379,7 @@ func (dao *UserDAO) GetIIDToken(user_id int64) (*core.IIDToken, error) {
 // for itself with another Insert call.
 func (dao *UserDAO) Insert(user *core.UserAccount) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	// Check if user account has a valid ID and email or fb credentials
 	if _, err := user.IsValid(); err != nil {
@@ -449,7 +444,7 @@ func (dao *UserDAO) Insert(user *core.UserAccount) error {
 
 func (dao *UserDAO) SaveProfilePicture(user_id int64, picture *core.Picture) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return ErrInvalidArg
@@ -463,7 +458,7 @@ func (dao *UserDAO) SaveProfilePicture(user_id int64, picture *core.Picture) err
 
 func (dao *UserDAO) SetAuthToken(user_id int64, auth_token uuid.UUID) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return ErrInvalidArg
@@ -477,7 +472,7 @@ func (dao *UserDAO) SetAuthToken(user_id int64, auth_token uuid.UUID) error {
 
 func (dao *UserDAO) SetLastConnection(user_id int64, time int64) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return ErrInvalidArg
@@ -491,7 +486,7 @@ func (dao *UserDAO) SetLastConnection(user_id int64, time int64) error {
 
 func (dao *UserDAO) SetFacebookAccessToken(user_id int64, fb_id string, fb_token string) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return ErrInvalidArg
@@ -510,7 +505,7 @@ func (dao *UserDAO) SetFacebookAccessToken(user_id int64, fb_id string, fb_token
 
 func (dao *UserDAO) SetAuthTokenAndFBToken(user_id int64, auth_token uuid.UUID, fb_id string, fb_token string) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return ErrInvalidArg
@@ -529,7 +524,7 @@ func (dao *UserDAO) SetAuthTokenAndFBToken(user_id int64, auth_token uuid.UUID, 
 
 func (dao *UserDAO) SetIIDToken(user_id int64, iid_token *core.IIDToken) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if user_id == 0 {
 		return ErrInvalidArg
@@ -543,7 +538,7 @@ func (dao *UserDAO) SetIIDToken(user_id int64, iid_token *core.IIDToken) error {
 
 func (dao *UserDAO) ResetEmailCredentialPassword(user_id int64, email string, password string) (ok bool, err error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	if email == "" || password == "" || user_id == 0 {
 		return false, ErrInvalidArg
@@ -571,7 +566,7 @@ func (dao *UserDAO) ResetEmailCredentialPassword(user_id int64, email string, pa
 // is removed.
 func (dao *UserDAO) Delete(user *core.UserAccount) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	// Read
 
@@ -658,7 +653,7 @@ func (dao *UserDAO) Delete(user *core.UserAccount) error {
 }
 
 func (dao *UserDAO) DeleteUserAccount(user_id int64) error {
-	checkSession(dao)
+	checkSession(dao.session)
 	if user_id == 0 {
 		return ErrInvalidArg
 	}
@@ -666,7 +661,7 @@ func (dao *UserDAO) DeleteUserAccount(user_id int64) error {
 }
 
 func (dao *UserDAO) DeleteEmailCredentials(email string) error {
-	checkSession(dao)
+	checkSession(dao.session)
 	if email == "" {
 		return ErrInvalidArg
 	}
@@ -674,7 +669,7 @@ func (dao *UserDAO) DeleteEmailCredentials(email string) error {
 }
 
 func (dao *UserDAO) DeleteFacebookCredentials(fb_id string) error {
-	checkSession(dao)
+	checkSession(dao.session)
 	if fb_id == "" {
 		return ErrInvalidArg
 	}

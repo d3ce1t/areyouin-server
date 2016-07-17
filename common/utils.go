@@ -1,13 +1,24 @@
 package common
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"image"
+	"image/jpeg"
+	"github.com/disintegration/imaging"
 	"log"
 	"math/big"
 	"time"
-
 	"github.com/gocql/gocql"
+)
+
+const (
+	IMAGE_MDPI                 = 160              // 160dpi
+	IMAGE_HDPI                 = 1.5 * IMAGE_MDPI // 240dpi
+	IMAGE_XHDPI                = 2 * IMAGE_MDPI   // 320dpi
+	IMAGE_XXHDPI               = 3 * IMAGE_MDPI   // 480dpi
+	IMAGE_XXXHDPI              = 4 * IMAGE_MDPI   // 640dpi
 )
 
 var (
@@ -27,24 +38,6 @@ func (self *QueryValues) AddArrayInt32(array []int32) {
 		self.Params = append(self.Params, val)
 	}
 }
-
-/*func (self *QueryValues) AddArrayUint32(array []uint32) {
-	for _, val := range array {
-		self.Params = append(self.Params, val)
-	}
-}*/
-
-/*func (self *QueryValues) AddArrayUint32AsInt32(array []uint32) {
-	for _, val := range array {
-		self.Params = append(self.Params, int32(val))
-	}
-}*/
-
-/*func (self *QueryValues) AddArrayUint64AsInt64(array []uint64) {
-	for _, val := range array {
-		self.Params = append(self.Params, int64(val))
-	}
-}*/
 
 func (self *QueryValues) AddArrayInt64(array []int64) {
 	for _, val := range array {
@@ -170,4 +163,39 @@ func MinUint32(a, b uint32) uint32 {
 		return a
 	}
 	return b
+}
+
+// Creates picture thumbnails for every supported dpi. Thumbnails size are
+// (size_xy, size_xy)*scale_factor. Thumbnails are returned as byte slide
+// JPEG encoded.
+func CreateThumbnails(srcImage image.Image, size_xy int, forDpi []int32) (map[int32][]byte, error) {
+
+	// Create thumbnails for distinct sizes
+	thumbnails := make(map[int32][]byte)
+
+	for _, dpi := range forDpi {
+		// Compute size
+		size := float32(size_xy) * (float32(dpi) / float32(IMAGE_MDPI))
+		// Resize and crop image to fill size x size area
+		dstImage := imaging.Thumbnail(srcImage, int(size), int(size), imaging.Lanczos)
+		// Encode
+		bytes := &bytes.Buffer{}
+		err := jpeg.Encode(bytes, dstImage, nil)
+		if err != nil {
+			return nil, err
+		}
+		thumbnails[dpi] = bytes.Bytes()
+	}
+
+	return thumbnails, nil
+}
+
+func ResizeImage(picture image.Image, width int) ([]byte, error) {
+	resize_image := imaging.Resize(picture, width, 0, imaging.Lanczos)
+	bytes := &bytes.Buffer{}
+	err := jpeg.Encode(bytes, resize_image, nil)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.Bytes(), nil
 }

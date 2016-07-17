@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"peeple/areyouin/dao"
 )
 
 // delete_user $user_id --force
@@ -12,7 +13,7 @@ func (shell *Shell) deleteUser(args []string) {
 	manageShellError(err)
 
 	server := shell.server
-	dao := server.NewUserDAO()
+	dao := dao.NewUserDAO(server.DbSession)
 	user, err := dao.Load(user_id)
 	manageShellError(err)
 

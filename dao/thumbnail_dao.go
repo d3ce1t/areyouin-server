@@ -1,22 +1,17 @@
 package dao
 
 import (
-	"github.com/gocql/gocql"
 	"log"
 	core "peeple/areyouin/common"
 )
 
 type ThumbnailDAO struct {
-	session *gocql.Session
-}
-
-func (dao *ThumbnailDAO) GetSession() *gocql.Session {
-	return dao.session
+	session *GocqlSession
 }
 
 func (dao *ThumbnailDAO) insertOne(id int64, digest []byte, dpi int32, thumbnail []byte, timestamp int64) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `INSERT INTO thumbnails (id, digest, dpi, thumbnail, created_date)
             VALUES (?, ?, ?, ?, ?)`
@@ -32,7 +27,7 @@ func (dao *ThumbnailDAO) insertOne(id int64, digest []byte, dpi int32, thumbnail
 // inserting the remainder ones. All errors are logged.
 func (dao *ThumbnailDAO) Insert(id int64, digest []byte, thumbnails map[int32][]byte) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	var first_error error
 	created_date := core.GetCurrentTimeMillis()
@@ -51,7 +46,7 @@ func (dao *ThumbnailDAO) Insert(id int64, digest []byte, thumbnails map[int32][]
 
 func (dao *ThumbnailDAO) Load(id int64, dpi int32) ([]byte, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `SELECT thumbnail FROM thumbnails WHERE id = ? AND dpi = ?`
 	q := dao.session.Query(stmt, id, dpi)
@@ -68,6 +63,6 @@ func (dao *ThumbnailDAO) Load(id int64, dpi int32) ([]byte, error) {
 }
 
 func (dao *ThumbnailDAO) Remove(id int64) error {
-	checkSession(dao)
+	checkSession(dao.session)
 	return dao.session.Query(`DELETE FROM thumbnails WHERE id = ?`, id).Exec()
 }

@@ -2,12 +2,11 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"image"
 	_ "image/jpeg"
 	"log"
 	core "peeple/areyouin/common"
-	dao "peeple/areyouin/dao"
+	"peeple/areyouin/dao"
 	fb "peeple/areyouin/facebook"
 )
 
@@ -35,7 +34,7 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 		return
 	}
 
-	friend_dao := server.NewFriendDAO()
+	friend_dao := dao.NewFriendDAO(server.DbSession)
 	storedFriends, err := friend_dao.LoadFriendsMap(task.TargetUser.GetUserId())
 	if err != nil {
 		log.Println("ImportFacebookFriends Error:", err)
@@ -44,7 +43,7 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 
 	log.Printf("ImportFacebookFriends: %v friends found\n", len(fbFriends))
 
-	user_dao := server.NewUserDAO()
+	user_dao := dao.NewUserDAO(server.DbSession)
 	counter := 0
 
 	// Loop Facebook friends in order to get AyiID
@@ -106,9 +105,9 @@ func (t *SendUserFriends) Run(ex *TaskExecutor) {
 
 	if session := server.GetSession(t.UserId); session != nil {
 
-		friend_dao := server.NewFriendDAO()
+		friend_dao := dao.NewFriendDAO(server.DbSession)
 
-		friends, err := friend_dao.LoadFriends(t.UserId, ALL_CONTACTS_GROUP)
+		friends, err := friend_dao.LoadFriends(t.UserId, 0)
 		if err != nil {
 			log.Println("SendUserFriends Error:", err)
 			return
@@ -149,33 +148,24 @@ func (task *LoadFacebookProfilePicture) Run(ex *TaskExecutor) {
 	}
 
 	// Resize image to 512x512
-	picture_bytes, err = server.resizeImage(original_image, 512)
+	picture_bytes, err = core.ResizeImage(original_image, core.PROFILE_PICTURE_MAX_WIDTH)
 	if err != nil {
 		log.Println("LoadFacebookProfilePicture: ", err)
 		return
 	}
 
-	// Compute digest and prepare image
-	digest := sha256.Sum256(picture_bytes)
-
-	picture := &core.Picture{
-		RawData: picture_bytes,
-		Digest:  digest[:],
-	}
-
-	// Save profile Picture
-	if err := server.saveProfilePicture(task.User.Id, picture); err != nil {
+	// Change profile picture
+	if err = server.Accounts.ChangeProfilePicture(task.User, picture_bytes); err != nil {
 		log.Println("LoadFacebookProfilePicture: ", err)
 		return
 	}
 
-	task.User.PictureDigest = picture.Digest
-	log.Printf("LoadFacebookProfilePicture: Profile picture updated (digest=%x)\n", picture.Digest)
+	log.Printf("LoadFacebookProfilePicture: Profile picture updated (digest=%x)\n", task.User.PictureDigest)
 
 	session := server.GetSession(task.User.Id)
 	if session != nil {
 		if session.ProtocolVersion < 2 {
-			task.User.Picture = picture.RawData
+			task.User.Picture = picture_bytes
 			session.Write(session.NewMessage().UserAccount(task.User))
 			log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session.UserId, len(task.User.Picture))
 		} else {

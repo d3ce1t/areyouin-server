@@ -10,6 +10,8 @@ const (
 	MAX_DIF_IN_START_DATE = 365 * 24 * time.Hour         // 1 year
 	MIN_DIF_IN_END_DATE   = 30*time.Minute - time.Second // 30 minutes (from start date)
 	MAX_DIF_IN_END_DATE   = 7*24*time.Hour - time.Second // 1 week (from start date)
+	EVENT_PICTURE_MAX_WIDTH    = 1280
+	EVENT_PICTURE_MAX_HEIGHT   = 720
 )
 
 var (

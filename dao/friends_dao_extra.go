@@ -7,7 +7,7 @@ import (
 
 func (dao *FriendDAO) getFriendsIdInGroup(user_id int64, group_id int32) ([]int64, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `SELECT friend_id FROM friends_by_group
 		WHERE user_id = ? AND group_id = ?`
@@ -31,7 +31,7 @@ func (dao *FriendDAO) getFriendsIdInGroup(user_id int64, group_id int32) ([]int6
 
 func (dao *FriendDAO) getAllFriends(user_id int64) ([]*core.Friend, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `SELECT friend_id, friend_name, picture_digest FROM friends_by_user
 						WHERE user_id = ? LIMIT ?`
@@ -62,7 +62,7 @@ func (dao *FriendDAO) getAllFriends(user_id int64) ([]*core.Friend, error) {
 
 func (dao *FriendDAO) getFriends(user_id int64, friends_id ...int64) ([]*core.Friend, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `SELECT friend_id, friend_name, picture_digest FROM friends_by_user
 						WHERE user_id = ? AND friend_id IN (` + core.GenParams(len(friends_id)) + `) LIMIT ?`
@@ -100,7 +100,7 @@ func (dao *FriendDAO) getFriends(user_id int64, friends_id ...int64) ([]*core.Fr
 // user_id, it's ignored.
 func (dao *FriendDAO) loadMembersIntoGroups(user_id int64, groups []*core.Group) error {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	// Build index (group_id => slice position) and groups ids
 	index := make(map[int32]int)
@@ -138,7 +138,7 @@ func (dao *FriendDAO) loadMembersIntoGroups(user_id int64, groups []*core.Group)
 
 func (dao *FriendDAO) computeGroupSize(user_id int64, group_id int32) (int32, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `SELECT COUNT(*) AS group_size FROM friends_by_group
 		WHERE user_id = ? AND group_id = ?`
@@ -154,7 +154,7 @@ func (dao *FriendDAO) computeGroupSize(user_id int64, group_id int32) (int32, er
 }
 
 func (dao *FriendDAO) setGroupSize(user_id int64, group_id int32, group_size int32) error {
-	checkSession(dao)
+	checkSession(dao.session)
 	stmt := `UPDATE groups_by_user SET group_size = ? WHERE user_id = ? AND group_id = ?`
 	return dao.session.Query(stmt, group_size, user_id, group_id).Exec()
 }

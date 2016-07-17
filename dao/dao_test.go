@@ -1,26 +1,27 @@
 package dao
 
-import (
+/*import (
 	"flag"
 	"github.com/gocql/gocql"
 	"log"
 	"os"
 	core "peeple/areyouin/common"
 	"testing"
-)
+)*/
 
-var session *gocql.Session
+/*var session *gocql.Session
 var idgen *core.IDGen
 var participants100 []*core.EventParticipant
 var eventIds10000 []uint64
 var eventIds10000unsorted []uint64
+*/
 
-func TestMain(m *testing.M) {
+/*func TestMain(m *testing.M) {
 
 	idgen = core.NewIDGen(1)
 
 	// Connect to Cassandra
-	cluster := gocql.NewCluster("192.168.1.10", "192.168.1.11" /*"192.168.1.3"*/)
+	cluster := gocql.NewCluster("192.168.1.10", "192.168.1.11")
 	cluster.Keyspace = "areyouin"
 	cluster.Consistency = gocql.Quorum
 
@@ -61,7 +62,7 @@ func TestMain(m *testing.M) {
 
 	flag.Parse()
 	os.Exit(m.Run())
-}
+}*/
 
 /*func CreateParticipantsList(author_id int64, participants_id []int64) []*core.EventParticipant {
 
@@ -84,7 +85,7 @@ func TestMain(m *testing.M) {
 	return result
 }*/
 
-func CreateRandomParticipant() *core.EventParticipant {
+/*func CreateRandomParticipant() *core.EventParticipant {
 
 	participant := &core.EventParticipant{
 		UserId:    int64(idgen.GenerateID()),
@@ -94,9 +95,9 @@ func CreateRandomParticipant() *core.EventParticipant {
 	}
 
 	return participant
-}
+}*/
 
-func GetEventIDs(limit int) []uint64 {
+/*func GetEventIDs(limit int) []uint64 {
 
 	stmt := `SELECT DISTINCT event_id FROM event LIMIT ?`
 
@@ -115,4 +116,4 @@ func GetEventIDs(limit int) []uint64 {
 	}
 
 	return list_ids
-}
+}*/

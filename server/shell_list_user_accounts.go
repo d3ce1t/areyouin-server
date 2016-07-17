@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"log"
 	core "peeple/areyouin/common"
+	"peeple/areyouin/dao"
 )
 
 // list_users
 func (shell *Shell) listUserAccounts(args []string) {
 
 	server := shell.server
-	dao := server.NewUserDAO()
+	dao := dao.NewUserDAO(server.DbSession)
 	users, err := dao.LoadAllUsers()
 	manageShellError(err)
 

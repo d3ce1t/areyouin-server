@@ -10,16 +10,16 @@ func (shell *Shell) fixDatabase(args []string) {
 	switch args[1] {
 	case "--event":
 		shell.fixEvent()
-	case "--import-old-friends-table":
-		shell.importFriendsFromOldFormat()
-	case "--copy-events-by-users-to-tmp":
+	/*case "--import-old-friends-table":
+		shell.importFriendsFromOldFormat()*/
+	/*case "--copy-events-by-users-to-tmp":
 		shell.copyEventsByUser("events_by_user", "events_by_user_new")
 	case "--copy-tmp-to-events-by-user":
-		shell.copyEventsByUser("events_by_user_new", "events_by_user")
+		shell.copyEventsByUser("events_by_user_new", "events_by_user")*/
 	}
 }
 
-// Fill evet.inbox_position with event.start_date if the first one is not set
+// Fill event.inbox_position with event.start_date if the first one is not set
 func (shell *Shell) fixEvent() {
 
 	server := shell.server
@@ -33,14 +33,14 @@ func (shell *Shell) fixEvent() {
 	rows_processed := 0
 	fixes := 0
 
-	iter := server.DbSession().Query(stmt_select).Iter()
+	iter := server.DbSession.Query(stmt_select).Iter()
 
 	for iter.Scan(&event_id, &start_date, &inbox_position) {
 
 		rows_processed++
 
 		if inbox_position == 0 {
-			q := server.DbSession().Query(stmt_update, start_date, event_id)
+			q := server.DbSession.Query(stmt_update, start_date, event_id)
 			if err := q.Exec(); err != nil {
 				manageShellError(
 					errors.New(
@@ -65,7 +65,7 @@ func (shell *Shell) fixEvent() {
 }
 
 // Copy user_friends to friends_by_user. It only takes into account ALL_CONTACTS group.
-func (shell *Shell) importFriendsFromOldFormat() {
+/*func (shell *Shell) importFriendsFromOldFormat() {
 
 	server := shell.server
 	stmt_select := `SELECT user_id, group_id, friend_id, name, picture_digest FROM user_friends`
@@ -111,10 +111,10 @@ func (shell *Shell) importFriendsFromOldFormat() {
 
 	fmt.Fprintf(shell.io, "Completed: (fixes: %v, rows_processed: %v)\n",
 		fixes, rows_processed)
-}
+}*/
 
 // Copy events_by_user to events_by_user_new
-func (shell *Shell) copyEventsByUser(fromTable string, toTable string) {
+/*func (shell *Shell) copyEventsByUser(fromTable string, toTable string) {
 
 	server := shell.server
 
@@ -163,4 +163,4 @@ func (shell *Shell) copyEventsByUser(fromTable string, toTable string) {
 
 		fmt.Fprintf(shell.io, "Completed: (fixes: %v, rows_processed: %v)\n",
 			fixes, rows_processed)
-}
+}*/

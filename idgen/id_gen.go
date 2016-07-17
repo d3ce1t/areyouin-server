@@ -1,4 +1,4 @@
-package common
+package idgen
 
 import (
 	"time"
@@ -6,7 +6,29 @@ import (
 
 const epoch int64 = 1446336000000 // Milliseconds since 1 Nov 2015 00:00
 
-func NewIDGen(id uint16) *IDGen {
+var default_generator *IDGen
+var id_gen_ch chan uint64
+
+func init() {
+
+	id_gen_ch = make(chan uint64)
+
+	// Creates a generator with group id = 1
+	default_generator := newIDGen(1)
+
+	go func() {
+		for {
+			newId := default_generator.generateID()
+			id_gen_ch <- newId
+		}
+	}()
+}
+
+func NewID() int64 {
+	return int64(<-id_gen_ch)
+}
+
+func newIDGen(id uint16) *IDGen {
 	return &IDGen{id: id, auto_increment: 0}
 }
 
@@ -28,9 +50,8 @@ type IDGen struct {
   Because of the auto_increment number, a single generator can generate
   up to 1024 different IDs per millisecond
 
-	FIXME: It's not thread-safe
 */
-func (uid *IDGen) GenerateID() uint64 {
+func (uid *IDGen) generateID() uint64 {
 
 	curr_time := time.Now().UTC()
 
