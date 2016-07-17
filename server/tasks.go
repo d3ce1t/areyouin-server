@@ -155,7 +155,7 @@ func (task *LoadFacebookProfilePicture) Run(ex *TaskExecutor) {
 	}
 
 	// Change profile picture
-	if err = server.Accounts.ChangeProfilePicture(task.User, picture_bytes); err != nil {
+	if err = server.Model.Accounts.ChangeProfilePicture(task.User, picture_bytes); err != nil {
 		log.Println("LoadFacebookProfilePicture: ", err)
 		return
 	}

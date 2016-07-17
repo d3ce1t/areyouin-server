@@ -38,7 +38,7 @@ func (shell *Shell) resetPicture(args []string) {
 	manageShellError(err)
 
 	// Change image
-	err = server.Accounts.ChangeProfilePicture(user_account, picture_bytes)
+	err = server.Model.Accounts.ChangeProfilePicture(user_account, picture_bytes)
 	manageShellError(err)
 
 	fmt.Fprintf(shell.io, "Picture size %v bytes\n", len(picture_bytes))

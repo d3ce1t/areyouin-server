@@ -8,12 +8,13 @@ import (
   "image"
 )
 
-func NewEventManager(session core.DbSession) *EventManager {
-  return &EventManager{dbsession: session}
+func newEventManager(parent *AyiModel, session core.DbSession) *EventManager {
+  return &EventManager{parent: parent, dbsession: session}
 }
 
 type EventManager struct {
   dbsession core.DbSession
+  parent *AyiModel
 }
 
 // TODO: Add business rules to control if event can be modified, user how is changing event
@@ -67,7 +68,7 @@ func (self *EventManager) saveEventPicture(event_id int64, picture *core.Picture
 	}
 
 	// Create thumbnails
-	thumbnails, err := core.CreateThumbnails(srcImage, EVENT_THUMBNAIL, supportedDpi)
+	thumbnails, err := core.CreateThumbnails(srcImage, EVENT_THUMBNAIL, self.parent.supportedDpi)
 	if err != nil {
 		return err
 	}

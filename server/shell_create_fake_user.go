@@ -60,7 +60,7 @@ func (shell *Shell) createFakeUser(args []string) {
 	manageShellError(err)
 
 	// Create new user account
-	user, err := shell.server.Accounts.CreateUserAccount(name, email, password, "", "", "")
+	user, err := shell.server.Model.Accounts.CreateUserAccount(name, email, password, "", "", "")
 	manageShellError(err)
 
 	// Success
@@ -68,7 +68,7 @@ func (shell *Shell) createFakeUser(args []string) {
 	fmt.Fprintf(shell.io, "Name: %v\nEmail: %v\nPassword: %v\nPicture: %v\n",
 		name, email, password, picture_url)
 
-	err = shell.server.Accounts.ChangeProfilePicture(user, picture_bytes)
+	err = shell.server.Model.Accounts.ChangeProfilePicture(user, picture_bytes)
 	manageShellError(err)
 
 	fmt.Fprintf(shell.io, "Profile picture changed\n")

@@ -2,7 +2,6 @@ package images_server
 
 import (
 	"errors"
-	"time"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,31 +16,29 @@ var (
 	ErrInvalidRequest = errors.New("invalid request")
 )
 
-func NewServer(db_address string, keyspace string) *ImageServer {
+func NewServer(session core.DbSession, model *model.AyiModel) *ImageServer {
 	server := &ImageServer{
 		listen_port: 40187,
-		DbAddress:  db_address,
-		Keyspace:    keyspace,
+		DbSession: session,
+		Model: model,
 	}
 	server.init()
 	return server
 }
 
 type ImageServer struct {
-	listen_port  int
-	DbSession     core.DbSession
-	DbAddress     string
-	Keyspace      string
+	listen_port int
+	DbSession   core.DbSession
+	Model  			*model.AyiModel
 }
 
 func (s *ImageServer) init() {
-	// Initiliase database objects and connect
-	s.DbSession = dao.NewSession(s.Keyspace, s.DbAddress)
+	// Initiliase whatever is needed
 }
 
 func (s *ImageServer) loadThumbnail(id int64, reqDpi int32) ([]byte, error) {
 	thumbnail_dao := dao.NewThumbnailDAO(s.DbSession)
-	dpi := model.GetClosestDpi(reqDpi)
+	dpi := s.Model.GetClosestDpi(reqDpi)
 	return thumbnail_dao.Load(id, dpi)
 }
 
@@ -288,23 +285,14 @@ func manageError(err error) {
 
 func (s *ImageServer) Run() {
 
-	// Connect to Cassandra
-	for err := s.DbSession.Connect(); err != nil; {
-		log.Println("ImageServer: Error connecting to cassandra:", err)
-		time.Sleep(5 * time.Second)
+	http.HandleFunc("/api/", s.handleThumbnailRequest)
+	http.HandleFunc("/api/img/thumbnail/", s.handleThumbnailRequest)
+	http.HandleFunc("/api/img/original/", s.handleEventImageRequest)
+	http.HandleFunc("/api/img/original/event/", s.handleEventImageRequest)
+	http.HandleFunc("/api/img/original/user/", s.handleUserImageRequest)
+
+	err := http.ListenAndServe(fmt.Sprintf(":%v", s.listen_port), nil)
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
 	}
-
-	log.Println("ImageServer: Connected to Cassandra successfully")
-
-	go func() {
-		http.HandleFunc("/api/", s.handleThumbnailRequest)
-		http.HandleFunc("/api/img/thumbnail/", s.handleThumbnailRequest)
-		http.HandleFunc("/api/img/original/", s.handleEventImageRequest)
-		http.HandleFunc("/api/img/original/event/", s.handleEventImageRequest)
-		http.HandleFunc("/api/img/original/user/", s.handleUserImageRequest)
-		err := http.ListenAndServe(fmt.Sprintf(":%v", s.listen_port), nil)
-		if err != nil {
-			log.Fatal("ListenAndServe: ", err)
-		}
-	}()
 }

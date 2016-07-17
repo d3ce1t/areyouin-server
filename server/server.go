@@ -10,12 +10,10 @@ import (
 	"peeple/areyouin/dao"
 	"peeple/areyouin/model"
 	fb "peeple/areyouin/facebook"
-	imgserv "peeple/areyouin/images_server"
 	proto "peeple/areyouin/protocol"
 	wh "peeple/areyouin/webhook"
 	"strings"
 	"time"
-	"os"
 )
 
 const (
@@ -24,27 +22,10 @@ const (
 	//MAX_READ_TIMEOUT   = 1 * time.Second
 )
 
-func NewServer() *Server {
+func NewServer(session core.DbSession, model *model.AyiModel) *Server {
 	server := &Server{
-		DbAddress: "192.168.1.2",
-		Keyspace:  "areyouin",
-	}
-	server.init()
-	return server
-}
-
-func NewTestServer() *Server {
-
-	fmt.Println("----------------------------------------")
-	fmt.Println("! WARNING WARNING WARNING              !")
-	fmt.Println("! You have started a testing server    !")
-	fmt.Println("! WARNING WARNING WARNING              !")
-	fmt.Println("----------------------------------------")
-
-	server := &Server{
-		DbAddress: "192.168.1.10",
-		Keyspace:  "areyouin",
-		Testing:   true,
+		DbSession: session.(*dao.GocqlSession),
+		Model: model,
 	}
 	server.init()
 	return server
@@ -57,11 +38,8 @@ type Server struct {
 	sessions      *SessionsMap
 	task_executor *TaskExecutor
 	callbacks     map[proto.PacketType]Callback
-	Accounts      *model.AccountManager
-	Events        *model.EventManager
+	Model         *model.AyiModel
 	DbSession     *dao.GocqlSession
-	DbAddress     string
-	Keyspace      string
 	webhook       *wh.WebHookServer
 	serialChannel chan func()
 	Testing       bool
@@ -98,18 +76,6 @@ func (s *Server) init() {
 	// Task Executor
 	s.task_executor = NewTaskExecutor(s)
 	s.task_executor.Start()
-
-	// Initiliase database objects and connect
-	s.DbSession = dao.NewSession(s.Keyspace, s.DbAddress)
-	s.Accounts = model.NewAccountManager(s.DbSession)
-	s.Events = model.NewEventManager(s.DbSession)
-
-	for err := s.DbSession.Connect(); err != nil; {
-		log.Println("Error connecting to cassandra:", err)
-		time.Sleep(5 * time.Second)
-	}
-
-	log.Println("Connected to Cassandra successfully")
 }
 
 func (s *Server) executeSerial(f func()) {
@@ -801,62 +767,4 @@ func (s *Server) syncGroupMembers(user_id int64, group_id int32, serverMembers [
 		err := friendDAO.AddMembers(user_id, group_id, add_ids...)
 		checkNoErrorOrPanic(err)
 	}
-}
-
-func main() {
-
-	// Flags
-	maintenanceMode := false
-
-	args := os.Args[1:]
-
-	if len(args) > 0 && args[0] == "--enable-maintenance" {
-		maintenanceMode = true
-	}
-
-	// Create and init server
-	//server := NewServer() // Server is global
-	server := NewTestServer()
-	server.MaintenanceMode = maintenanceMode
-
-	// Register callbacks
-
-	// Client requests
-
-	server.RegisterCallback(proto.M_PING, onPing)
-	server.RegisterCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
-	server.RegisterCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
-	server.RegisterCallback(proto.M_USER_AUTH, onUserAuthentication)
-	server.RegisterCallback(proto.M_GET_ACCESS_TOKEN, onNewAccessToken)
-	server.RegisterCallback(proto.M_CREATE_EVENT, onCreateEvent)
-	//server.RegisterCallback(proto.M_MODIFY_EVENT, onModifyEvent)
-	server.RegisterCallback(proto.M_CANCEL_EVENT, onCancelEvent)
-	server.RegisterCallback(proto.M_INVITE_USERS, onInviteUsers)
-	server.RegisterCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
-	server.RegisterCallback(proto.M_GET_USER_FRIENDS, onGetUserFriends)
-	server.RegisterCallback(proto.M_GET_USER_ACCOUNT, onGetUserAccount)
-	server.RegisterCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
-	server.RegisterCallback(proto.M_CLOCK_REQUEST, onClockRequest)
-	server.RegisterCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
-	server.RegisterCallback(proto.M_CHANGE_EVENT_PICTURE, onChangeEventPicture)
-	server.RegisterCallback(proto.M_SYNC_GROUPS, onSyncGroups)
-	server.RegisterCallback(proto.M_GET_GROUPS, onGetGroups)
-	server.RegisterCallback(proto.M_LIST_PRIVATE_EVENTS, onListPrivateEvents)
-	server.RegisterCallback(proto.M_HISTORY_PRIVATE_EVENTS, onListEventsHistory)
-	server.RegisterCallback(proto.M_CREATE_FRIEND_REQUEST, onFriendRequest)
-	server.RegisterCallback(proto.M_GET_FRIEND_REQUESTS, onListFriendRequests)
-	server.RegisterCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
-
-	// Create shell and start listening in 2022 tcp port
-	shell := NewShell(server)
-	go shell.StartTermSSH()
-
-	// Create images HTTP server and start
-	if !maintenanceMode {
-		images_server := imgserv.NewServer("192.168.1.10", "areyouin")
-		images_server.Run()
-	}
-
-	// start server loop
-	server.Run()
 }

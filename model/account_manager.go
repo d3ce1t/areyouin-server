@@ -9,12 +9,13 @@ import (
   "image"
 )
 
-func NewAccountManager(session core.DbSession) *AccountManager {
-  return &AccountManager{dbsession: session}
+func newAccountManager(parent *AyiModel, session core.DbSession) *AccountManager {
+  return &AccountManager{parent: parent, dbsession: session}
 }
 
 type AccountManager struct {
   dbsession core.DbSession
+  parent *AyiModel
 }
 
 // core.ErrInvalidName
@@ -118,7 +119,7 @@ func (self *AccountManager) saveProfilePicture(user_id int64, picture *core.Pict
 	}
 
 	// Create thumbnails
-	thumbnails, err := core.CreateThumbnails(srcImage, THUMBNAIL_MDPI_SIZE, supportedDpi)
+	thumbnails, err := core.CreateThumbnails(srcImage, THUMBNAIL_MDPI_SIZE, self.parent.supportedDpi)
 	if err != nil {
 		return err
 	}

@@ -21,7 +21,7 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 
 	// Create new user account
 
-	userAccount, err := server.Accounts.CreateUserAccount(msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
+	userAccount, err := server.Model.Accounts.CreateUserAccount(msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
 	if err != nil {
 		error_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
 		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), error_code))
@@ -34,7 +34,7 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 		// Protocol V2: Set profile picture
 
 		if len(msg.Picture) != 0 {
-			if err := server.Accounts.ChangeProfilePicture(userAccount, msg.Picture); err != nil {
+			if err := server.Model.Accounts.ChangeProfilePicture(userAccount, msg.Picture); err != nil {
 				log.Printf("* (%v) CREATE ACCOUNT: SET PROFILE PICTURE ERROR: %v\n", session, err)
 			} else {
 				log.Printf("* (%v) CREATE ACCOUNT: PROFILE PICTURE SET\n", session)
@@ -340,7 +340,7 @@ func onChangeProfilePicture(request *proto.AyiPacket, message proto.Message, ses
 	checkNoErrorOrPanic(err)
 
 	// Add or remove profile picture
-	err = server.Accounts.ChangeProfilePicture(user, msg.Picture)
+	err = server.Model.Accounts.ChangeProfilePicture(user, msg.Picture)
 	checkNoErrorOrPanic(err)
 
 	if (session.ProtocolVersion < 2) {
@@ -458,7 +458,7 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 		// After that, set event picture if received
 
 		if len(msg.Picture) != 0 {
-			if err = server.Events.ChangeEventPicture(event, msg.Picture); err != nil {
+			if err = server.Model.Events.ChangeEventPicture(event, msg.Picture); err != nil {
 				// Only log error but do nothiing. Event has already been published.
 				log.Printf("* (%v) Error saving picture for event %v (%v)\n", session, event.EventId, err)
 			}
@@ -523,7 +523,7 @@ func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, sessi
 	checkEventWritableOrPanic(event)
 
 	// Actually change event picture
-	err = server.Events.ChangeEventPicture(event, msg.Picture)
+	err = server.Model.Events.ChangeEventPicture(event, msg.Picture)
 	checkNoErrorOrPanic(err)
 
 	// Send ACK to caller
