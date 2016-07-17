@@ -128,39 +128,6 @@ func (dao *UserDAO) GetIDByFacebookID(fb_id string) (int64, error) {
 	return user_id, nil
 }
 
-// Load a user from database and includes profile picture
-func (dao *UserDAO) LoadWithPicture(user_id int64) (*core.UserAccount, error) {
-
-	checkSession(dao.session)
-
-	if user_id == 0 {
-		return nil, ErrNotFound
-	}
-
-	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, network_version, last_connection, created_date, profile_picture, picture_digest
-						FROM user_account
-						WHERE user_id = ? LIMIT 1`
-
-	q := dao.session.Query(stmt, user_id)
-
-	user := core.NewEmptyUserAccount()
-	var auth_token gocql.UUID
-
-	err := q.Scan(&user.Id, &auth_token, &user.Email, &user.EmailVerified, &user.Name,
-		&user.Fbid, &user.Fbtoken, &user.IIDtoken, &user.NetworkVersion, &user.LastConnection, &user.CreatedDate,
-		&user.Picture, &user.PictureDigest)
-
-	if err != nil {
-		log.Println("UserDAO Load:", err)
-		return nil, err
-	}
-
-	user.AuthToken = auth_token.String()
-
-	return user, nil
-}
-
 // FIXME: This function does not load credential causing UserAccount.IsValid to return false
 // Load a user from database but do not include profile picture
 func (dao *UserDAO) Load(user_id int64) (*core.UserAccount, error) {

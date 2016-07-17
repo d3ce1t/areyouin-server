@@ -82,7 +82,7 @@ type UserAccount struct {
 	NetworkVersion int // Protocol Version stored when IIDtoken was received
 	LastConnection int64
 	CreatedDate    int64
-	Picture        []byte
+	//Picture        []byte
 	PictureDigest  []byte
 }
 

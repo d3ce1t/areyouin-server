@@ -64,7 +64,6 @@ type UserDAO interface {
 	CheckValidAccount(user_id int64, check_credentials bool) (bool, error)
 	GetIDByEmailAndPassword(email string, password string) (int64, error)
 	GetIDByFacebookID(fb_id string) (int64, error)
-	LoadWithPicture(user_id int64) (*UserAccount, error)
 	Load(user_id int64) (*UserAccount, error)
 	LoadByEmail(email string) (*UserAccount, error)
 	LoadAllUsers() ([]*UserAccount, error)

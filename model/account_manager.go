@@ -157,6 +157,22 @@ func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken str
   return &core.AuthCredential{UserId: user_id, Token: new_auth_token}, nil
 }
 
+func (self *AccountManager) AuthenticateUser(userId int64, authToken string) (bool, error) {
+
+  userAccount, err := self.userDAO.Load(userId)
+  if err == dao.ErrNotFound {
+    return false, ErrInvalidUserOrPassword
+  } else if err != nil {
+    return false, err
+  }
+
+  if userAccount.AuthToken != "" && userAccount.AuthToken == authToken {
+    return true, nil
+  } else {
+    return false, ErrInvalidUserOrPassword
+  }
+}
+
 // Change profile picture in order to let user's friends to see the new picture
 func (self *AccountManager) ChangeProfilePicture(user *core.UserAccount, picture []byte) error {
 

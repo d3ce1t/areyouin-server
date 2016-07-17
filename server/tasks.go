@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bytes"
-	"image"
 	_ "image/jpeg"
 	"log"
 	core "peeple/areyouin/common"
 	"peeple/areyouin/dao"
-	fb "peeple/areyouin/facebook"
 )
 
 type NotifyDatasetChanged struct {
@@ -80,57 +77,5 @@ func (t *SendUserFriends) Run(ex *TaskExecutor) {
 			}
 		}
 
-	}
-}
-
-type LoadFacebookProfilePicture struct {
-	User    *core.UserAccount
-	Fbtoken string
-}
-
-func (task *LoadFacebookProfilePicture) Run(ex *TaskExecutor) {
-
-	server := ex.server
-
-	// Get profile picture
-	fbsession := fb.NewSession(task.Fbtoken)
-	picture_bytes, err := fb.GetProfilePicture(fbsession)
-	if err != nil {
-		log.Println("LoadFacebookProfilePicture: ", err)
-		return
-	}
-
-	// Decode image
-	original_image, _, err := image.Decode(bytes.NewReader(picture_bytes))
-	if err != nil {
-		log.Println("LoadFacebookProfilePicture: ", err)
-		return
-	}
-
-	// Resize image to 512x512
-	picture_bytes, err = core.ResizeImage(original_image, core.PROFILE_PICTURE_MAX_WIDTH)
-	if err != nil {
-		log.Println("LoadFacebookProfilePicture: ", err)
-		return
-	}
-
-	// Change profile picture
-	if err = server.Model.Accounts.ChangeProfilePicture(task.User, picture_bytes); err != nil {
-		log.Println("LoadFacebookProfilePicture: ", err)
-		return
-	}
-
-	log.Printf("LoadFacebookProfilePicture: Profile picture updated (digest=%x)\n", task.User.PictureDigest)
-
-	session := server.GetSession(task.User.Id)
-	if session != nil {
-		if session.ProtocolVersion < 2 {
-			task.User.Picture = picture_bytes
-			session.Write(session.NewMessage().UserAccount(task.User))
-			log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session.UserId, len(task.User.Picture))
-		} else {
-			session.Write(session.NewMessage().UserAccount(task.User))
-			log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session.UserId)
-		}
 	}
 }

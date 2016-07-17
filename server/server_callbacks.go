@@ -30,28 +30,11 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 		return
 	}
 
-	if session.ProtocolVersion >= 2 {
-
-		// Protocol V2: Set profile picture
-
-		if len(msg.Picture) != 0 {
-			if err := server.Model.Accounts.ChangeProfilePicture(userAccount, msg.Picture); err != nil {
-				log.Printf("* (%v) CREATE ACCOUNT: SET PROFILE PICTURE ERROR: %v\n", session, err)
-			} else {
-				log.Printf("* (%v) CREATE ACCOUNT: PROFILE PICTURE SET\n", session)
-			}
-		}
-
-	} else {
-
-		// Compatibility code for protocol v0 y v1
-
-		if userAccount.HasFacebookCredentials() {
-			// Load profile picture from Facebook
-			server.task_executor.Submit(&LoadFacebookProfilePicture{
-				User:    userAccount,
-				Fbtoken: userAccount.Fbtoken,
-			})
+	if len(msg.Picture) != 0 {
+		if err := server.Model.Accounts.ChangeProfilePicture(userAccount, msg.Picture); err != nil {
+			log.Printf("* (%v) CREATE ACCOUNT: SET PROFILE PICTURE ERROR: %v\n", session, err)
+		} else {
+			log.Printf("* (%v) CREATE ACCOUNT: PROFILE PICTURE SET\n", session)
 		}
 	}
 
@@ -138,36 +121,27 @@ func onUserAuthentication(request *proto.AyiPacket, message proto.Message, sessi
 
 	checkUnauthenticated(session)
 
-	userDAO := dao.NewUserDAO(server.DbSession)
-	user_id := msg.UserId
-
-	user_account, err := userDAO.Load(user_id)
+	isAuthenticated, err := server.Model.Accounts.AuthenticateUser(msg.UserId, msg.AuthToken)
 	if err != nil {
-		if err == dao.ErrNotFound {
-			sendAuthError(session)
-		} else {
-			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
-			log.Printf("< (%v) AUTH ERROR %v\n", session, err)
-		}
+		errorCode := getNetErrorCode(err, proto.E_OPERATION_FAILED)
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), errorCode))
+		log.Printf("< (%v) AUTH ERROR %v\n", session, err)
 		return
-	} else {
-		authToken := user_account.AuthToken
-		if authToken == "" || authToken != msg.AuthToken {
-			sendAuthError(session)
-			return
-		}
 	}
 
-	session.IsAuth = true
-	session.UserId = user_id
-	session.IIDToken = &core.IIDToken{Token: user_account.IIDtoken, Version: user_account.NetworkVersion}
+	userDAO := dao.NewUserDAO(server.DbSession)
+	iidToken, err := userDAO.GetIIDToken(msg.UserId)
+	checkNoErrorOrPanic(err)
+
+	session.IsAuth = isAuthenticated
+	session.UserId = msg.UserId
+	session.IIDToken = iidToken
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) AUTH OK\n", session)
 	server.RegisterSession(session)
 	userDAO.SetLastConnection(session.UserId, core.GetCurrentTimeMillis())
 
 	if session.ProtocolVersion < 2 {
-		server.task_executor.Submit(&SendUserFriends{UserId: user_id})
 		sendPrivateEvents(session)
 	}
 }
@@ -233,31 +207,12 @@ func onGetUserAccount(request *proto.AyiPacket, message proto.Message, session *
 
 	userDAO := dao.NewUserDAO(server.DbSession)
 
-	var user *core.UserAccount
-	var err error
-
-	if session.ProtocolVersion < 2 {
-
-		// Keep this one for compatibility
-
-		user, err = userDAO.LoadWithPicture(session.UserId)
-
-	} else {
-
-		// User account should not include the image but only its digest
-
-		user, err = userDAO.Load(session.UserId)
-	}
-
+	// User account should not include the image but only its digest
+	user, err := userDAO.Load(session.UserId)
 	checkNoErrorOrPanic(err)
 
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccount(user))
-
-	if session.ProtocolVersion < 2 {
-		log.Printf("< (%v) SEND USER ACCOUNT INFO (%v bytes)\n", session, len(user.Picture))
-	} else {
-		log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session)
-	}
+	log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session)
 }
 
 func onChangeProfilePicture(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
