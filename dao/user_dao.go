@@ -4,7 +4,6 @@ import (
 	"log"
 	core "peeple/areyouin/common"
 	"github.com/gocql/gocql"
-	"github.com/twinj/uuid"
 )
 
 const (
@@ -25,7 +24,6 @@ func (dao *UserDAO) CheckValidAccountObject(user_id int64, email string, fb_id s
 
 	// First, check if it is a valid account, i.e. it has an email (with or without password)
 	email_credential, err := dao.LoadEmailCredential(email)
-
 	if err == ErrNotFound {
 		return false, nil
 	} else if err != nil {
@@ -158,7 +156,7 @@ func (dao *UserDAO) LoadWithPicture(user_id int64) (*core.UserAccount, error) {
 		return nil, err
 	}
 
-	user.AuthToken = uuid.New(auth_token.Bytes())
+	user.AuthToken = auth_token.String()
 
 	return user, nil
 }
@@ -192,7 +190,7 @@ func (dao *UserDAO) Load(user_id int64) (*core.UserAccount, error) {
 		return nil, err
 	}
 
-	user.AuthToken = uuid.New(auth_token.Bytes())
+	user.AuthToken = auth_token.String()
 
 	return user, nil
 }
@@ -243,7 +241,7 @@ func (dao *UserDAO) LoadAllUsers() ([]*core.UserAccount, error) {
 		&fbid, &fbtoken, &iidtoken, &last_connection, &created, &digest) {
 		user := &core.UserAccount{
 			Id:             user_id,
-			AuthToken:      uuid.New(auth_token.Bytes()),
+			AuthToken:      auth_token.String(),
 			Email:          email,
 			EmailVerified:  email_verified,
 			Name:           name,
@@ -456,7 +454,7 @@ func (dao *UserDAO) SaveProfilePicture(user_id int64, picture *core.Picture) err
 	return dao.session.Query(stmt, picture.RawData, picture.Digest, user_id).Exec()
 }
 
-func (dao *UserDAO) SetAuthToken(user_id int64, auth_token uuid.UUID) error {
+func (dao *UserDAO) SetAuthToken(user_id int64, auth_token string) error {
 
 	checkSession(dao.session)
 
@@ -467,7 +465,7 @@ func (dao *UserDAO) SetAuthToken(user_id int64, auth_token uuid.UUID) error {
 	stmt := `UPDATE user_account SET auth_token = ?
 						WHERE user_id = ?`
 
-	return dao.session.Query(stmt, auth_token.String(), user_id).Exec()
+	return dao.session.Query(stmt, auth_token, user_id).Exec()
 }
 
 func (dao *UserDAO) SetLastConnection(user_id int64, time int64) error {
@@ -503,7 +501,7 @@ func (dao *UserDAO) SetFacebookAccessToken(user_id int64, fb_id string, fb_token
 	return dao.session.ExecuteBatch(batch)
 }
 
-func (dao *UserDAO) SetAuthTokenAndFBToken(user_id int64, auth_token uuid.UUID, fb_id string, fb_token string) error {
+func (dao *UserDAO) SetAuthTokenAndFBToken(user_id int64, auth_token string, fb_id string, fb_token string) error {
 
 	checkSession(dao.session)
 
@@ -517,7 +515,7 @@ func (dao *UserDAO) SetAuthTokenAndFBToken(user_id int64, auth_token uuid.UUID, 
 		fb_token, fb_id)
 
 	batch.Query(`UPDATE user_account SET auth_token = ?, fb_id = ?, fb_token = ? WHERE user_id = ?`,
-		auth_token.String(), fb_id, fb_token, user_id)
+		auth_token, fb_id, fb_token, user_id)
 
 	return dao.session.ExecuteBatch(batch)
 }

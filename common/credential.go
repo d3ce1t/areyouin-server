@@ -1,5 +1,10 @@
 package common
 
+type AuthCredential struct {
+	UserId int64
+	Token string
+}
+
 type EmailCredential struct {
 	Email    string
 	Password [32]byte

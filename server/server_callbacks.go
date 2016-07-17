@@ -4,6 +4,7 @@ import (
 	"peeple/areyouin/idgen"
 	"log"
 	core "peeple/areyouin/common"
+	"peeple/areyouin/model"
 	"peeple/areyouin/dao"
 	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
@@ -88,25 +89,16 @@ func onUserNewAuthToken(request *proto.AyiPacket, message proto.Message, session
 		return
 	}
 
-	userDAO := dao.NewUserDAO(server.DbSession)
-
-	// Get new token by e-mail and password
-	// NOTE: Review
 	if msg.Type == proto.AuthType_A_NATIVE {
 
-		if user_id, err := userDAO.GetIDByEmailAndPassword(msg.Pass1, msg.Pass2); err == nil {
+		// Get new token by e-mail and password
 
-			new_auth_token := uuid.NewV4()
+		auth_cred, err := server.Model.Accounts.NewAuthCredentialByEmailAndPassword(msg.Pass1, msg.Pass2)
 
-			if err = userDAO.SetAuthToken(user_id, new_auth_token); err == nil {
-				reply = session.NewMessage().UserAccessGranted(user_id, new_auth_token)
-				log.Printf("< (%v) USER NEW AUTH ACCESS GRANTED\n", session)
-			} else {
-				reply = session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
-				log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
-			}
-
-		} else if err == dao.ErrNotFound {
+		if err == nil {
+			reply = session.NewMessage().UserAccessGranted(auth_cred.UserId, auth_cred.Token)
+			log.Printf("< (%v) USER NEW AUTH TOKEN ACCESS GRANTED\n", session)
+		} else if err == model.ErrInvalidUserOrPassword {
 			reply = session.NewMessage().Error(request.Type(), proto.E_INVALID_USER_OR_PASSWORD)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD\n", session)
 		} else {
@@ -114,86 +106,31 @@ func onUserNewAuthToken(request *proto.AyiPacket, message proto.Message, session
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
 		}
 
-		session.WriteResponse(request.Header.GetToken(), reply)
-
 	} else if msg.Type == proto.AuthType_A_FACEBOOK {
 
 		// Get new token by Facebook User ID and Facebook Access Token
-		// In this context, E_FB_INVALID_USER_OR_PASSWORD means that account does not exist or
-		// it is an invalid account.
+		// In this context, E_INVALID_USER_OR_PASSWORD means that account
+		// does not exist or it is an invalid account.
 
-		// Use Facebook servers to check if the id and token are valid
+		auth_cred, err := server.Model.Accounts.NewAuthCredentialByFacebook(msg.Pass1, msg.Pass2)
 
-		fbsession := fb.NewSession(msg.Pass2)
-
-		if _, err := fb.CheckAccess(msg.Pass1, fbsession); err != nil {
+		if err == nil {
+			reply = session.NewMessage().UserAccessGranted(auth_cred.UserId, auth_cred.Token)
+			log.Printf("< (%v) USER NEW AUTH TOKEN ACCESS GRANTED\n", session)
+		} else if err == fb.ErrFacebookAccessForbidden {
 			reply = session.NewMessage().Error(request.Type(), proto.E_FB_INVALID_ACCESS)
-			session.WriteResponse(request.Header.GetToken(), reply)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID FB ACCESS %v\n", session, fb.GetErrorMessage(err))
-			return
-		}
-
-		// Check if Facebook user exists also in AreYouIN, i.e. there is a Fbid pointing
-		// to a user id
-
-		user_id, err := userDAO.GetIDByFacebookID(msg.Pass1)
-
-		if err == dao.ErrNotFound {
-			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD", session)
-			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_INVALID_USER_OR_PASSWORD))
-			return
-		} else if err != nil {
-			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
-			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
-			return
-		}
-
-		// Moreover, check if this user.fbid match provided fb id
-
-		user, err := userDAO.Load(user_id)
-		if err != nil {
-			if err == dao.ErrNotFound {
-				log.Printf("* (%v) USER NEW AUTH TOKEN WARNING: USER %v NOT FOUND: This means a FbId (%v) points to an AyiId (%v) that does not exist. Admin required.\n",
-				 	session, user_id, msg.Pass1, user_id)
-			}
-			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
-			log.Printf("< (%v) USER NEW AUTH TOKEN OPERATION FAILED: %v\n", session, err)
-			return
-		}
-
-		if user.Fbid != msg.Pass1 {
-			log.Printf("* (%v) WARNING: USER %v FB MISMATCH: This means a FbId (%v) points to an AyiUser (%v) that does point to another FbId (%v). Admin required.\n",
-				session, user_id, msg.Pass1, user_id, user.Fbid)
-			log.Printf("< (%v) USER NEW AUTH TOKEN OPERATION FAILED", session)
-			session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
-		}
-
-		// Check that account linked to given Facebook ID is valid, i.e. it has user_email_credentials (with or without
-		// password). It may happen that a row in user_email_credentials exists but does not have set a password. Moreover,
-		// it may not have Facebook either and it would still be valid. This behaviour is preferred because if
-		// this state is found, something had have to be wrong. Under normal conditions, that state should have never
-		// happened. So, at this point only existence of e-mail are checked (credentials are ignored).
-
-		if _, err := userDAO.CheckValidAccountObject(user.Id, user.Email, user.Fbid, false); err != nil {
+		} else if err == model.ErrInvalidUserOrPassword {
 			reply = session.NewMessage().Error(request.Type(), proto.E_INVALID_USER_OR_PASSWORD)
-			session.WriteResponse(request.Header.GetToken(), reply)
-			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
-			return
-		}
-
-		new_auth_token := uuid.NewV4()
-
-		if err := userDAO.SetAuthTokenAndFBToken(user_id, new_auth_token, msg.Pass1, msg.Pass2); err != nil {
+			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD", session)
+		} else {
 			reply = session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
-			session.WriteResponse(request.Header.GetToken(), reply)
-			return
 		}
 
-		reply = session.NewMessage().UserAccessGranted(user_id, new_auth_token)
-		session.WriteResponse(request.Header.GetToken(), reply)
-		log.Printf("< (%v) USER NEW AUTH TOKEN ACCESS GRANTED\n", session)
 	}
+
+	session.WriteResponse(request.Header.GetToken(), reply)
 }
 
 func onUserAuthentication(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -217,7 +154,7 @@ func onUserAuthentication(request *proto.AyiPacket, message proto.Message, sessi
 		}
 		return
 	} else {
-		authToken := user_account.AuthToken.String()
+		authToken := user_account.AuthToken
 		if authToken == "" || authToken != msg.AuthToken {
 			sendAuthError(session)
 			return
@@ -246,10 +183,10 @@ func onNewAccessToken(request *proto.AyiPacket, message proto.Message, session *
 	checkAuthenticated(session)
 
 	accessTokenDAO := dao.NewAccessTokenDAO(server.DbSession)
-	new_access_token := uuid.NewV4()
+	new_access_token := uuid.NewV4().String()
 
 	// Overwrites previous one if exists
-	err := accessTokenDAO.Insert(session.UserId, new_access_token.String())
+	err := accessTokenDAO.Insert(session.UserId, new_access_token)
 	if err != nil {
 		reply := session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 		log.Printf("< (%v) REQUEST NEW ACCESS TOKEN ERROR: %v\n", session, err)

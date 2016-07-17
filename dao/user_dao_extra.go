@@ -154,7 +154,7 @@ func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err erro
 
 		query = dao.session.Query(insertUserAccount,
 			user.Id,
-			user.AuthToken.String(),
+			user.AuthToken,
 			user.Email,
 			user.EmailVerified,
 			user.Name,
@@ -170,7 +170,7 @@ func (dao *UserDAO) insertUserAccount(user *core.UserAccount) (ok bool, err erro
 
 		query = dao.session.Query(insertUserAccount,
 			user.Id,
-			user.AuthToken.String(),
+			user.AuthToken,
 			user.Email,
 			user.EmailVerified,
 			user.Name,

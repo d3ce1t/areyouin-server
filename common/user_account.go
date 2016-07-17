@@ -40,7 +40,7 @@ func NewUserAccount(name string, email string, password string, phone string, fb
 		phone:       phone,
 		Fbid:        fbid,
 		Fbtoken:     fbtoken,
-		AuthToken:   uuid.NewV4(),
+		AuthToken:   uuid.NewV4().String(),
 		CreatedDate: GetCurrentTimeMillis()}
 
 	return user
@@ -68,7 +68,7 @@ func IsValidEmail(email string) bool {
 
 type UserAccount struct {
 	Id             int64 // AreYouIN ID
-	AuthToken      uuid.UUID
+	AuthToken      string
 	Email          string
 	EmailVerified  bool
 	Password       string

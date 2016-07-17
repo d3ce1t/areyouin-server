@@ -2,8 +2,6 @@ package protocol
 
 import (
 	core "peeple/areyouin/common"
-
-	"github.com/twinj/uuid"
 )
 
 type PacketBuilder struct {
@@ -101,9 +99,9 @@ func (mb *PacketBuilder) UserAuthencation(user_id int64, auth_token uuid.UUID) *
 	return mb.message
 }*/
 
-func (mb *PacketBuilder) NewAccessToken(user_id int64, auth_token uuid.UUID) *AyiPacket {
+func (mb *PacketBuilder) NewAccessToken(user_id int64, auth_token string) *AyiPacket {
 	mb.message.Header.SetType(M_ACCESS_TOKEN)
-	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token.String()})
+	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token})
 	return mb.message
 }
 
@@ -226,9 +224,9 @@ func (mb *PacketBuilder) ChangeDiscarded(event_id int64, change_id int32) *AyiPa
 	return mb.message
 }*/
 
-func (mb *PacketBuilder) UserAccessGranted(user_id int64, auth_token uuid.UUID) *AyiPacket {
+func (mb *PacketBuilder) UserAccessGranted(user_id int64, auth_token string) *AyiPacket {
 	mb.message.Header.SetType(M_ACCESS_GRANTED)
-	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token.String()})
+	mb.message.SetMessage(&AccessToken{UserId: user_id, AuthToken: auth_token})
 	return mb.message
 }
 

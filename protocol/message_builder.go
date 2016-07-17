@@ -2,7 +2,6 @@ package protocol
 
 import (
 	core "peeple/areyouin/common"
-	"github.com/twinj/uuid"
 )
 
 // Interface
@@ -19,7 +18,7 @@ type MessageBuilder interface {
 	//UserPosition(latitude float32, longitude float32, estimation_error float32) *AyiPacket
 	//UserPositionRange(range_in_meters float32) *AyiPacket
 	//CreateUserAccount(name string, email string, password string, phone string, fbid string, fbtoken string) *AyiPacket
-	NewAccessToken(user_id int64, auth_token uuid.UUID) *AyiPacket
+	NewAccessToken(user_id int64, auth_token string) *AyiPacket
 	//NewAuthTokenByEmail(email string, password string) *AyiPacket
 	//NewAuthTokenByFacebook(fbid string, fbtoken string) *AyiPacket
 	//UserAuthencation(user_id int64, auth_token uuid.UUID) *AyiPacket
@@ -38,7 +37,7 @@ type MessageBuilder interface {
 	//EventChangeDateProposed(event_id int64, change_id int32, start_date int64, end_date int64) *AyiPacket
 	//EventChangeMessageProposed(event_id int64, change_id int32, message string) *AyiPacket
 	//EventChangeProposed(event_id int64, change_id int32, message string, start_date int64, end_date int64) *AyiPacket
-	UserAccessGranted(user_id int64, auth_token uuid.UUID) *AyiPacket
+	UserAccessGranted(user_id int64, auth_token string) *AyiPacket
 	Ok(msg_type PacketType) *AyiPacket
 	OkWithPayload(msg_type PacketType, payload []byte) *AyiPacket
 	Error(msg_type PacketType, error_code int32) *AyiPacket

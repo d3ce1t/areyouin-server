@@ -19,7 +19,7 @@ func (t *NotifyDatasetChanged) Run(ex *TaskExecutor) {
 }
 
 type ImportFacebookFriends struct {
-	TargetUser core.UserFriend
+	TargetUser *core.UserAccount
 	Fbtoken    string // Facebook User Access token
 }
 
@@ -27,70 +27,28 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 
 	server := ex.server
 
-	fbsession := fb.NewSession(task.Fbtoken)
-	fbFriends, err := fb.GetFriends(fbsession)
-	if err != nil {
-		fb.LogError(err)
-		return
-	}
-
-	friend_dao := dao.NewFriendDAO(server.DbSession)
-	storedFriends, err := friend_dao.LoadFriendsMap(task.TargetUser.GetUserId())
+	addedFriends, err := server.Model.Accounts.ImportFacebookFriends(task.TargetUser)
 	if err != nil {
 		log.Println("ImportFacebookFriends Error:", err)
 		return
 	}
 
-	log.Printf("ImportFacebookFriends: %v friends found\n", len(fbFriends))
+	// Loop through added friends in order to notify them
+	for _, newFriend := range addedFriends {
 
-	user_dao := dao.NewUserDAO(server.DbSession)
-	counter := 0
+		// Send friends to existing user
+		ex.Submit(&SendUserFriends{UserId: newFriend.Id})
 
-	// Loop Facebook friends in order to get AyiID
-	for _, fbFriend := range fbFriends {
-
-		friend_id, err := user_dao.GetIDByFacebookID(fbFriend.Id)
-
-		if err != nil {
-			if err == dao.ErrNotFound {
-				log.Printf("ImportFacebookFriends Error: Facebook friend %v has the App but it's not registered\n", fbFriend.Id)
-			} else {
-				log.Println("ImportFacebookFriends Error:", err)
-			}
-			continue
+		// Send new friends notification
+		if newFriend.NetworkVersion == 0 || newFriend.NetworkVersion == 1 {
+			sendGcmNewFriendNotification(newFriend.Id, newFriend.IIDtoken, task.TargetUser)
+		} else {
+			sendGcmDataAvailableNotification(newFriend.Id, newFriend.IIDtoken, GCM_MAX_TTL)
 		}
-
-		friendUser, err := user_dao.Load(friend_id)
-		if err != nil {
-			log.Println("ImportFacebookFriends Error:", err)
-			continue
-		}
-
-		log.Printf("ImportFacebookFriends: %v and %v are Facebook Friends\n", task.TargetUser.GetUserId(), friend_id)
-
-		// Assume that if friend_id isn't in stored friends, then current user id isn't either
-		// in the other user friends list
-		if _, ok := storedFriends[friendUser.Id]; !ok {
-			friendUser.Name = fbFriend.Name // Use Facebook name because is familiar to user
-			friend_dao.MakeFriends(task.TargetUser, friendUser)
-			log.Printf("ImportFacebookFriends: %v and %v are now AreYouIN friends\n", task.TargetUser.GetUserId(), friendUser.Id)
-
-			// Send friends to existing user
-			ex.Submit(&SendUserFriends{UserId: friend_id})
-
-			// Send new friends notification
-			if friendUser.NetworkVersion == 0 || friendUser.NetworkVersion == 1 {
-				sendGcmNewFriendNotification(friendUser.Id, friendUser.IIDtoken, task.TargetUser)
-				counter++
-			} else {
-				sendGcmDataAvailableNotification(friendUser.Id, friendUser.IIDtoken, GCM_MAX_TTL)
-			}
-		}
-
 	}
 
-	if counter > 0 {
-		// Send friends to user that initiated import
+	if len(addedFriends) > 0 {
+		// Notify target user
 		ex.Submit(&SendUserFriends{UserId: task.TargetUser.GetUserId()})
 	}
 }

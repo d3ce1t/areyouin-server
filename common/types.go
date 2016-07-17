@@ -1,9 +1,5 @@
 package common
 
-import (
-	"github.com/twinj/uuid"
-)
-
 type EventInbox struct {
 	UserId     int64
 	EventId    int64
@@ -78,10 +74,10 @@ type UserDAO interface {
 	GetIIDToken(user_id int64) (*IIDToken, error)
 	Insert(user *UserAccount) error
 	SaveProfilePicture(user_id int64, picture *Picture) error
-	SetAuthToken(user_id int64, auth_token uuid.UUID) error
+	SetAuthToken(user_id int64, auth_token string) error
 	SetLastConnection(user_id int64, time int64) error
 	SetFacebookAccessToken(user_id int64, fb_id string, fb_token string) error
-	SetAuthTokenAndFBToken(user_id int64, auth_token uuid.UUID, fb_id string, fb_token string) error
+	SetAuthTokenAndFBToken(user_id int64, auth_token string, fb_id string, fb_token string) error
 	SetIIDToken(user_id int64, iid_token *IIDToken) error
 	ResetEmailCredentialPassword(user_id int64, email string, password string) (ok bool, err error)
 	Delete(user *UserAccount) error
