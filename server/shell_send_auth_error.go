@@ -1,7 +1,9 @@
 package main
 
 import (
+	proto "peeple/areyouin/protocol"
 	"strconv"
+	"fmt"
 )
 
 // send_auth_error user_id
@@ -12,6 +14,7 @@ func (shell *Shell) sendAuthError(args []string) {
 
 	server := shell.server
 	if session, ok := server.sessions.Get(user_id); ok {
-		sendAuthError(session)
+		session.Write(session.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
+		fmt.Fprintln(shell.io, "Send invalid user or password")
 	}
 }

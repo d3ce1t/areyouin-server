@@ -16,10 +16,7 @@ var (
 	ErrUnregisteredMessage        = errors.New("unregistered message")
 	ErrNonFriendsIgnored          = errors.New("ignored non friends participants")
 	ErrUnregisteredFriendsIgnored = errors.New("ignored unregistered participants")
-	ErrParticipantsRequired       = errors.New("participants required")
-	ErrAuthorDeliveryError        = errors.New("event coudn't be delivered to author")
 	ErrShellInvalidArgs           = errors.New("Invalid args")
-	ErrNotWritableEvent           = errors.New("event isn't writable")
 	ErrAuthorMismatch             = errors.New("author mismatch")
 	ErrOperationFailed            = errors.New("operation failed")
 	ErrEventNotFound              = errors.New("event not found")
@@ -59,6 +56,9 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case dao.ErrGracePeriod:
 		err_code = proto.E_OPERATION_FAILED
 
+	case model.ErrEventOutOfCreationWindow:
+		err_code = proto.E_EVENT_OUT_OF_CREATE_WINDOW
+
 	case dao.ErrNotFoundEventOrParticipant:
 		err_code = proto.E_INVALID_EVENT_OR_PARTICIPANT
 
@@ -71,7 +71,7 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case model.ErrInvalidUserOrPassword:
 		err_code = proto.E_INVALID_USER_OR_PASSWORD
 
-	case ErrParticipantsRequired:
+	case model.ErrParticipantsRequired:
 		err_code = proto.E_EVENT_PARTICIPANTS_REQUIRED
 
 	case ErrNonFriendsIgnored:
@@ -80,7 +80,7 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case ErrUnregisteredFriendsIgnored:
 		err_code = proto.E_INVALID_PARTICIPANT
 
-	case ErrNotWritableEvent:
+	case model.ErrEventNotWritable:
 		err_code = proto.E_EVENT_CANNOT_BE_MODIFIED
 
 	case ErrAuthorMismatch:

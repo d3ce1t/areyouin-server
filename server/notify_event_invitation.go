@@ -80,7 +80,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 		task := &NotifyParticipantChange{
 			Event:               t.Event,
 			ParticipantsChanged: participants_changed,
-			Target:              core.GetParticipantsIdSlice(t.Event.Participants),
+			Target:              core.GetParticipantKeys(t.Event.Participants),
 		}
 
 		task.Run(ex)

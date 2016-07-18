@@ -326,132 +326,6 @@ func (s *Server) GetSession(user_id int64) *AyiSession {
 	}
 }
 
-func (s *Server) GetNewParticipants(participants_id []int64, event *core.Event) []int64 {
-	result := make([]int64, 0, len(participants_id))
-	for _, id := range participants_id {
-		if _, ok := event.Participants[id]; !ok {
-			result = append(result, id)
-		}
-	}
-	return result
-}
-
-// Insert an event into database, add participants to it and send it to users' inbox.
-func (s *Server) PublishEvent(event *core.Event) error {
-
-	eventDAO := dao.NewEventDAO(s.DbSession)
-
-	if len(event.Participants) <= 1 { // I need more than the only author
-		return ErrParticipantsRequired
-	}
-
-	if err := eventDAO.InsertEventAndParticipants(event); err != nil {
-		return err
-	}
-
-	// Author is the last participant. Add it first in order to let author receive
-	// the event and add other participants if something fails
-	event.Participants[event.AuthorId].Delivered = core.MessageStatus_CLIENT_DELIVERED
-	tmp_error := s.inviteParticipantToEvent(event, event.Participants[event.AuthorId])
-	if tmp_error != nil {
-		log.Println("PublishEvent Error:", tmp_error)
-		return ErrAuthorDeliveryError
-	}
-
-	for k, participant := range event.Participants {
-		if k != event.AuthorId {
-			participant.Delivered = core.MessageStatus_SERVER_DELIVERED
-			s.inviteParticipantToEvent(event, participant) // TODO: Implement retry but do not return on error
-		}
-	}
-
-	return nil
-}
-
-func (s *Server) inviteParticipantToEvent(event *core.Event, participant *core.EventParticipant) error {
-
-	eventDAO := dao.NewEventDAO(s.DbSession)
-
-	if err := eventDAO.InsertEventToUserInbox(participant, event); err != nil {
-		log.Println("Coudn't deliver event", event.EventId, err)
-		return err
-	}
-
-	log.Println("Event", event.EventId, "delivered to user", participant.UserId)
-	return nil
-}
-
-// This function is used to create a participant list that will be added to an event.
-// This event will be published on behalf of the author. By this reason, participants
-// can only be current friends of the author. In this code, it is assumed that
-// participants are already friends of the author (author has-friend way). However,
-// it must be checked if participants have also the author as a friend (friend has-author way)
-func (s *Server) loadUserParticipants(author_id int64, participants_id []int64) (map[int64]*core.UserAccount, error, error) {
-
-	var last_warning error
-	result := make(map[int64]*core.UserAccount)
-	userDAO := dao.NewUserDAO(s.DbSession)
-	friend_dao := dao.NewFriendDAO(s.DbSession)
-
-	for _, p_id := range participants_id {
-
-		if ok, err := friend_dao.IsFriend(p_id, author_id); ok {
-
-			if uac, load_err := userDAO.Load(p_id); load_err == nil { // FIXME: Load several participants in one operation
-				result[uac.Id] = uac
-			} else if err == dao.ErrNotFound {
-				last_warning = ErrUnregisteredFriendsIgnored
-				log.Printf("loadUserParticipants() Warning at userid %v: %v\n", p_id, load_err)
-			} else {
-				return nil, nil, load_err
-			}
-
-		} else if err != nil {
-			return nil, nil, err
-		} else {
-			log.Println("loadUserParticipants() Not friends", author_id, "and", p_id)
-			last_warning = ErrNonFriendsIgnored
-		}
-	}
-
-	return result, last_warning, nil
-}
-
-func (s *Server) createParticipantList(users map[int64]*core.UserAccount) map[int64]*core.EventParticipant {
-
-	result := make(map[int64]*core.EventParticipant)
-
-	for _, uac := range users {
-		result[uac.Id] = uac.AsParticipant()
-	}
-
-	return result
-}
-
-func (s *Server) createParticipantListFromMap(participants map[int64]*core.EventParticipant) []*core.EventParticipant {
-
-	result := make([]*core.EventParticipant, 0, len(participants))
-
-	for _, p := range participants {
-		result = append(result, p)
-	}
-
-	return result
-}
-
-func (s *Server) createParticipantsFromFriends(author_id int64) map[int64]*core.EventParticipant {
-
-	friendDAO := dao.NewFriendDAO(s.DbSession)
-	friends, _ := friendDAO.LoadFriends(author_id, 0)
-
-	if friends != nil {
-		return core.CreateParticipantsFromFriends(author_id, friends)
-	} else {
-		log.Println("createParticipantsFromFriends() no friends or error")
-		return nil
-	}
-}
-
 // Called from multiple threads
 // FIXME: Do not send all of the private events, but limit to a fixed number.
 func sendPrivateEvents(session *AyiSession) {
@@ -501,7 +375,7 @@ func sendPrivateEvents(session *AyiSession) {
 			task := &NotifyParticipantChange{
 				Event:               event,
 				ParticipantsChanged: []int64{session.UserId},
-				Target:              core.GetParticipantsIdSlice(event.Participants),
+				Target:              core.GetParticipantKeys(event.Participants),
 			}
 
 			// I'm also sending notification to the author. Could avoid this because author already knows
@@ -509,11 +383,6 @@ func sendPrivateEvents(session *AyiSession) {
 			server.task_executor.Submit(task)
 		}
 	}
-}
-
-func sendAuthError(session *AyiSession) {
-	session.Write(session.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
-	log.Printf("< (%v) SEND INVALID USER OR PASSWORD\n", session)
 }
 
 func checkAuthenticated(session *AyiSession) {
@@ -541,9 +410,8 @@ func checkAtLeastOneEventOrPanic(events []*core.Event) {
 }
 
 func checkEventWritableOrPanic(event *core.Event) {
-	current_time := core.GetCurrentTimeMillis()
-	if event.StartDate < current_time || event.State == core.EventState_CANCELLED {
-		panic(ErrNotWritableEvent)
+	if event.GetStatus() != core.EventState_NOT_STARTED {
+		panic(model.ErrEventNotWritable)
 	}
 }
 

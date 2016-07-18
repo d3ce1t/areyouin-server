@@ -25,6 +25,32 @@ var (
 	EMPTY_ARRAY_32B = [32]byte{}
 )
 
+func GetNewParticipants(participants_id []int64, event *Event) []int64 {
+	result := make([]int64, 0, len(participants_id))
+	for _, id := range participants_id {
+		if _, ok := event.Participants[id]; !ok {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
+func GetUserKeys(m map[int64]*UserAccount) []int64 {
+	keys := make([]int64, 0, len(m))
+  for k := range m {
+		keys = append(keys, k)
+  }
+	return keys
+}
+
+func GetParticipantKeys(m map[int64]*EventParticipant) []int64 {
+	keys := make([]int64, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 type QueryValues struct {
 	Params []interface{}
 }
@@ -124,14 +150,6 @@ func CreateParticipantsFromFriends(author_id int64, friends []*Friend) map[int64
 		}
 	}
 
-	return result
-}
-
-func GetParticipantsIdSlice(participants map[int64]*EventParticipant) []int64 {
-	result := make([]int64, 0, len(participants))
-	for _, p := range participants {
-		result = append(result, p.UserId)
-	}
 	return result
 }
 

@@ -1,14 +1,12 @@
 package main
 
 import (
-	"peeple/areyouin/idgen"
 	"log"
 	core "peeple/areyouin/common"
 	"peeple/areyouin/model"
 	"peeple/areyouin/dao"
 	fb "peeple/areyouin/facebook"
 	proto "peeple/areyouin/protocol"
-	"time"
 	"github.com/twinj/uuid"
 )
 
@@ -206,9 +204,7 @@ func onGetUserAccount(request *proto.AyiPacket, message proto.Message, session *
 	checkAuthenticated(session)
 
 	userDAO := dao.NewUserDAO(server.DbSession)
-
-	// User account should not include the image but only its digest
-	user, err := userDAO.Load(session.UserId)
+	user, err := userDAO.Load(session.UserId) // Do not include picture
 	checkNoErrorOrPanic(err)
 
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccount(user))
@@ -232,15 +228,10 @@ func onChangeProfilePicture(request *proto.AyiPacket, message proto.Message, ses
 	err = server.Model.Accounts.ChangeProfilePicture(user, msg.Picture)
 	checkNoErrorOrPanic(err)
 
-	if (session.ProtocolVersion < 2) {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().OkWithPayload(request.Type(), user.PictureDigest))
-		log.Printf("< (%v) PROFILE PICTURE CHANGED\n", session)
-	} else {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
-		log.Printf("< (%v) PROFILE PICTURE CHANGED\n", session)
-		session.Write(session.NewMessage().UserAccount(user))
-		log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session)
-	}
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
+	log.Printf("< (%v) PROFILE PICTURE CHANGED\n", session)
+	session.Write(session.NewMessage().UserAccount(user))
+	log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session)
 }
 
 func onSyncGroups(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -295,86 +286,30 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	author, err := userDAO.Load(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	valid, err := userDAO.CheckValidAccountObject(author.Id, author.Email, author.Fbid, true)
-	if !valid || err != nil {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
-		log.Printf("< (%v) CREATE EVENT AUTHOR ERROR (2) %v\n", session, err)
-		return
-	}
-
-	// Check event creation is inside creation window
-	currentDate := core.UnixMillisToTime(core.GetCurrentTimeSeconds())
-	createdDate := core.UnixMillisToTime(msg.CreatedDate)
-
-	if createdDate.Before(currentDate.Add(-time.Minute)) || createdDate.After(currentDate.Add(time.Minute)) {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_EVENT_OUT_OF_CREATE_WINDOW))
-		log.Printf("< (%v) CREATE EVENT ERROR OUT OF WINDOW\n", session)
-		return
-	}
-
-	// Create event object
-	event := core.CreateNewEvent(idgen.NewID(), author.Id, author.Name, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
-
-	if _, err = event.IsValid(); err != nil {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_INVALID_INPUT)))
-		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session, err)
-		return
-	}
-
-	// Load users participants
-	userParticipants, warning, err := server.loadUserParticipants(author.Id, msg.Participants)
+	event, err := server.Model.Events.CreateNewEvent(author, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
 	checkNoErrorOrPanic(err)
 
-	if len(userParticipants) == 0 {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(warning, proto.E_EVENT_PARTICIPANTS_REQUIRED)))
-		log.Printf("< (%v) CREATE EVENT ERROR %v %v\n", session, err, warning)
-		return
-	}
+	// Load users participants
+	userParticipants, err := server.Model.Events.CreateParticipantsList(author.Id, msg.Participants)
+	checkNoErrorOrPanic(err)
 
-	// Add author as another participant of the event and assume he or she
-	// will assist by default
-	participantsList := server.createParticipantList(userParticipants)
-	authorParticipant := author.AsParticipant()
-	authorParticipant.SetFields(core.AttendanceResponse_ASSIST, core.MessageStatus_NO_DELIVERED) // Assume it's delivered because author created it
-	participantsList[author.Id] = authorParticipant
+	if err = server.Model.Events.PublishEvent(event, userParticipants); err == nil {
 
-	// Set participants
-	event.SetParticipants(participantsList)
-
-	// Finally publish event
-	if err := server.PublishEvent(event); err == nil {
-
-		// After that, set event picture if received
+		// Event Published: set event picture if received
 
 		if len(msg.Picture) != 0 {
 			if err = server.Model.Events.ChangeEventPicture(event, msg.Picture); err != nil {
-				// Only log error but do nothiing. Event has already been published.
+				// Only log error but do nothing. Event has already been published.
 				log.Printf("* (%v) Error saving picture for event %v (%v)\n", session, event.EventId, err)
 			}
 		}
 
-		if session.ProtocolVersion >= 2 {
+		// From protocol v2 onward, OK message is removed in favour of only one message that
+		// includes all of the event info (including participants)
 
-			// From protocol v2 onward, OK message is removed in favour of only one message that
-			// includes all of the event info (including participants)
-
-			session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventCreated(event))
-			log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session, event.EventId, len(event.Participants))
-
-		} else {
-
-			// Keep this code for clients that uses v0 and v1
-
-			session.Write(session.NewMessage().Ok(request.Type()))
-			log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v)\n", session, event.EventId, len(event.Participants))
-
-			event_created_msg := session.NewMessage().EventCreated(event.GetEventWithoutParticipants())
-			status_msg := session.NewMessage().AttendanceStatus(event.EventId, server.createParticipantListFromMap(event.Participants))
-			session.Write(event_created_msg)
-			session.Write(status_msg)
-			log.Printf("< (%v) SEND NEW EVENT %v\n", session, event.EventId)
-
-		}
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventCreated(event))
+		log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v, Remaining.Participants: %v)\n",
+			session, event.EventId, len(event.Participants), 1 + len(msg.Participants) - len(event.Participants))
 
 		notification := &NotifyEventInvitation {
 			Event:  event,
@@ -382,10 +317,21 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 		}
 		server.task_executor.Submit(notification)
 
+	}	else if err == model.ErrParticipantsRequired {
+
+		// Participants required
+
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_EVENT_PARTICIPANTS_REQUIRED))
+		log.Printf("< (%v) CREATE EVENT ERROR: THERE ARE NO PARTICIPANTS\n", session)
+
 	} else {
+
+		// Error
+
 		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session, err)
 	}
+
 }
 
 func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -422,7 +368,7 @@ func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, sessi
 	// Notify change to participants
 	server.task_executor.Submit(&NotifyEventChange{
 		Event:  event,
-		Target: core.GetParticipantsIdSlice(event.Participants),
+		Target: core.GetParticipantKeys(event.Participants),
 	})
 }
 
@@ -510,69 +456,34 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkEventWritableOrPanic(event)
 
 	// Load user participants
-	participants_id := server.GetNewParticipants(msg.Participants, event)
-	userParticipants, warning, err := server.loadUserParticipants(author_id, participants_id)
+	participants_id := core.GetNewParticipants(msg.Participants, event)
+	newParticipants, err := server.Model.Events.CreateParticipantsList(author_id, participants_id)
+	checkNoErrorOrPanic(err)
 
-	if err != nil {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
-		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) %v\n", session, msg.EventId, err)
-		return
-	}
+	// Get current participants for later use
+	oldParticipants := core.GetParticipantKeys(event.Participants)
 
-	if len(userParticipants) == 0 {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(warning, proto.E_INVALID_PARTICIPANT)))
-		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) INVALID PARTICIPANTS %v\n", session, msg.EventId, warning)
-		return
-	}
+	// Invite participants
+	usersInvited, err := server.Model.Events.InviteUsers(event, newParticipants)
+	checkNoErrorOrPanic(err)
 
-	// After check all of the possible erros, finally participants are inserted into the event
-	// and users inboxes
-	var succeedCounter int
-	new_participants := make([]int64, 0, len(userParticipants))
-	old_participants := core.GetParticipantsIdSlice(event.Participants)
+	// Write response back
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
+	log.Printf("< (%v) INVITE USERS OK (event_id: %v, invitations: %v/%v, total: %v)\n",
+		session, event.EventId, len(usersInvited), len(newParticipants), len(msg.Participants))
 
-	for _, user := range userParticipants {
-		participant := user.AsParticipant()
-		err = eventDAO.AddOrUpdateEventToUserInbox(participant, event)
-		if err == nil {
-			event.Participants[participant.UserId] = participant // Change event
-			new_participants = append(new_participants, user.Id)
-			succeedCounter++
-		} else {
-			log.Printf("Error inviting participant %v: %v\n", participant.UserId, err)
-			delete(userParticipants, user.Id) // Keep only succesfully added participants
-		}
-	}
+	// Notify previous participants of the new ones added
+	server.task_executor.Submit(&NotifyParticipantChange{
+		Event:               event,
+		ParticipantsChanged: core.GetUserKeys(usersInvited),
+		Target:              oldParticipants,
+		NumGuests:           event.NumGuests, // Include also total NumGuests because it's changed
+	})
 
-	if succeedCounter > 0 {
-
-		_, err = eventDAO.CompareAndSetNumGuests(event.EventId, len(event.Participants))
-		if err != nil {
-			log.Println("Invite Users: Update Num. guestss Error:", err)
-		}
-
-		event.NumGuests = int32(len(event.Participants))
-
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
-		log.Printf("< (%v) INVITE USERS OK (event_id=%v, invitations_send=%v, total=%v)\n", session, msg.EventId, succeedCounter, len(msg.Participants))
-
-		// Notify previous participants of the new ones added
-		server.task_executor.Submit(&NotifyParticipantChange{
-			Event:               event,
-			ParticipantsChanged: new_participants,
-			Target:              old_participants,
-			NumGuests:           event.NumGuests, // Include also total NumGuests because it's changed
-		})
-
-		server.task_executor.Submit(&NotifyEventInvitation{
-			Event:  event,
-			Target: userParticipants,
-		})
-
-	} else {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
-		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) Couldn't invite at least one participant\n", session, msg.EventId)
-	}
+	server.task_executor.Submit(&NotifyEventInvitation{
+		Event:  event,
+		Target: usersInvited,
+	})
 }
 
 func onCancelUsersInvitation(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -632,7 +543,7 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 		server.task_executor.Submit(&NotifyParticipantChange{
 			Event:               event[0],
 			ParticipantsChanged: []int64{session.UserId},
-			Target:              core.GetParticipantsIdSlice(event[0].Participants),
+			Target:              core.GetParticipantKeys(event[0].Participants),
 		})
 
 	} else {
@@ -714,7 +625,7 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 			task := &NotifyParticipantChange{
 				Event:               event,
 				ParticipantsChanged: []int64{session.UserId},
-				Target:              core.GetParticipantsIdSlice(event.Participants),
+				Target:              core.GetParticipantKeys(event.Participants),
 			}
 
 			// I'm also sending notification to the author. Could avoid this because author already knows

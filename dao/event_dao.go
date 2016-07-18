@@ -17,6 +17,20 @@ type EventDAO struct {
 	session *GocqlSession
 }
 
+func (dao *EventDAO) InsertEvent(event *core.Event) error {
+
+	checkSession(dao.session)
+
+	stmt_event := `INSERT INTO event (event_id, author_id, author_name, message, start_date,
+		end_date, public, num_attendees, num_guests, created_date, inbox_position)
+	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	q := dao.session.Query(stmt_event, event.EventId, event.AuthorId, event.AuthorName, event.Message, event.StartDate,
+		event.EndDate, event.IsPublic, event.NumAttendees, event.NumGuests, event.CreatedDate, event.InboxPosition)
+
+	return q.Exec()
+}
+
 func (dao *EventDAO) InsertEventAndParticipants(event *core.Event) error {
 
 	checkSession(dao.session)
@@ -82,9 +96,10 @@ func (dao *EventDAO) LoadParticipant(event_id int64, user_id int64) (*core.Parti
 	return participant, err
 }
 
-// Adds an event to participant inbox and also adds the participant into the event participant list.
-// If participant already exists, it is replaced. If not, participant is created
-func (dao *EventDAO) AddOrUpdateEventToUserInbox(participant *core.EventParticipant, event *core.Event) error {
+// Adds a participant to an existing event. In cassandra, this implies to add
+// the participant to event and to events_by_user. If participant with same id
+// already exists it gets overwritten.
+func (dao *EventDAO) AddParticipantToEvent(participant *core.EventParticipant, event *core.Event) error {
 
 	checkSession(dao.session)
 
@@ -93,42 +108,12 @@ func (dao *EventDAO) AddOrUpdateEventToUserInbox(participant *core.EventParticip
 
 	stmt_event_update := `INSERT INTO event (event_id, guest_id, guest_name, guest_response, guest_status) VALUES (?, ?, ?, ?, ?)`
 
-	if event.AuthorId == participant.UserId {
-		participant.Response = core.AttendanceResponse_ASSIST
-	}
-
-	participant.Delivered = core.MessageStatus_SERVER_DELIVERED
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 	event_bucket := 1 // TODO: Implement bucket logic properly
 
 	batch.Query(stmt_insert, participant.UserId, event_bucket, event.StartDate, event.EventId, event.AuthorId,
 		event.AuthorName, event.Message, participant.Response)
 	batch.Query(stmt_event_update, event.EventId, participant.UserId, participant.Name, participant.Response, participant.Delivered)
-
-	return dao.session.ExecuteBatch(batch)
-}
-
-// Adds an event to participant inbox and also updates the participant delivery info in the event participant list.
-// Whereas the above function is used whenever a new participant is invited to an existing event. This one is used
-// when the event is first created. The main difference is that the second statement only updates guest_status and
-// not all of the fields like in the above function. This function assumes that when the event is first created it
-// already includes participants, so when inserting into the inbox it is needed to only update guest_status of each
-// participant
-func (dao *EventDAO) InsertEventToUserInbox(participant *core.EventParticipant, event *core.Event) error {
-
-	checkSession(dao.session)
-
-	stmt_insert := `INSERT INTO events_by_user (user_id, event_bucket, start_date, event_id, author_id, author_name, message, response)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-
-	stmt_update := `UPDATE event SET guest_status = ? WHERE event_id = ? AND guest_id = ?`
-
-	batch := dao.session.NewBatch(gocql.LoggedBatch)
-	event_bucket := 1 // TODO: Implement bucket logic properly
-
-	batch.Query(stmt_insert, participant.UserId, event_bucket, event.StartDate, event.EventId, event.AuthorId,
-		event.AuthorName, event.Message, participant.Response)
-	batch.Query(stmt_update, participant.Delivered, event.EventId, participant.UserId)
 
 	return dao.session.ExecuteBatch(batch)
 }
@@ -481,6 +466,8 @@ func (dao *EventDAO) LoadEventPicture(event_id int64) ([]byte, error) {
 }
 
 // Compare-and-set (read-before) update operation
+// TODO: If err is due to a conflicting row, study how to retry and what would
+// be a better aproach.
 func (dao *EventDAO) CompareAndSetNumGuests(event_id int64, num_guests int) (ok bool, err error) {
 
 	checkSession(dao.session)

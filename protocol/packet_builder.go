@@ -236,12 +236,6 @@ func (mb *PacketBuilder) Ok(msg_type PacketType) *AyiPacket {
 	return mb.message
 }
 
-func (mb *PacketBuilder) OkWithPayload(msg_type PacketType, payload []byte) *AyiPacket {
-	mb.message.Header.SetType(M_OK)
-	mb.message.SetMessage(&Ok{Type: uint32(msg_type), Payload: payload})
-	return mb.message
-}
-
 func (mb *PacketBuilder) Error(msg_type PacketType, error_code int32) *AyiPacket {
 	mb.message.Header.SetType(M_ERROR)
 	mb.message.SetMessage(&Error{Type: uint32(msg_type), Error: error_code})

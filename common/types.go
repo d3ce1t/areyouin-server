@@ -33,6 +33,7 @@ type DbSession interface {
 }
 
 type EventDAO interface {
+	InsertEvent(event *Event) error
 	InsertEventAndParticipants(event *Event) error
 	LoadEventPicture(event_id int64) ([]byte, error)
 	LoadEvent(event_ids ...int64) (events []*Event, err error)
@@ -46,8 +47,7 @@ type EventDAO interface {
 	LoadUserEventsAndParticipants(user_id int64, fromDate int64) ([]*Event, error)
 	LoadUserEventsHistoryAndparticipants(user_id int64, fromDate int64, toDate int64) ([]*Event, error)
 
-	InsertEventToUserInbox(participant *EventParticipant, event *Event) error
-	AddOrUpdateEventToUserInbox(participant *EventParticipant, event *Event) error
+	AddParticipantToEvent(participant *EventParticipant, event *Event) error
 	CompareAndSetNumGuests(event_id int64, num_guests int) (bool, error)
 	//SetNumGuests(event_id int64, num_guests int32) error
 	CompareAndSetNumAttendees(event_id int64, num_attendees int) (bool, error)
