@@ -34,12 +34,12 @@ type EventManager struct {
 // - ErrInvalidEventData
 // - ErrInvalidStartDate
 // - ErrInvalidEndDate
+//
+// Preconditions:
+// (1) author must exists and be valid
+// (2) event created date must be inside a valid window
+// (3) event start and end date must obey business rules
 func (self *EventManager) CreateNewEvent(author *core.UserAccount, createdDate int64, startDate int64, endDate int64, description string) (*core.Event, error) {
-
-  // Preconditions:
-  // (1) author must exists and be valid
-  // (2) event created date must be inside a valid window
-  // (3) event start and end date must obey business rules
 
   // Create event
   event := core.CreateNewEvent(author.Id, author.Name, createdDate, startDate, endDate, description)
@@ -127,16 +127,17 @@ func (self *EventManager) CreateParticipantsList(authorId int64, participants []
 
 // Publish an event, i.e. store it in such a way that if a participant request
 // his events list, the event will be included.
+//
 // Note that event should not have participants stored in his event.Participants
 // field. This method will set this property to include only those users whose
 // event delivery had succeeded.
+//
+// Preconditions:
+// (1) author must exists and be valid
+// (2) event created date must be inside a valid window
+// (3) event start and end date must obey business rules
+// (4) Should be at least 1 participant besides the author
 func (self *EventManager) PublishEvent(event *core.Event, users map[int64]*core.UserAccount) error {
-
-  // Preconditions:
-  // (1) author must exists and be valid
-  // (2) event created date must be inside a valid window
-  // (3) event start and end date must obey business rules
-  // (4) Should be at least 1 participant besides the author
 
   // Check precondition (1)
 
@@ -188,20 +189,61 @@ func (self *EventManager) PublishEvent(event *core.Event, users map[int64]*core.
   return nil
 }
 
+// Cancel an existing event_ids
+//
+// Assumptions:
+// - (1) Event exist and is persisted in DB
+// - (2) User who performs this operation have permission
+//
+// Preconditions:
+// - (1) Event must have not started
+func (self *EventManager) CancelEvent(event *core.Event) error {
+
+  // Check precondition (1)
+  if event.GetStatus() != core.EventState_NOT_STARTED {
+    return ErrEventNotWritable
+  }
+
+  // Change event state and position in time line
+	new_inbox_position := core.GetCurrentTimeMillis()
+	err := self.eventDAO.SetEventStateAndInboxPosition(
+    event.EventId, core.EventState_CANCELLED,
+    new_inbox_position)
+
+  if err != nil {
+    return err
+  }
+
+  // Moreover, change event position inside user inbox so that next time client request recent events
+	// this one is ignored.
+	/*for _, participant := range event.Participants {
+		err := eventDAO.SetUserEventInboxPosition(participant, event, new_inbox_position)
+		if err != nil {
+			log.Println("onCancelEvent Error:", err) // FIXME: Add retry logic
+		}
+	}*/
+
+  // Update event object
+	event.InboxPosition = new_inbox_position
+	event.State = core.EventState_CANCELLED
+
+  return nil
+}
+
 // Invite participants to an existing event.
 // Returns a slice of participants that were actually invited.
 // TODO: By now, only author can invite participants to an event. However, when
 // other users are able of do the same it's needed to consider concurrency issues
 // that may cause data inconsistency.
+//
+// Assumptions:
+// - (1) Event exist and is persisted in DB
+// - (2) User who performs this operation have permission
+//
+// Preconditions:
+// - (1) Event must have not started
+// - (2) There must to be at least one new participant to be invited
 func (self *EventManager) InviteUsers(event *core.Event, users map[int64]*core.UserAccount) (map[int64]*core.UserAccount, error) {
-
-  // Assumptions:
-  // - (1) Event exist and is persisted in DB
-  // - (2) User who performs this operation have permission
-
-  // Preconditions:
-  // - (1) Event must have not started
-  // - (2) There must to be at least one new participant to be invited
 
   // Check precondition (1)
   if event.GetStatus() != core.EventState_NOT_STARTED {
@@ -247,9 +289,62 @@ func (self *EventManager) InviteUsers(event *core.Event, users map[int64]*core.U
   return usersInvited, nil
 }
 
-// TODO: Add business rules to control if event can be modified, user how is changing event
-// image is allowed to do that, and so on.
+// Change participant response to an event.
+// Returns true if response changed, or false otherwise. For instance, if response
+// is equal to old response, then it would return false.
+//
+// Assumptions:
+// - (1) Event exist and is persisted in DB
+// - (2) User who performs this operation have permission
+//
+// Preconditions:
+// - (1) Event must have not started
+// - (2) User must have received this invitation, i.e. user is in event participant
+//       list and event is in his inbox.
+func (self *EventManager) ChangeParticipantResponse(userId int64, response core.AttendanceResponse, event *core.Event) (bool, error) {
+
+  // Check precondition (1)
+
+  if event.GetStatus() != core.EventState_NOT_STARTED {
+    return false, ErrEventNotWritable
+  }
+
+  // Check precondition (2)
+
+  participant, ok := event.Participants[userId]
+  if !ok {
+    return false, ErrParticipantNotFound
+  }
+
+	if participant.Response != response {
+
+    // Change response
+
+    if err := self.eventDAO.SetParticipantResponse(participant.UserId, response, event); err != nil {
+  	   return false, err
+  	}
+
+    participant.Response = response
+    return true, nil
+	}
+
+  return false, nil
+}
+
+// Change event picture
+//
+// Assumptions:
+// - (1) Event exist and is persisted in DB
+// - (2) User who performs this operation have permission
+//
+// Preconditions
+// - (1) Event must have not started
 func (self *EventManager) ChangeEventPicture(event *core.Event, picture []byte) error {
+
+  // Check precondition (1)
+  if event.GetStatus() != core.EventState_NOT_STARTED {
+    return ErrEventNotWritable
+  }
 
   if picture != nil && len(picture) != 0 {
 

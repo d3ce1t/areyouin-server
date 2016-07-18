@@ -38,7 +38,7 @@ type EventDAO interface {
 	LoadEventPicture(event_id int64) ([]byte, error)
 	LoadEvent(event_ids ...int64) (events []*Event, err error)
 	LoadEventAndParticipants(event_ids ...int64) (events []*Event, err error)
-	LoadParticipant(event_id int64, user_id int64) (*Participant, error)
+	//LoadParticipant(event_id int64, user_id int64) (*Participant, error)
 
 	LoadUserInbox(user_id int64, fromDate int64) ([]*EventInbox, error)
 	LoadUserInboxReverse(user_id int64, fromDate int64) ([]*EventInbox, error)
@@ -53,7 +53,7 @@ type EventDAO interface {
 	CompareAndSetNumAttendees(event_id int64, num_attendees int) (bool, error)
 	//SetNumAttendees(event_id int64, num_attendees int) error
 	SetParticipantStatus(user_id int64, event_id int64, status MessageStatus) error
-	SetParticipantResponse(participant *Participant, response AttendanceResponse) error
+	SetParticipantResponse(participant int64, response AttendanceResponse, event *Event) error
 	//SetUserEventInboxPosition(participant *EventParticipant, event *Event, new_position int64) error
 	SetEventStateAndInboxPosition(event_id int64, new_status EventState, new_position int64) error
 	SetEventPicture(event_id int64, picture *Picture) error

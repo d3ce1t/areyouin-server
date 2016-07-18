@@ -1,12 +1,5 @@
 package common
 
-type Participant struct {
-	EventParticipant
-	EventId    int64
-	StartDate  int64
-	EventState EventState
-}
-
 func (p *EventParticipant) SetFields(response AttendanceResponse, status MessageStatus) {
 	p.Response = response
 	p.Delivered = status

@@ -354,9 +354,6 @@ func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, sessi
 	author_id := session.UserId
 	checkEventAuthorOrPanic(author_id, event)
 
-	// Event can be modified
-	checkEventWritableOrPanic(event)
-
 	// Actually change event picture
 	err = server.Model.Events.ChangeEventPicture(event, msg.Picture)
 	checkNoErrorOrPanic(err)
@@ -392,26 +389,9 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	author_id := session.UserId
 	checkEventAuthorOrPanic(author_id, event)
 
-	// Event can be modified
-	checkEventWritableOrPanic(event)
-
-	// Change event state and position in time line
-	new_inbox_position := core.GetCurrentTimeMillis()
-	err = eventDAO.SetEventStateAndInboxPosition(event.EventId, core.EventState_CANCELLED, new_inbox_position)
+	// Cancel event
+	err = server.Model.Events.CancelEvent(event)
 	checkNoErrorOrPanic(err)
-
-	// Moreover, change event position inside user inbox so that next time client request recent events
-	// this one is ignored.
-	/*for _, participant := range event.Participants {
-		err := eventDAO.SetUserEventInboxPosition(participant, event, new_inbox_position)
-		if err != nil {
-			log.Println("onCancelEvent Error:", err) // FIXME: Add retry logic
-		}
-	}*/
-
-	// Update event object
-	event.InboxPosition = new_inbox_position
-	event.State = core.EventState_CANCELLED
 
 	// FIXME: Could send directly the event canceled message, and ignore author from
 	// NotifyEventCancelled task
@@ -444,7 +424,7 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
 	checkNoErrorOrPanic(err)
 
-	// Event does not exist
+	// Event does exist
 	checkAtLeastOneEventOrPanic(events)
 
 	// Author mismath
@@ -486,12 +466,6 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	})
 }
 
-func onCancelUsersInvitation(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
 // When a ConfirmAttendance message is received, the attendance response of the participant
 // in the participant event list is changed and notified to the other participants. It is
 // important to note that num_attendees is not changed server-side till the event has started.
@@ -504,75 +478,31 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 
 	checkAuthenticated(session)
 
-	event_dao := dao.NewEventDAO(server.DbSession)
-
-	// Preconditions: User must have received the invitation, so user must be in the event participant list
-	// and user has the event in his inbox
-	participant, err := event_dao.LoadParticipant(msg.EventId, session.UserId)
+	eventDAO := dao.NewEventDAO(server.DbSession)
+	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
 	checkNoErrorOrPanic(err)
 
-	// Event can be modified
-	current_time := core.GetCurrentTimeMillis()
+	// Event does exist
+	checkAtLeastOneEventOrPanic(events)
 
-	if participant.StartDate < current_time || participant.EventState == core.EventState_CANCELLED {
-		log.Printf("< (%v) CONFIRM ATTENDANCE %v EVENT CANNOT BE MODIFIED\n", session, msg.EventId)
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_EVENT_CANNOT_BE_MODIFIED))
-		return
-	}
+	event := events[0]
 
-	// If the stored response is the same as the provided, send OK response inmediately
-	if participant.Response == msg.ActionCode {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
-		return
-	}
-
-	if err := event_dao.SetParticipantResponse(participant, msg.ActionCode); err != nil {
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED))
-		log.Printf("< (%v) CONFIRM ATTENDANCE %v ERROR %v\n", session, msg.EventId, err)
-		return
-	}
+	// Change response
+	changed, err := server.Model.Events.ChangeParticipantResponse(session.UserId, msg.ActionCode, event)
+	checkNoErrorOrPanic(err)
 
 	// Send OK Response
-	participant.Response = msg.ActionCode
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) CONFIRM ATTENDANCE %v OK\n", session, msg.EventId)
 
-	// Notify participants
-	if event, err := event_dao.LoadEventAndParticipants(msg.EventId); err == nil && len(event) == 1 {
-
+	if changed {
+		// Notify participants
 		server.task_executor.Submit(&NotifyParticipantChange{
-			Event:               event[0],
+			Event:               event,
 			ParticipantsChanged: []int64{session.UserId},
-			Target:              core.GetParticipantKeys(event[0].Participants),
+			Target:              core.GetParticipantKeys(event.Participants),
 		})
-
-	} else {
-		log.Println("onConfirmAttendance:", err)
 	}
-}
-
-func onVoteChange(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
-func onUserPosition(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
-func onUserPositionRange(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
-}
-
-func onReadEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
-
-	checkAuthenticated(session)
-
 }
 
 func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, session *AyiSession) {

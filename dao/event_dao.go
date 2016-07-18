@@ -57,7 +57,7 @@ func (dao *EventDAO) InsertEventAndParticipants(event *core.Event) error {
 
 // Load the participant of an event and returns it. If not found returns a nil participant
 // and error. Whatever else returns (nil, error)
-func (dao *EventDAO) LoadParticipant(event_id int64, user_id int64) (*core.Participant, error) {
+/*func (dao *EventDAO) LoadParticipant(event_id int64, user_id int64) (*core.Participant, error) {
 
 	checkSession(dao.session)
 
@@ -70,12 +70,11 @@ func (dao *EventDAO) LoadParticipant(event_id int64, user_id int64) (*core.Parti
 	var response, status int32
 	var start_date int64
 	var event_state int32
-	var participant *core.Participant
 
 	err := q.Scan(&name, &response, &status, &start_date, &event_state)
 
 	if err == nil {
-		participant = &core.Participant{
+		participant := &core.Participant{
 			EventParticipant: core.EventParticipant{
 				UserId:    user_id,
 				Name:      name,
@@ -87,14 +86,12 @@ func (dao *EventDAO) LoadParticipant(event_id int64, user_id int64) (*core.Parti
 			EventState: core.EventState(event_state),
 		}
 
-	} else if err == gocql.ErrNotFound {
-		err = ErrNotFoundEventOrParticipant
-	} else {
-		log.Println("LoadParticipant:", err)
-	}
+		return participant, nil
 
-	return participant, err
-}
+	} else {
+		return nil, err
+	}
+}*/
 
 // Adds a participant to an existing event. In cassandra, this implies to add
 // the participant to event and to events_by_user. If participant with same id
@@ -540,7 +537,7 @@ func (dao *EventDAO) SetParticipantStatus(user_id int64, event_id int64, status 
 	return q.Exec()
 }
 
-func (dao *EventDAO) SetParticipantResponse(participant *core.Participant, response core.AttendanceResponse) error {
+func (dao *EventDAO) SetParticipantResponse(participant int64, response core.AttendanceResponse, event *core.Event) error {
 
 	checkSession(dao.session)
 
@@ -550,8 +547,8 @@ func (dao *EventDAO) SetParticipantResponse(participant *core.Participant, respo
 
 	batch := dao.session.NewBatch(gocql.LoggedBatch)
 
-	batch.Query(stmt_event, response, participant.EventId, participant.UserId)
-	batch.Query(stmt_events_by_user, response, participant.UserId, 1, participant.StartDate, participant.EventId)
+	batch.Query(stmt_event, response, event.EventId, participant)
+	batch.Query(stmt_events_by_user, response, participant, 1, event.StartDate, event.EventId)
 
 	return dao.session.ExecuteBatch(batch)
 }

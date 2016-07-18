@@ -59,7 +59,7 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case model.ErrEventOutOfCreationWindow:
 		err_code = proto.E_EVENT_OUT_OF_CREATE_WINDOW
 
-	case dao.ErrNotFoundEventOrParticipant:
+	case model.ErrParticipantNotFound:
 		err_code = proto.E_INVALID_EVENT_OR_PARTICIPANT
 
 	case dao.ErrEmptyInbox:
