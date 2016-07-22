@@ -25,25 +25,29 @@ func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 		return
 	}
 
-	// Build list with participants that have changed
-	participant_list := make([]*core.EventParticipant, 0, len(t.ParticipantsChanged))
+  server := ex.server
 
+	// Build list with participants that have changed
+
+  participant_list := make([]*core.EventParticipant, 0, len(t.ParticipantsChanged))
 	for _, id := range t.ParticipantsChanged {
 		participant_list = append(participant_list, t.Event.Participants[id])
 	}
 
-	// Send message to each participant
-	server := ex.server
 
 	for _, participant_dst := range t.Target {
+
+    // Send message to each participant
 
 		session := server.GetSession(participant_dst)
 
 		if session != nil {
-			privacy_participant_list := server.filterParticipantsSlice(participant_dst, participant_list)
+
+			privacy_participant_list :=  server.Model.Events.FilterParticipantsSlice(participant_list, participant_dst)
 
 			var msg *proto.AyiPacket
 
+      // TODO: Why am I doing this?
 			if t.NumGuests > 0 {
 				msg = session.NewMessage().AttendanceStatusWithNumGuests(t.Event.EventId, privacy_participant_list, t.NumGuests)
 			} else {

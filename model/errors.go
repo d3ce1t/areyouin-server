@@ -16,4 +16,5 @@ var (
   ErrAuthorDeliveryError = errors.New("event coudn't be delivered to author")
   ErrEventNotWritable = errors.New("event isn't writable")
   ErrParticipantNotFound = errors.New("participant not found")
+  ErrEmptyInbox          = errors.New("user inbox is empty")
 )

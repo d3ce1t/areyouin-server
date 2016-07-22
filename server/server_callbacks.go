@@ -511,45 +511,30 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 	checkAuthenticated(session)
 
 	server := session.Server
-	eventDAO := dao.NewEventDAO(server.DbSession)
+	events, err := server.Model.Events.GetRecentEvents(session.UserId)
 
-	current_time := core.GetCurrentTimeMillis()
-	events, err := eventDAO.LoadUserEventsAndParticipants(session.UserId, current_time)
-
-	if err != nil {
-		if err == dao.ErrEmptyInbox {
-			log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, 0)
-			session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(nil))
-			return
-		} else {
-			panic(err)
-		}
-	}
-
-	// Filter event's participant list
-	for _, event := range events {
-
-		if len(event.Participants) == 0 {
-			log.Printf("WARNING: Event %v has zero participants\n", event.EventId)
-			continue
-		}
-
-		event.Participants = session.Server.filterEventParticipants(session.UserId, event.Participants)
+	if err == model.ErrEmptyInbox {
+		log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, 0)
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(nil))
+		return
+	} else if err != nil {
+		panic(err)
 	}
 
 	// Send event list to user
-	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, len(events))
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(events))
+	filteredEvents := server.Model.Events.FilterEvents(events, session.UserId)
+	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, len(filteredEvents))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(filteredEvents))
 
 	// Update delivery status
 	for _, event := range events {
 
-		ownParticipant, ok := event.Participants[session.UserId]
+		// TODO: I should receive an ACK before try to change state.
+		// Moreover, err is ignored. What should server do in that case?
 
-		if ok && ownParticipant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
+		changed, _ := server.Model.Events.ChangeDeliveryState(event, session.UserId, core.MessageStatus_CLIENT_DELIVERED)
 
-			ownParticipant.Delivered = core.MessageStatus_CLIENT_DELIVERED
-			eventDAO.SetParticipantStatus(session.UserId, event.EventId, ownParticipant.Delivered)
+		if changed {
 
 			// Notify change in participant status to the other participants
 			task := &NotifyParticipantChange{
@@ -558,10 +543,12 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 				Target:              core.GetParticipantKeys(event.Participants),
 			}
 
-			// I'm also sending notification to the author. Could avoid this because author already knows
-			// that the event has been send to him
+			// I'm also sending notification to the author. Could avoid this
+			// because author already knows that the event has been send
+			// to him
 			server.task_executor.Submit(task)
 		}
+
 	}
 }
 
@@ -573,18 +560,7 @@ func onListEventsHistory(request *proto.AyiPacket, message proto.Message, sessio
 	log.Printf("> (%v) REQUEST EVENTS HISTORY (start: %v, end: %v)\n", session, msg.StartWindow, msg.EndWindow) // Message does not has payload
 	checkAuthenticated(session)
 
-	current_time := core.GetCurrentTimeMillis()
-
-	if msg.StartWindow >= current_time {
-		msg.StartWindow = current_time
-	}
-
-	if msg.EndWindow >= current_time {
-		msg.EndWindow = current_time
-	}
-
-	eventDAO := dao.NewEventDAO(server.DbSession)
-	events, err := eventDAO.LoadUserEventsHistoryAndparticipants(session.UserId, msg.StartWindow, msg.EndWindow)
+	events, err := server.Model.Events.GetEventsHistory(session.UserId, msg.StartWindow, msg.EndWindow)
 	checkNoErrorOrPanic(err)
 
 	// Check event exists
@@ -601,23 +577,11 @@ func onListEventsHistory(request *proto.AyiPacket, message proto.Message, sessio
 		endWindow = events[0].StartDate
 	}
 
-	// Filter event's participant list
-	for _, event := range events {
-
-		if len(event.Participants) == 0 {
-			log.Printf("WARNING: Event %v has zero participants\n", event.EventId)
-			continue
-		}
-
-		event.Participants = session.Server.filterEventParticipants(session.UserId, event.Participants)
-	}
+	filteredEvents := server.Model.Events.FilterEvents(events, session.UserId)
 
 	// Send event list to user
 	log.Printf("< (%v) SEND EVENTS HISTORY (num.events: %v)", session, len(events))
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsHistoryList(events, startWindow, endWindow))
-
-	// NOTE: Retrieval of events history does not cause any change to events involved, i.e.
-	// event delivery status isn't updated
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsHistoryList(filteredEvents, startWindow, endWindow))
 }
 
 func onGetUserFriends(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -661,7 +625,10 @@ func onFriendRequest(request *proto.AyiPacket, message proto.Message, session *A
 	}
 
 	// Not friends
-	if server.areFriends(session.UserId, friendAccount.Id) {
+	areFriends, err := server.Model.Accounts.AreFriends(session.UserId, friendAccount.Id)
+	checkNoErrorOrPanic(err)
+
+	if areFriends {
 		panic(ErrSendRequest_AlreadyFriends)
 	}
 

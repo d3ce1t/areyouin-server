@@ -326,22 +326,18 @@ func (s *Server) GetSession(user_id int64) *AyiSession {
 	}
 }
 
-// Called from multiple threads
-// FIXME: Do not send all of the private events, but limit to a fixed number.
+// TODO: Remove. It's only being used for v0 and v1 compatibility
 func sendPrivateEvents(session *AyiSession) {
 
 	server := session.Server
-	eventDAO := dao.NewEventDAO(server.DbSession)
 
-	current_time := core.GetCurrentTimeMillis()
-	events, err := eventDAO.LoadUserEventsAndParticipants(session.UserId, current_time)
-
+	events, err := server.Model.Events.GetRecentEvents(session.UserId)
 	if err != nil {
 		log.Printf("sendPrivateEvents() to %v Error: %v\n", session, err)
 		return
 	}
 
-	// For compatibility, split events into event info and participants
+	// Split events into event info and participants
 	half_events := make([]*core.Event, 0, len(events))
 	for _, event := range events {
 		half_events = append(half_events, event.GetEventWithoutParticipants())
@@ -349,27 +345,26 @@ func sendPrivateEvents(session *AyiSession) {
 
 	// Send events list to user
 	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, len(half_events))
-	session.Write(session.NewMessage().EventsList(half_events)) // TODO: Change after remove compatibility
+	session.Write(session.NewMessage().EventsList(half_events))
 
-	// Send participants info for each event,  update participant status as delivered and notify it
+
 	for _, event := range events {
 
+		// Send participants info for each event, update participant status as delivered and notify it
+
 		if len(event.Participants) == 0 {
-			log.Printf("WARNING: Event %v has zero participants\n", event.EventId)
+			log.Printf("SEND PRIVATE EVENTS WARNING: Event %v has zero participants\n", event.EventId)
 			continue
 		}
 
-		participants_filtered := session.Server.filterParticipantsMap(session.UserId, event.Participants)
-
 		// Send attendance info
-		session.Write(session.NewMessage().AttendanceStatus(event.EventId, participants_filtered))
+		filteredParticipants := server.Model.Events.GetFilteredParticipants(event, session.UserId)
+		session.Write(session.NewMessage().AttendanceStatus(event.EventId, filteredParticipants))
 
-		// Update participant status of the session user
-		ownParticipant, ok := event.Participants[session.UserId]
+		// Update delivery state for session's user in this event
+		changed, _ := server.Model.Events.ChangeDeliveryState(event, session.UserId, core.MessageStatus_CLIENT_DELIVERED)
 
-		if ok && ownParticipant.Delivered != core.MessageStatus_CLIENT_DELIVERED {
-			ownParticipant.Delivered = core.MessageStatus_CLIENT_DELIVERED
-			eventDAO.SetParticipantStatus(session.UserId, event.EventId, ownParticipant.Delivered)
+		if changed {
 
 			// Notify change in participant status to the other participants
 			task := &NotifyParticipantChange{
@@ -421,78 +416,10 @@ func checkEventAuthorOrPanic(author_id int64, event *core.Event) {
 	}
 }
 
-// Returns a participant list where users that will not assist the event or aren't
-// friends of the given user are removed */
-func (s *Server) filterParticipantsMap(participant int64, participants map[int64]*core.EventParticipant) []*core.EventParticipant {
-
-	result := make([]*core.EventParticipant, 0, len(participants))
-
-	for _, p := range participants {
-		if s.canSee(participant, p) {
-			result = append(result, p)
-		} else {
-			result = append(result, p.AsAnonym())
-		}
-	}
-
-	return result
-}
-
-func (s *Server) filterEventParticipants(targetParticipant int64, participants map[int64]*core.EventParticipant) map[int64]*core.EventParticipant {
-
-	result := make(map[int64]*core.EventParticipant)
-
-	for key, p := range participants {
-		if s.canSee(targetParticipant, p) {
-			result[key] = p
-		} else {
-			result[key] = p.AsAnonym()
-		}
-	}
-
-	return result
-}
-
-func (s *Server) filterParticipantsSlice(participant int64, participants []*core.EventParticipant) []*core.EventParticipant {
-
-	result := make([]*core.EventParticipant, 0, len(participants))
-
-	for _, p := range participants {
-		if s.canSee(participant, p) {
-			result = append(result, p)
-		} else {
-			result = append(result, p.AsAnonym())
-		}
-	}
-
-	return result
-}
-
 func (s *Server) isFriend(user1 int64, user2 int64) bool {
-
-	if user1 == user2 {
-		return true
-	}
-
-	friendDAO := dao.NewFriendDAO(s.DbSession)
-	ok, err := friendDAO.IsFriend(user2, user1)
+	ok, err := s.Model.Accounts.IsFriend(user2, user1)
 	checkNoErrorOrPanic(err)
-
 	return ok
-}
-
-func (s *Server) areFriends(user1 int64, user2 int64) bool {
-	return s.isFriend(user1, user2) && s.isFriend(user2, user1)
-}
-
-// Tells if participant p1 can see changes of participant p2
-func (s *Server) canSee(p1 int64, p2 *core.EventParticipant) bool {
-	if p2.Response == core.AttendanceResponse_ASSIST ||
-		p1 == p2.UserId || s.isFriend(p2.UserId, p1) {
-		return true
-	} else {
-		return false
-	}
 }
 
 // Sync server-side friends groups with client-side friends groups. If groups

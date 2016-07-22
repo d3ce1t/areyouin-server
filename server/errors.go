@@ -62,7 +62,7 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case model.ErrParticipantNotFound:
 		err_code = proto.E_INVALID_EVENT_OR_PARTICIPANT
 
-	case dao.ErrEmptyInbox:
+	case model.ErrEmptyInbox:
 		err_code = proto.E_EMPTY_LIST
 
 	case facebook.ErrFacebookAccessForbidden:

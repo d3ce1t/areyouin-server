@@ -87,7 +87,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 	}
 }
 
-func (t *NotifyEventInvitation) notifyUserV1(user *core.UserAccount, event *core.Event, server *Server) bool {
+func (t *NotifyEventInvitation) notifyUserV1(user *core.UserAccount, lightEvent *core.Event, server *Server) bool {
 
   // Notify participant about the invitation only if it's connected.
   session := server.GetSession(user.Id)
@@ -101,8 +101,8 @@ func (t *NotifyEventInvitation) notifyUserV1(user *core.UserAccount, event *core
   // Keep this code for clients that uses v0 and v1
 
   // Filter event participants to protect privacy and create message
-  filtered_participants := server.filterParticipantsMap(user.Id, t.Event.Participants)
-  notify_msg := session.NewMessage().InvitationReceived(event)
+  filtered_participants := server.Model.Events.FilterParticipants(t.Event.Participants, user.Id)
+  notify_msg := session.NewMessage().InvitationReceived(lightEvent)
   attendance_status_msg := session.NewMessage().AttendanceStatus(t.Event.EventId, filtered_participants)
 
   // Notify (use a channel because it is needed to know if message arrived)
@@ -139,14 +139,11 @@ func (t *NotifyEventInvitation) notifyUserV2(user *core.UserAccount, event *core
   // From protocol v2 onward, invitation received message contains event info
   // and participants.
 
-  eventCopy := &core.Event{}
-  *eventCopy = *t.Event
-
-  // Filter event participants to protect privacy and create message
-  eventCopy.Participants = server.filterEventParticipants(user.Id, t.Event.Participants)
-  notify_msg := session.NewMessage().InvitationReceived(eventCopy)
+  // Copy event with participants filtered
+  filteredEvent := server.Model.Events.GetFilteredEvent(event, user.Id)
 
   // Notify (use a channel because it is needed to know if message arrived)
+  notify_msg := session.NewMessage().InvitationReceived(filteredEvent)
   var future *Future
 
   if user.IIDtoken != "" {

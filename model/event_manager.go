@@ -16,7 +16,6 @@ func newEventManager(parent *AyiModel, session core.DbSession) *EventManager {
     dbsession: session,
     userDAO: dao.NewUserDAO(session),
     eventDAO: dao.NewEventDAO(session),
-    friendDAO: dao.NewFriendDAO(session),
   }
 }
 
@@ -25,7 +24,6 @@ type EventManager struct {
   parent *AyiModel
   userDAO core.UserDAO
   eventDAO core.EventDAO
-  friendDAO core.FriendDAO
 }
 
 // Prominent errors:
@@ -85,7 +83,7 @@ func (self *EventManager) CreateParticipantsList(authorId int64, participants []
 
   for _, p_id := range participants {
 
-    if ok, err := self.friendDAO.IsFriend(p_id, authorId); ok {
+    if ok, err := self.parent.Accounts.IsFriend(p_id, authorId); ok {
 
       friendsCounter++
 
@@ -139,6 +137,27 @@ func (self *EventManager) CreateParticipantsList(authorId int64, participants []
 // (4) Should be at least 1 participant besides the author
 func (self *EventManager) PublishEvent(event *core.Event, users map[int64]*core.UserAccount) error {
 
+  // Check precondition (3)
+
+  if _, err := event.IsValid(); err != nil {
+    return err
+  }
+
+  // Check precondition (4)
+
+  if len(users) == 0 {
+		return ErrParticipantsRequired
+	}
+
+  // Check precondition (2)
+
+  currentDate := core.UnixMillisToTime(core.GetCurrentTimeSeconds())
+	createdDate := core.UnixMillisToTime(event.CreatedDate)
+
+  if createdDate.Before(currentDate.Add(-time.Minute)) || createdDate.After(currentDate.Add(time.Minute)) {
+		return ErrEventOutOfCreationWindow
+	}
+
   // Check precondition (1)
 
   author, err := self.userDAO.Load(event.AuthorId)
@@ -154,27 +173,6 @@ func (self *EventManager) PublishEvent(event *core.Event, users map[int64]*core.
   if !valid {
     return ErrInvalidAuthor
   }
-
-  // Check precondition (2)
-
-  currentDate := core.UnixMillisToTime(core.GetCurrentTimeSeconds())
-	createdDate := core.UnixMillisToTime(event.CreatedDate)
-
-  if createdDate.Before(currentDate.Add(-time.Minute)) || createdDate.After(currentDate.Add(time.Minute)) {
-		return ErrEventOutOfCreationWindow
-	}
-
-  // Check precondition (3)
-
-  if _, err := event.IsValid(); err != nil {
-    return err
-  }
-
-  // Check precondition (4)
-
-  if len(users) == 0 {
-		return ErrParticipantsRequired
-	}
 
   // Store event: If suceed, it's guaranteed that event exists, author is one of
   // the participants, and author has the event in his events inbox.
@@ -232,9 +230,11 @@ func (self *EventManager) CancelEvent(event *core.Event) error {
 
 // Invite participants to an existing event.
 // Returns a slice of participants that were actually invited.
-// TODO: By now, only author can invite participants to an event. However, when
-// other users are able of do the same it's needed to consider concurrency issues
-// that may cause data inconsistency.
+//
+// TODO: By now, only author can invite participants to an event.
+// However, when other users are able of doing the same it will be
+// needed to consider concurrency issues that may cause data
+// inconsistency.
 //
 // Assumptions:
 // - (1) Event exist and is persisted in DB
@@ -379,6 +379,130 @@ func (self *EventManager) ChangeEventPicture(event *core.Event, picture []byte) 
   return nil
 }
 
+func (self *EventManager) ChangeDeliveryState(event *core.Event, userId int64, state core.MessageStatus) (bool, error) {
+
+  if event.GetStatus() != core.EventState_NOT_STARTED {
+    return false, ErrEventNotWritable
+  }
+
+  participant, ok := event.Participants[userId]
+
+  if ok {
+
+    if participant.Delivered == state {
+      return false, nil // Do nothing
+    }
+
+    // TODO: Add business rule to avoid move to a previous state
+
+    err := self.eventDAO.SetParticipantStatus(userId,
+      event.EventId, state)
+
+    if err != nil {
+      return false, err
+    }
+
+    participant.Delivered = state
+    return true, nil
+
+  } else {
+    return false, ErrParticipantNotFound
+  }
+}
+
+// FIXME: Do not get all of the private events, but limit to
+// a fixed number.
+func (self *EventManager) GetRecentEvents(userId int64) ([]*core.Event, error) {
+
+  current_time := core.GetCurrentTimeMillis()
+	events, err := self.eventDAO.LoadUserEventsAndParticipants(userId, current_time)
+  if err == dao.ErrNoResults {
+    return nil, ErrEmptyInbox
+	} else if err != nil {
+    return nil, err
+  }
+
+  return events, nil
+}
+
+func (self *EventManager) GetEventsHistory(userId int64, start int64, end int64) ([]*core.Event, error) {
+
+  current_time := core.GetCurrentTimeMillis()
+
+	if start >= current_time {
+		start = current_time
+	}
+
+	if end >= current_time {
+		end = current_time
+	}
+
+  return self.eventDAO.LoadUserEventsHistoryAndparticipants(userId, start, end)
+}
+
+func (self *EventManager) FilterEvents(events []*core.Event, targetParticipant int64) []*core.Event {
+
+  filteredEvents := make([]*core.Event, 0, len(events))
+
+  for _, event := range events {
+    filteredEvents = append(filteredEvents, self.GetFilteredEvent(event, targetParticipant))
+  }
+
+  return filteredEvents
+}
+
+func (self *EventManager) FilterParticipants(participants map[int64]*core.EventParticipant, targetParticipant int64) map[int64]*core.EventParticipant {
+
+  result := make(map[int64]*core.EventParticipant)
+
+	for key, p := range participants {
+		if ok, _ := self.canSee(targetParticipant, p); ok {
+			result[key] = p
+		} else {
+			result[key] = p.AsAnonym()
+		}
+	}
+
+  return result
+}
+
+func (self *EventManager) FilterParticipantsSlice(participants []*core.EventParticipant, targetParticipant int64) map[int64]*core.EventParticipant {
+
+  result := make(map[int64]*core.EventParticipant)
+
+	for _, p := range participants {
+		if ok, _ := self.canSee(targetParticipant, p); ok {
+			result[p.UserId] = p
+		} else {
+			result[p.UserId] = p.AsAnonym()
+		}
+	}
+
+  return result
+}
+
+func (self *EventManager) GetFilteredEvent(event *core.Event, targetParticipant int64) *core.Event {
+
+  // Clone event with empty participant list (num.attendees and num.guest are preserved)
+  eventCopy := event.CloneEmpty()
+
+  // Copy filtered participants list to the new event
+  participants := self.GetFilteredParticipants(event, targetParticipant)
+  eventCopy.SetParticipants(participants)
+
+	return eventCopy
+}
+
+func (self *EventManager) GetFilteredParticipants(event *core.Event, targetParticipant int64) map[int64]*core.EventParticipant {
+
+  if len(event.Participants) == 0 {
+    log.Printf("FILTER PARTICIPANTS WARNING: Event %v has zero participants\n", event.EventId)
+    return nil
+  }
+
+  return self.FilterParticipants(event.Participants, targetParticipant)
+}
+
 // Insert an event into database, add participants to it and send it to users' inbox.
 func (self *EventManager) persistEvent(event *core.Event, author *core.EventParticipant) error {
 
@@ -458,4 +582,13 @@ func (self *EventManager) removeEventPicture(event_id int64) error {
 	}
 
 	return nil
+}
+
+// Tells if participant p1 can see event changes of participant p2
+func (self *EventManager) canSee(p1 int64, p2 *core.EventParticipant) (bool, error) {
+	if p2.Response == core.AttendanceResponse_ASSIST {
+		return true, nil
+  } else {
+    return self.parent.Accounts.IsFriend(p2.UserId, p1)
+	}
 }

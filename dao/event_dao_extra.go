@@ -126,7 +126,7 @@ func (dao *EventDAO) loadUserInboxHelper(query *gocql.Query) ([]*core.EventInbox
 	}
 
 	if len(events) == 0 {
-		return nil, ErrEmptyInbox
+		return nil, ErrNoResults
 	}
 
 	return events, nil

@@ -166,15 +166,23 @@ func (mb *PacketBuilder) InvitationReceived(event *core.Event) *AyiPacket {
 	return mb.message
 }*/
 
-func (mb *PacketBuilder) AttendanceStatus(event_id int64, status []*core.EventParticipant) *AyiPacket {
+func (mb *PacketBuilder) AttendanceStatus(event_id int64, participants map[int64]*core.EventParticipant) *AyiPacket {
 	mb.message.Header.SetType(M_ATTENDANCE_STATUS)
-	mb.message.SetMessage(&AttendanceStatus{EventId: event_id, AttendanceStatus: status})
+	participantsSlice := make([]*core.EventParticipant, 0, len(participants))
+	for _, v := range participants {
+		participantsSlice = append(participantsSlice, v)
+	}
+	mb.message.SetMessage(&AttendanceStatus{EventId: event_id, AttendanceStatus: participantsSlice})
 	return mb.message
 }
 
-func (mb *PacketBuilder) AttendanceStatusWithNumGuests(event_id int64, status []*core.EventParticipant, num_guests int32) *AyiPacket {
+func (mb *PacketBuilder) AttendanceStatusWithNumGuests(event_id int64, participants map[int64]*core.EventParticipant, num_guests int32) *AyiPacket {
 	mb.message.Header.SetType(M_ATTENDANCE_STATUS)
-	mb.message.SetMessage(&AttendanceStatus{EventId: event_id, AttendanceStatus: status, NumGuests: num_guests})
+	participantsSlice := make([]*core.EventParticipant, 0, len(participants))
+	for _, v := range participants {
+		participantsSlice = append(participantsSlice, v)
+	}
+	mb.message.SetMessage(&AttendanceStatus{EventId: event_id, AttendanceStatus: participantsSlice, NumGuests: num_guests})
 	return mb.message
 }
 

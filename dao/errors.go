@@ -8,7 +8,7 @@ import (
 
 var (
 	ErrNotFound                   = gocql.ErrNotFound
-	ErrEmptyInbox                 = errors.New("user inbox is empty")
+	ErrNoResults                  = errors.New("user inbox is empty")
 	ErrNoSession                  = errors.New("no session to Cassandra available")
 	ErrInvalidArg                 = errors.New("invalid arguments")
 	ErrInvalidEmail               = errors.New("invalid e-mail")

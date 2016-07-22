@@ -295,6 +295,32 @@ func (self *AccountManager) ImportFacebookFriends(user *core.UserAccount) ([]*co
 	return friends, nil
 }
 
+func (self *AccountManager) IsFriend(user1 int64, user2 int64) (bool, error) {
+	if user1 == user2 {
+		return true, nil
+	}
+	return self.friendDAO.IsFriend(user2, user1)
+}
+
+func (self *AccountManager) AreFriends(user1 int64, user2 int64) (bool, error) {
+
+  ok, err := self.IsFriend(user1, user2)
+  if err != nil {
+    return false, err
+  } else if !ok {
+    return false, nil
+  }
+
+  ok, err = self.IsFriend(user2, user1)
+  if err != nil {
+    return false, err
+  } else if !ok {
+    return false, nil
+  }
+
+  return true, nil
+}
+
 // Saves a profile picture i its original size and alto saves thumbnails for supported dpis
 func (self *AccountManager) saveProfilePicture(user_id int64, picture *core.Picture) error {
 

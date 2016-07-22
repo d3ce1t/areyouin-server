@@ -124,3 +124,22 @@ func (event *Event) GetStatus() EventState {
 		return EventState_ONGOING
 	}
 }
+
+func (event *Event) CloneFull() *Event {
+	eventCopy := new(Event)
+  *eventCopy = *event
+  eventCopy.Participants = make(map[int64]*EventParticipant)
+  for k, v := range event.Participants {
+		eventCopy.Participants[k] = v
+  }
+	return eventCopy
+}
+
+func (event *Event) CloneEmpty() *Event {
+	eventCopy := new(Event)
+  *eventCopy = *event
+	eventCopy.Participants = nil
+	//eventCopy.NumGuests = 0
+	//eventCopy.NumAttendees = 0
+	return eventCopy
+}

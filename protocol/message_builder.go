@@ -32,8 +32,8 @@ type MessageBuilder interface {
 	EventModified(event *core.Event) *AyiPacket
 	InvitationReceived(event *core.Event) *AyiPacket
 	//InvitationCancelled(event_id int64) *AyiPacket
-	AttendanceStatus(event_id int64, status []*core.EventParticipant) *AyiPacket
-	AttendanceStatusWithNumGuests(event_id int64, status []*core.EventParticipant, num_guests int32) *AyiPacket
+	AttendanceStatus(event_id int64, participants map[int64]*core.EventParticipant) *AyiPacket
+	AttendanceStatusWithNumGuests(event_id int64, status map[int64]*core.EventParticipant, num_guests int32) *AyiPacket
 	//EventChangeDateProposed(event_id int64, change_id int32, start_date int64, end_date int64) *AyiPacket
 	//EventChangeMessageProposed(event_id int64, change_id int32, message string) *AyiPacket
 	//EventChangeProposed(event_id int64, change_id int32, message string, start_date int64, end_date int64) *AyiPacket
