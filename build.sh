@@ -1,10 +1,10 @@
 #/usr/bin/bash
 idgen_pkg="peeple/areyouin/idgen"
 utils_pkg="peeple/areyouin/utils"
+api_pkg="peeple/areyouin/api"
 cqldao_pkg="peeple/areyouin/cqldao"
-model_dao_pkg="peeple/areyouin/model/dao"
-model_pb_pkg="peeple/areyouin/model/pb"
 model_pkg="peeple/areyouin/model"
+protocol_core_pkg="peeple/areyouin/protocol/core"
 protocol_pkg="peeple/areyouin/protocol"
 facebook_pkg="peeple/areyouin/facebook"
 webhook_pkg="peeple/areyouin/webhook"
@@ -20,10 +20,10 @@ function build_and_install {
 
 build_and_install $idgen_pkg
 build_and_install $utils_pkg
-build_and_install $model_dao_pkg
+build_and_install $api_pkg
 build_and_install $cqldao_pkg
-build_and_install $model_pb_pkg
 build_and_install $model_pkg
+build_and_install $protocol_core_pkg
 build_and_install $protocol_pkg
 build_and_install $facebook_pkg
 build_and_install $webhook_pkg
