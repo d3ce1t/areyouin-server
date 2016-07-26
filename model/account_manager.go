@@ -1,93 +1,90 @@
 package model
 
 import (
-  "bytes"
-  core "peeple/areyouin/common"
-  fb "peeple/areyouin/facebook"
-  "peeple/areyouin/dao"
-  "crypto/sha256"
-  "image"
-  "errors"
-  "log"
-  "github.com/twinj/uuid"
+	"bytes"
+	"crypto/sha256"
+	"github.com/twinj/uuid"
+	"image"
+	"peeple/areyouin/api"
+	"peeple/areyouin/cqldao"
+	fb "peeple/areyouin/facebook"
+	"peeple/areyouin/utils"
 )
 
-func newAccountManager(parent *AyiModel, session core.DbSession) *AccountManager {
-  return &AccountManager{
-    parent: parent,
-    dbsession: session,
-    userDAO: dao.NewUserDAO(session),
-    thumbDAO: dao.NewThumbnailDAO(session),
-    friendDAO: dao.NewFriendDAO(session),
-  }
+func newAccountManager(parent *AyiModel, session api.DbSession) *AccountManager {
+	return &AccountManager{
+		parent:    parent,
+		dbsession: session,
+		userDAO:   cqldao.NewUserDAO(session),
+		thumbDAO:  cqldao.NewThumbnailDAO(session),
+		friendDAO: cqldao.NewFriendDAO(session),
+	}
 }
 
 type AccountManager struct {
-  dbsession core.DbSession
-  parent *AyiModel
-  userDAO core.UserDAO
-  thumbDAO core.ThumbnailDAO
-  friendDAO core.FriendDAO
+	dbsession api.DbSession
+	parent    *AyiModel
+	userDAO   api.UserDAO
+	thumbDAO  api.ThumbnailDAO
+	friendDAO api.FriendDAO
 }
 
 // Prominent Errors:
-// - core.ErrInvalidName
-// - core.ErrInvalidEmail
-// - core.ErrInvalidPassword
-// - core.ErrNoCredentials
+// - ErrInvalidName
+// - ErrInvalidEmail
+// - ErrInvalidPassword
+// - ErrNoCredentials
 // - facebook.ErrFacebookAccessForbidden
-func (self *AccountManager) CreateUserAccount(name string, email string, password string, phone string, fbId string, fbToken string) (*core.UserAccount, error) {
+func (self *AccountManager) CreateUserAccount(name string, email string, password string, phone string, fbId string, fbToken string) (*UserAccount, error) {
 
-  // Create new user account object
-  user := core.NewUserAccount(name, email, password, phone, fbId, fbToken)
+	// Create new and valid user account object
+	user, err := NewUserAccount(name, email, password, phone, fbId, fbToken)
+	if err != nil {
+		return nil, err
+	}
 
-  // Check if it's a valid user, so the input was correct
-  if _, err := user.IsValid(); err != nil {
-    return nil, err
-  }
-
-  // If it's a Facebook account (fbid and fbtoken are not empty) check token
-	if user.HasFacebookCredentials() {
-		fbsession := fb.NewSession(user.Fbtoken)
-		if _, err := fb.CheckAccess(user.Fbid, fbsession); err != nil {
-      return nil, err
+	// If it's a Facebook account (fbid and fbtoken are not empty) check token
+	if user.HasFacebook() {
+		fbsession := fb.NewSession(user.FbToken())
+		if _, err := fb.CheckAccess(user.FbId(), fbsession); err != nil {
+			return nil, err
 		}
 	}
 
-  // Insert into users database. Insert will fail if an existing user with the same
-  // e-mail address already exists, or if the Facebook address is already being used
-  // by another user. It also controls orphaned user_facebook_credentials rows due
-  // to the way insertion is performed in Cassandra. When orphaned row is found and
-  // grace period has not elapsed, an ErrGracePeriod error is triggered. A different
-  // error message could be sent to the client whenever this happens. This way client
-  // could be notified to wait grace period seconds and retry. However, an OPERATION
-  // FAILED message is sent so far. Read UserDAO.insert for more info.
-  if err := self.userDAO.Insert(user); err != nil {
-    return nil, err
-  }
+	// Insert into users database
+	if err := self.userDAO.Insert(user.AsDTO()); err != nil {
+		return nil, err
+	}
 
-  return user, nil
+	return user, nil
 }
 
 // Prominent Errors:
 // - ErrInvalidUserOrPassword
 // - Others (except dao.ErrNotFound)
-func (self *AccountManager) NewAuthCredentialByEmailAndPassword(email string, password string) (*core.AuthCredential, error) {
+func (self *AccountManager) NewAuthCredentialByEmailAndPassword(email string, password string) (*AuthCredential, error) {
 
-  user_id, err := self.userDAO.GetIDByEmailAndPassword(email, password)
-  if err == dao.ErrNotFound {
-    return nil, ErrInvalidUserOrPassword
-  } else if err != nil {
-    return nil, err
-  }
+	userDTO, err := self.userDAO.LoadByEmail(email)
+	if err == api.ErrNotFound {
+		return nil, ErrInvalidUserOrPassword
+	} else if err != nil {
+		return nil, err
+	}
 
-  new_auth_token := uuid.NewV4().String()
+	hashedPassword := utils.HashPasswordWithSalt(password, userDTO.Salt)
+	if hashedPassword != userDTO.Password {
+		return nil, ErrInvalidUserOrPassword
+	}
 
-  if err = self.userDAO.SetAuthToken(user_id, new_auth_token); err != nil {
-    return nil, err
-  }
+	// Email and password right. Create a new auth credential
 
-  return &core.AuthCredential{UserId: user_id, Token: new_auth_token}, nil
+	new_auth_token := uuid.NewV4().String()
+
+	if err = self.userDAO.SetAuthToken(userDTO.Id, new_auth_token); err != nil {
+		return nil, err
+	}
+
+	return &AuthCredential{UserId: userDTO.Id, Token: new_auth_token}, nil
 }
 
 // Prominent Errors:
@@ -95,234 +92,103 @@ func (self *AccountManager) NewAuthCredentialByEmailAndPassword(email string, pa
 // - ErrInvalidUserOrPassword
 // - ErrModelInconsistency
 // - Others (except dao.ErrNotFound)
-func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken string) (*core.AuthCredential, error) {
+func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken string) (*AuthCredential, error) {
 
-  // Use Facebook servers to check if the id and token are valid
+	// Use Facebook servers to check if the id and token are valid
 
-  fbsession := fb.NewSession(fbToken)
-  if _, err := fb.CheckAccess(fbId, fbsession); err != nil {
-    return nil, err
-  }
+	fbsession := fb.NewSession(fbToken)
+	if _, err := fb.CheckAccess(fbId, fbsession); err != nil {
+		return nil, err
+	}
 
-  // Check if Facebook user exists also in AreYouIN, i.e. there is a Fbid
-  // pointing to a user id
+	// Check if user exists also in AreYouIN
 
-  user_id, err := self.userDAO.GetIDByFacebookID(fbId)
-  if err == dao.ErrNotFound {
-    return nil, ErrInvalidUserOrPassword
-  } else if err != nil {
-    return nil, err
-  }
+	userDTO, err := self.userDAO.LoadByFB(fbId)
+	if err == api.ErrNotFound {
+		return nil, ErrInvalidUserOrPassword
+	} else if err != nil {
+		return nil, err
+	}
 
-  // Moreover, check if this user.fbid actually exists and match provided fbId
+	new_auth_token := uuid.NewV4().String()
 
-  user, err := self.userDAO.Load(user_id)
-  if err == dao.ErrNotFound {
-    // TODO: Send e-mail to Admin
-    log.Printf("* NEW AUTH_CREDENTIAL BY FACEBOOK WARNING: USER %v NOT FOUND: This means a FbId (%v) points to an AyiId (%v) that does not exist. Admin required.\n", user_id, fbId, user_id)
-    return nil, ErrModelInconsistency
-  } else if err != nil {
-    return nil, err
-  }
+	if err = self.userDAO.SetAuthToken(userDTO.Id, new_auth_token); err != nil {
+		return nil, err
+	}
 
-  if user.Fbid != fbId {
-    // TODO: Send e-mail to Admin
-    log.Printf("* NEW AUTH_CREDENTIAL BY FACEBOOK WARNING: USER %v FBID MISMATCH: This means a FbId (%v) points to an AyiUser (%v) that does point to another FbId (%v). Admin required.\n", user_id, fbId, user_id, user.Fbid)
-    return nil, ErrModelInconsistency
-  }
-
-  // Check that account linked to given Facebook ID is valid, i.e. it has user_email_credentials (with or without
-  // password). It may happen that a row in user_email_credentials exists but doesn't have a password.
-  // Moreover, it may not have Facebook either and it would still be valid. This behaviour is preferred because if
-  // this state is found, something had have to be wrong. Under normal conditions, that state should have never
-  // happened. So, at this point only existence of e-mail are checked (credentials are ignored).
-  // In brief, this only checks that an e-mail exists for this user and points to the his/her corresponding
-  // account.
-
-  isValid, err := self.userDAO.CheckValidAccountObject(user.Id, user.Email, user.Fbid, false)
-  if err != nil {
-    return nil, err
-  }
-
-  if !isValid {
-    return nil, ErrInvalidUserOrPassword
-  }
-
-  new_auth_token := uuid.NewV4().String()
-
-  if err = self.userDAO.SetAuthToken(user_id, new_auth_token); err != nil {
-    return nil, err
-  }
-
-  return &core.AuthCredential{UserId: user_id, Token: new_auth_token}, nil
+	return &AuthCredential{UserId: userDTO.Id, Token: new_auth_token}, nil
 }
 
 func (self *AccountManager) AuthenticateUser(userId int64, authToken string) (bool, error) {
 
-  userAccount, err := self.userDAO.Load(userId)
-  if err == dao.ErrNotFound {
-    return false, ErrInvalidUserOrPassword
-  } else if err != nil {
-    return false, err
-  }
-
-  if userAccount.AuthToken != "" && userAccount.AuthToken == authToken {
-    return true, nil
-  } else {
-    return false, ErrInvalidUserOrPassword
-  }
-}
-
-// Change profile picture in order to let user's friends to see the new picture
-func (self *AccountManager) ChangeProfilePicture(user *core.UserAccount, picture []byte) error {
-
-  if picture != nil && len(picture) != 0 {
-
-    // Set profile picture
-
-    // Compute digest for picture
-    digest := sha256.Sum256(picture)
-
-    corePicture := &core.Picture{
-      RawData: picture,
-      Digest:  digest[:],
-    }
-
-    // Add profile picture
-    if err := self.saveProfilePicture(user.GetUserId(), corePicture); err != nil {
-      return err
-    }
-
-    // TODO: Register UserAccount objects and update fields if needed in order to Keep
-    // them updated.
-    user.PictureDigest = corePicture.Digest
-
-    if err := self.updateFriendsDigests(user.GetUserId(), corePicture.Digest); err != nil {
-      return err
-    }
-
-  } else {
-
-    // Remove profile picture
-
-    if err := self.removeProfilePicture(user.GetUserId()); err != nil {
-      return err
-    }
-
-    user.PictureDigest = nil
-  }
-
-  return nil
-}
-
-// Gets AreYouIN users that are friends of user in Facebook
-func (self *AccountManager) GetFacebookFriends(user *core.UserAccount) ([]*core.UserAccount, error) {
-
-  // Load Facebook friends that have AreYouIN in Facebook Apps
-
-  fbsession := fb.NewSession(user.Fbtoken)
-	fbFriends, err := fb.GetFriends(fbsession)
-	if err != nil {
-    return nil, errors.New(fb.GetErrorMessage(err))
+	user, err := self.userDAO.Load(userId)
+	if err == api.ErrNotFound {
+		return false, ErrInvalidUserOrPassword
+	} else if err != nil {
+		return false, err
 	}
 
-  // Match Facebook friends to AreYouIN users
-
-  friends := make([]*core.UserAccount, 0, len(fbFriends))
-
-  for _, fbFriend := range fbFriends {
-
-    friend_id, err := self.userDAO.GetIDByFacebookID(fbFriend.Id)
-    if err == dao.ErrNotFound {
-      // Skip: Facebook user has AreYouIN Facebook App but it's not registered (strangely)
-      continue
-    } else if err != nil {
-			return nil, err
-		}
-
-    friendUser, err := self.userDAO.Load(friend_id)
-    if err == dao.ErrNotFound {
-      // TODO: Send e-mail to Admin
-      log.Printf("* GET FACEBOOK FRIENDS WARNING: USER %v NOT FOUND: This means a FbId (%v) points to an AyiId (%v) that does not exist. Admin required.\n", friend_id, fbFriend.Id, friend_id)
-      return nil, ErrModelInconsistency
-    } else if err != nil {
-			return nil, err
-		}
-
-    friends = append(friends, friendUser)
-  }
-
-  log.Printf("GetFacebookFriends: %v/%v friends found\n", len(friends), len(fbFriends))
-
-  return friends, nil
+	if user.AuthToken != "" && user.AuthToken == authToken {
+		return true, nil
+	} else {
+		return false, ErrInvalidUserOrPassword
+	}
 }
 
-// Adds Facebook friends using AreYouIN to user's friends list
-// Returns the list of users that has been added by this operation
-func (self *AccountManager) ImportFacebookFriends(user *core.UserAccount) ([]*core.UserAccount, error) {
+func (self *AccountManager) GetUserAccount(userId int64) (*UserAccount, error) {
 
-  // Get areyouin accounts of Facebook friends
-  facebookFriends, err := self.GetFacebookFriends(user)
-  if err != nil {
-    return nil, err
-  }
-
-  // Get existing friends as a map
-  storedFriends, err := self.friendDAO.LoadFriendsMap(user.GetUserId())
+	userDTO, err := self.userDAO.Load(userId)
 	if err != nil {
 		return nil, err
 	}
 
-  friends := make([]*core.UserAccount, 0, len(facebookFriends))
+	return NewUserFromDTO(userDTO), nil
+}
 
-	// Filter facebookFriends to get only new friends
-	for _, fbFriend := range facebookFriends {
+// Change profile picture in order to let user's friends to see the new picture
+func (self *AccountManager) ChangeProfilePicture(user *UserAccount, picture []byte) error {
 
-		// Assume that if fbFriend isn't in storedFriends, then user wouldn't be either
-		// in the fbFriend friends list
-		if _, ok := storedFriends[fbFriend.GetUserId()]; !ok {
-      if err := self.friendDAO.MakeFriends(user, fbFriend); err == nil {
-        log.Printf("ImportFacebookFriends: %v and %v are now friends\n", user.Id, fbFriend.Id)
-        friends = append(friends, fbFriend)
-      } else {
-        // Log error but do not fail
-        log.Printf("ImportFacebookFriends Error (userId=%v, friendId=%v): %v\n", user.Id, fbFriend.Id, err)
-        continue
-      }
+	if picture != nil && len(picture) != 0 {
+
+		// Set profile picture
+
+		// Compute digest for picture
+		digest := sha256.Sum256(picture)
+
+		corePicture := &Picture{
+			RawData: picture,
+			Digest:  digest[:],
 		}
+
+		// Add profile picture
+		if err := self.saveProfilePicture(user.Id(), corePicture); err != nil {
+			return err
+		}
+
+		// TODO: Register UserAccount objects and update fields if needed in order to Keep
+		// them updated.
+		user.pictureDigest = corePicture.Digest
+
+		if err := self.updateFriendsDigests(user.Id(), corePicture.Digest); err != nil {
+			return err
+		}
+
+	} else {
+
+		// Remove profile picture
+
+		if err := self.removeProfilePicture(user.Id()); err != nil {
+			return err
+		}
+
+		user.pictureDigest = nil
 	}
 
-	return friends, nil
-}
-
-func (self *AccountManager) IsFriend(user1 int64, user2 int64) (bool, error) {
-	if user1 == user2 {
-		return true, nil
-	}
-	return self.friendDAO.IsFriend(user2, user1)
-}
-
-func (self *AccountManager) AreFriends(user1 int64, user2 int64) (bool, error) {
-
-  ok, err := self.IsFriend(user1, user2)
-  if err != nil {
-    return false, err
-  } else if !ok {
-    return false, nil
-  }
-
-  ok, err = self.IsFriend(user2, user1)
-  if err != nil {
-    return false, err
-  } else if !ok {
-    return false, nil
-  }
-
-  return true, nil
+	return nil
 }
 
 // Saves a profile picture i its original size and alto saves thumbnails for supported dpis
-func (self *AccountManager) saveProfilePicture(user_id int64, picture *core.Picture) error {
+func (self *AccountManager) saveProfilePicture(user_id int64, picture *Picture) error {
 
 	// Decode image
 	srcImage, _, err := image.Decode(bytes.NewReader(picture.RawData))
@@ -331,18 +197,18 @@ func (self *AccountManager) saveProfilePicture(user_id int64, picture *core.Pict
 	}
 
 	// Check image size is inside bounds
-	if srcImage.Bounds().Dx() > core.PROFILE_PICTURE_MAX_WIDTH || srcImage.Bounds().Dy() > core.PROFILE_PICTURE_MAX_HEIGHT {
+	if srcImage.Bounds().Dx() > PROFILE_PICTURE_MAX_WIDTH || srcImage.Bounds().Dy() > PROFILE_PICTURE_MAX_HEIGHT {
 		return ErrImageOutOfBounds
 	}
 
 	// Create thumbnails
-	thumbnails, err := core.CreateThumbnails(srcImage, THUMBNAIL_MDPI_SIZE, self.parent.supportedDpi)
+	thumbnails, err := utils.CreateThumbnails(srcImage, THUMBNAIL_MDPI_SIZE, self.parent.supportedDpi)
 	if err != nil {
 		return err
 	}
 
 	// Save profile picture (max 512x512)
-	err = self.userDAO.SaveProfilePicture(user_id, picture)
+	err = self.userDAO.SaveProfilePicture(user_id, picture.AsDTO())
 	if err != nil {
 		return err
 	}
@@ -353,10 +219,10 @@ func (self *AccountManager) saveProfilePicture(user_id int64, picture *core.Pict
 		return err
 	}
 
-  // Update friends' digests
-  if err := self.updateFriendsDigests(user_id, picture.Digest); err != nil {
-    return err
-  }
+	// Update friends' digests
+	if err := self.updateFriendsDigests(user_id, picture.Digest); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -364,7 +230,8 @@ func (self *AccountManager) saveProfilePicture(user_id int64, picture *core.Pict
 func (self *AccountManager) removeProfilePicture(user_id int64) error {
 
 	// Remove profile picture
-	err := self.userDAO.SaveProfilePicture(user_id, &core.Picture{RawData: nil, Digest:  nil})
+	emptyPic := &Picture{RawData: nil, Digest: nil}
+	err := self.userDAO.SaveProfilePicture(user_id, emptyPic.AsDTO())
 	if err != nil {
 		return err
 	}
@@ -375,30 +242,29 @@ func (self *AccountManager) removeProfilePicture(user_id int64) error {
 		return err
 	}
 
-  // Update friends' digests
-  if err := self.updateFriendsDigests(user_id, nil); err != nil {
-    return err
-  }
+	// Update friends' digests
+	if err := self.updateFriendsDigests(user_id, nil); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // Store digest in user's friends so that friends can know that user profile picture
 // has been changed next time they retrieve user list
-func (self *AccountManager) updateFriendsDigests(user_id int64, digest []byte) error {
+func (self *AccountManager) updateFriendsDigests(userId int64, digest []byte) error {
 
-  friendDAO := dao.NewFriendDAO(self.dbsession)
-  friends, err := friendDAO.LoadFriends(user_id, ALL_CONTACTS_GROUP)
-  if err != nil {
-    return err
-  }
+	friends, err := self.friendDAO.LoadFriends(userId, ALL_CONTACTS_GROUP)
+	if err != nil {
+		return err
+	}
 
-  for _, friend := range friends {
-    err := friendDAO.SetPictureDigest(friend.GetUserId(), user_id, digest)
-    if err != nil {
-      return err
-    }
-  }
+	for _, friend := range friends {
+		err := self.friendDAO.SetFriendPictureDigest(friend.UserId, userId, digest)
+		if err != nil {
+			return err
+		}
+	}
 
-  return nil
+	return nil
 }
