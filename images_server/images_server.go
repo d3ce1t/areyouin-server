@@ -6,9 +6,10 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"peeple/areyouin/api"
+	"peeple/areyouin/cqldao"
 	"peeple/areyouin/model"
-	core "peeple/areyouin/common"
-	"peeple/areyouin/dao"
+	"peeple/areyouin/utils"
 	"strconv"
 )
 
@@ -16,11 +17,11 @@ var (
 	ErrInvalidRequest = errors.New("invalid request")
 )
 
-func NewServer(session core.DbSession, model *model.AyiModel) *ImageServer {
+func NewServer(session api.DbSession, model *model.AyiModel) *ImageServer {
 	server := &ImageServer{
 		listen_port: 40187,
-		DbSession: session,
-		Model: model,
+		DbSession:   session,
+		Model:       model,
 	}
 	server.init()
 	return server
@@ -28,8 +29,8 @@ func NewServer(session core.DbSession, model *model.AyiModel) *ImageServer {
 
 type ImageServer struct {
 	listen_port int
-	DbSession   core.DbSession
-	Model  			*model.AyiModel
+	DbSession   api.DbSession
+	Model       *model.AyiModel
 }
 
 func (s *ImageServer) init() {
@@ -37,19 +38,19 @@ func (s *ImageServer) init() {
 }
 
 func (s *ImageServer) loadThumbnail(id int64, reqDpi int32) ([]byte, error) {
-	thumbnail_dao := dao.NewThumbnailDAO(s.DbSession)
+	thumbnail_dao := cqldao.NewThumbnailDAO(s.DbSession)
 	dpi := s.Model.GetClosestDpi(reqDpi)
 	return thumbnail_dao.Load(id, dpi)
 }
 
-func (s *ImageServer) loadEventImage(id int64) ([]byte, error) {
-	event_dao := dao.NewEventDAO(s.DbSession)
+func (s *ImageServer) loadEventImage(id int64) (*api.PictureDTO, error) {
+	event_dao := cqldao.NewEventDAO(s.DbSession)
 	return event_dao.LoadEventPicture(id)
 }
 
-func (s *ImageServer) loadUserImage(id int64) ([]byte, error) {
-	user_dao := dao.NewUserDAO(s.DbSession)
-	return user_dao.LoadUserPicture(id)
+func (s *ImageServer) loadUserImage(id int64) (*api.PictureDTO, error) {
+	user_dao := cqldao.NewUserDAO(s.DbSession)
+	return user_dao.LoadProfilePicture(id)
 }
 
 // Check access and returns user_id if access is granted or
@@ -68,13 +69,18 @@ func (s *ImageServer) checkAccess(header http.Header) (int64, error) {
 		return 0, err
 	}
 
-	access_dao := dao.NewAccessTokenDAO(s.DbSession)
-	ok, err := access_dao.CheckAccessToken(user_id, token)
-	if err != nil || !ok {
+	access_dao := cqldao.NewAccessTokenDAO(s.DbSession)
+
+	accessToken, err := access_dao.Load(user_id)
+	if err != nil {
 		return 0, err
 	}
 
-	access_dao.SetLastUsed(user_id, core.GetCurrentTimeMillis()) // ignore possible errors
+	if accessToken.Token != token {
+		return 0, nil
+	}
+
+	access_dao.SetLastUsed(user_id, utils.GetCurrentTimeMillis()) // ignore possible errors
 	return user_id, nil
 }
 
@@ -215,13 +221,12 @@ func (s *ImageServer) handleEventImageRequest(w http.ResponseWriter, r *http.Req
 
 	// Everything OK
 
-	data, err := s.loadEventImage(image_id)
+	image, err := s.loadEventImage(image_id)
 	manageError(err)
 
-	n, err := w.Write(data)
+	n, err := w.Write(image.RawData)
 	manageError(err)
-	log.Printf("< (%v) SEND EVENT IMAGE (%v/%v bytes)\n", user_id, n, len(data))
-
+	log.Printf("< (%v) SEND EVENT IMAGE (%v/%v bytes)\n", user_id, n, len(image.RawData))
 }
 
 func (s *ImageServer) handleUserImageRequest(w http.ResponseWriter, r *http.Request) {
@@ -269,12 +274,12 @@ func (s *ImageServer) handleUserImageRequest(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Everything OK
-	data, err := s.loadUserImage(image_id)
+	image, err := s.loadUserImage(image_id)
 	manageError(err)
 
-	n, err := w.Write(data)
+	n, err := w.Write(image.RawData)
 	manageError(err)
-	log.Printf("< (%v) SEND USER IMAGE (%v/%v bytes)\n", user_id, n, len(data))
+	log.Printf("< (%v) SEND USER IMAGE (%v/%v bytes)\n", user_id, n, len(image.RawData))
 }
 
 func manageError(err error) {
