@@ -1,4 +1,4 @@
-package dao
+package cqldao
 
 /*import (
 	core "peeple/areyouin/common"

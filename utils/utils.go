@@ -1,54 +1,48 @@
-package common
+package utils
 
 import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"github.com/disintegration/imaging"
+	"github.com/gocql/gocql"
 	"image"
 	"image/jpeg"
-	"github.com/disintegration/imaging"
-	"log"
 	"math/big"
+	"regexp"
 	"time"
-	"github.com/gocql/gocql"
 )
 
 const (
-	IMAGE_MDPI                 = 160              // 160dpi
-	IMAGE_HDPI                 = 1.5 * IMAGE_MDPI // 240dpi
-	IMAGE_XHDPI                = 2 * IMAGE_MDPI   // 320dpi
-	IMAGE_XXHDPI               = 3 * IMAGE_MDPI   // 480dpi
-	IMAGE_XXXHDPI              = 4 * IMAGE_MDPI   // 640dpi
+	IMAGE_MDPI    = 160              // 160dpi
+	IMAGE_HDPI    = 1.5 * IMAGE_MDPI // 240dpi
+	IMAGE_XHDPI   = 2 * IMAGE_MDPI   // 320dpi
+	IMAGE_XXHDPI  = 3 * IMAGE_MDPI   // 480dpi
+	IMAGE_XXXHDPI = 4 * IMAGE_MDPI   // 640dpi
 )
 
 var (
-	EMPTY_ARRAY_32B = [32]byte{}
+	validEmail = regexp.MustCompile(`\w[-._\w]*\w@\w[-._\w]*\w\.\w{2,3}`)
 )
 
-func GetNewParticipants(participants_id []int64, event *Event) []int64 {
-	result := make([]int64, 0, len(participants_id))
-	for _, id := range participants_id {
-		if _, ok := event.Participants[id]; !ok {
-			result = append(result, id)
-		}
+func IsValidEmail(email string) bool {
+
+	if email == "" || len(email) > 254 {
+		return false
 	}
+
+	// Golang regex MatchString tries to match the left-most substring, not the whole
+	// string. So this is a workaround to check string matching
+	// --- start work around ---
+	match := validEmail.FindString(email)
+	result := false
+
+	if match != "" {
+		result = match == email
+	}
+	// --- end work around ---
+
 	return result
-}
-
-func GetUserKeys(m map[int64]*UserAccount) []int64 {
-	keys := make([]int64, 0, len(m))
-  for k := range m {
-		keys = append(keys, k)
-  }
-	return keys
-}
-
-func GetParticipantKeys(m map[int64]*EventParticipant) []int64 {
-	keys := make([]int64, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 type QueryValues struct {
@@ -134,40 +128,18 @@ func ClearEvents(session *gocql.Session) {
 	session.Query(`TRUNCATE user_events`).Exec()
 }
 
-func CreateParticipantsFromFriends(author_id int64, friends []*Friend) map[int64]*EventParticipant {
-
-	result := make(map[int64]*EventParticipant)
-
-	if len(friends) > 0 {
-
-		for _, f := range friends {
-			result[f.UserId] = &EventParticipant{
-				UserId:    f.UserId,
-				Name:      f.Name,
-				Response:  AttendanceResponse_NO_RESPONSE,
-				Delivered: MessageStatus_NO_DELIVERED,
-			}
-		}
-	}
-
-	return result
-}
-
-/*func Log(message string) {
-	fmt.Println(message)
-}*/
-
 func RandUint16() (uint16, error) {
 	v, err := rand.Int(rand.Reader, big.NewInt(65536))
 	return uint16(v.Int64()), err
 }
 
-func NewRandomSalt32() (salt [32]byte, err error) {
-	_, err = rand.Read(salt[:])
+func NewRandomSalt32() [32]byte {
+	var salt [32]byte
+	_, err := rand.Read(salt[:])
 	if err != nil {
-		log.Println("NewRandomSalt32() error:", err)
+		panic(err)
 	}
-	return
+	return salt
 }
 
 func HashPasswordWithSalt(password string, salt [32]byte) [32]byte {

@@ -1,6 +1,0 @@
-package common
-
-const (
-	EVENT_DESCRIPTION_MIN_LENGHT = 15
-	EVENT_DESCRIPTION_MAX_LENGHT = 500
-)

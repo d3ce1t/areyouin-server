@@ -1,8 +1,9 @@
-package dao
+package cqldao
 
 import (
 	"log"
-	core "peeple/areyouin/common"
+	"peeple/areyouin/api"
+	"peeple/areyouin/utils"
 )
 
 func (dao *FriendDAO) getFriendsIdInGroup(user_id int64, group_id int32) ([]int64, error) {
@@ -23,74 +24,80 @@ func (dao *FriendDAO) getFriendsIdInGroup(user_id int64, group_id int32) ([]int6
 
 	if err := iter.Close(); err != nil {
 		log.Println("getFriendsIdInGroup:", err)
-		return nil, err
+		return nil, convErr(err)
 	}
 
 	return ids_slice, nil
 }
 
-func (dao *FriendDAO) getAllFriends(user_id int64) ([]*core.Friend, error) {
+func (d *FriendDAO) getAllFriends(user_id int64) ([]*api.FriendDTO, error) {
 
-	checkSession(dao.session)
+	checkSession(d.session)
 
 	stmt := `SELECT friend_id, friend_name, picture_digest FROM friends_by_user
 						WHERE user_id = ? LIMIT ?`
 
-	iter := dao.session.Query(stmt, user_id, MAX_NUM_FRIENDS).Iter()
+	iter := d.session.Query(stmt, user_id, MAX_NUM_FRIENDS).Iter()
 
-	friend_list := make([]*core.Friend, 0, 10)
+	friend_list := make([]*api.FriendDTO, 0, 10)
 
 	var friend_id int64
 	var friend_name string
 	var picture_digest []byte
 
 	for iter.Scan(&friend_id, &friend_name, &picture_digest) {
-		friend_list = append(friend_list, &core.Friend{
+
+		friendDTO := &api.FriendDTO{
 			UserId:        friend_id,
 			Name:          friend_name,
 			PictureDigest: picture_digest,
-		})
+		}
+
+		friend_list = append(friend_list, friendDTO)
 	}
 
 	if err := iter.Close(); err != nil {
 		log.Println("LoadFriends:", err)
-		return nil, err
+		return nil, convErr(err)
 	}
 
 	return friend_list, nil
 }
 
-func (dao *FriendDAO) getFriends(user_id int64, friends_id ...int64) ([]*core.Friend, error) {
+func (d *FriendDAO) getFriends(user_id int64, friends_id ...int64) ([]*api.FriendDTO, error) {
 
-	checkSession(dao.session)
+	checkSession(d.session)
 
 	stmt := `SELECT friend_id, friend_name, picture_digest FROM friends_by_user
-						WHERE user_id = ? AND friend_id IN (` + core.GenParams(len(friends_id)) + `) LIMIT ?`
+						WHERE user_id = ? AND friend_id IN (` + utils.GenParams(len(friends_id)) + `) LIMIT ?`
 
-	values := &core.QueryValues{}
+	values := &utils.QueryValues{}
 	values.AddValue(user_id)
 	values.AddArrayInt64(friends_id)
 	values.AddValue(MAX_NUM_FRIENDS)
 
-	iter := dao.session.Query(stmt, values.Params...).Iter()
+	iter := d.session.Query(stmt, values.Params...).Iter()
 
-	friend_list := make([]*core.Friend, 0, 10)
+	friend_list := make([]*api.FriendDTO, 0, 10)
 
 	var friend_id int64
 	var friend_name string
 	var picture_digest []byte
 
 	for iter.Scan(&friend_id, &friend_name, &picture_digest) {
-		friend_list = append(friend_list, &core.Friend{
+
+		friendDTO := &api.FriendDTO{
 			UserId:        friend_id,
 			Name:          friend_name,
 			PictureDigest: picture_digest,
-		})
+		}
+
+		friend_list = append(friend_list, friendDTO)
 	}
 
 	if err := iter.Close(); err != nil {
 		log.Println("getFriends:", err)
-		return nil, err
+		return nil, convErr(err)
 	}
 
 	return friend_list, nil
@@ -98,7 +105,7 @@ func (dao *FriendDAO) getFriends(user_id int64, friends_id ...int64) ([]*core.Fr
 
 // Load members from database and store them into groups. If group owner mismatches
 // user_id, it's ignored.
-func (dao *FriendDAO) loadMembersIntoGroups(user_id int64, groups []*core.Group) error {
+func (dao *FriendDAO) loadMembersIntoGroups(user_id int64, groups []*api.GroupDTO) error {
 
 	checkSession(dao.session)
 
@@ -112,12 +119,12 @@ func (dao *FriendDAO) loadMembersIntoGroups(user_id int64, groups []*core.Group)
 	}
 
 	stmt := `SELECT group_id, friend_id FROM friends_by_group
-		WHERE user_id = ? AND group_id IN (` + core.GenParams(len(groups_ids)) + `)`
+		WHERE user_id = ? AND group_id IN (` + utils.GenParams(len(groups_ids)) + `)`
 
 	var group_id int32
 	var friend_id int64
 
-	values := &core.QueryValues{}
+	values := &utils.QueryValues{}
 	values.AddValue(user_id)
 	values.AddArrayInt32(groups_ids)
 
@@ -130,7 +137,7 @@ func (dao *FriendDAO) loadMembersIntoGroups(user_id int64, groups []*core.Group)
 
 	if err := iter.Close(); err != nil {
 		log.Println("loadMembersIntoGroups:", err)
-		return err
+		return convErr(err)
 	}
 
 	return nil
@@ -147,7 +154,7 @@ func (dao *FriendDAO) computeGroupSize(user_id int64, group_id int32) (int32, er
 
 	err := dao.session.Query(stmt, user_id, group_id).Scan(&group_size)
 	if err != nil {
-		return -1, err
+		return -1, convErr(err)
 	}
 
 	return group_size, nil
@@ -156,7 +163,8 @@ func (dao *FriendDAO) computeGroupSize(user_id int64, group_id int32) (int32, er
 func (dao *FriendDAO) setGroupSize(user_id int64, group_id int32, group_size int32) error {
 	checkSession(dao.session)
 	stmt := `UPDATE groups_by_user SET group_size = ? WHERE user_id = ? AND group_id = ?`
-	return dao.session.Query(stmt, group_size, user_id, group_id).Exec()
+	err := dao.session.Query(stmt, group_size, user_id, group_id).Exec()
+	return convErr(err)
 }
 
 func (dao *FriendDAO) updateGroupSize(user_id int64, group_id int32) error {

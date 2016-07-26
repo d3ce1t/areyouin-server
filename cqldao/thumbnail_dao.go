@@ -1,8 +1,8 @@
-package dao
+package cqldao
 
 import (
 	"log"
-	core "peeple/areyouin/common"
+	"peeple/areyouin/utils"
 )
 
 type ThumbnailDAO struct {
@@ -17,7 +17,7 @@ func (dao *ThumbnailDAO) insertOne(id int64, digest []byte, dpi int32, thumbnail
             VALUES (?, ?, ?, ?, ?)`
 	q := dao.session.Query(stmt, id, digest, dpi, thumbnail, timestamp)
 
-	return q.Exec()
+	return convErr(q.Exec())
 }
 
 // Insert thumbnails into database. A batch implementation was used before, however
@@ -30,7 +30,7 @@ func (dao *ThumbnailDAO) Insert(id int64, digest []byte, thumbnails map[int32][]
 	checkSession(dao.session)
 
 	var first_error error
-	created_date := core.GetCurrentTimeMillis()
+	created_date := utils.GetCurrentTimeMillis()
 	for size, thumbnail := range thumbnails {
 		tmp_err := dao.insertOne(id, digest, size, thumbnail, created_date)
 		if tmp_err != nil {
@@ -41,7 +41,7 @@ func (dao *ThumbnailDAO) Insert(id int64, digest []byte, thumbnails map[int32][]
 		}
 	}
 
-	return first_error
+	return convErr(first_error)
 }
 
 func (dao *ThumbnailDAO) Load(id int64, dpi int32) ([]byte, error) {
@@ -56,7 +56,7 @@ func (dao *ThumbnailDAO) Load(id int64, dpi int32) ([]byte, error) {
 	err := q.Scan(&thumbnail)
 
 	if err != nil {
-		return nil, err
+		return nil, convErr(err)
 	}
 
 	return thumbnail, nil
@@ -64,5 +64,6 @@ func (dao *ThumbnailDAO) Load(id int64, dpi int32) ([]byte, error) {
 
 func (dao *ThumbnailDAO) Remove(id int64) error {
 	checkSession(dao.session)
-	return dao.session.Query(`DELETE FROM thumbnails WHERE id = ?`, id).Exec()
+	err := dao.session.Query(`DELETE FROM thumbnails WHERE id = ?`, id).Exec()
+	return convErr(err)
 }

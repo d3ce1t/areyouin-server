@@ -1,8 +1,9 @@
-package dao
+package cqldao
 
 import (
-	core "peeple/areyouin/common"
 	"github.com/gocql/gocql"
+	"peeple/areyouin/api"
+	"peeple/areyouin/utils"
 )
 
 /*func (dao *EventDAO) InsertEventCAS(event *core.Event) (bool, error) {
@@ -97,10 +98,80 @@ import (
 	return events, nil
 }*/
 
-func (dao *EventDAO) loadUserInboxHelper(query *gocql.Query) ([]*core.EventInbox, error) {
+// Load events in closed range [fromDate, ...], where upper bound isn't constrained
+// and it's higher than fromDate. Retrieved events are ordered from newer to older.
+// This function returns MAX_EVENTS_IN_RECENT_LIST events as much.
+func (d *EventDAO) loadUserInbox(user_id int64, fromDate int64) ([]*userEvent, error) {
+
+	checkSession(d.session)
+
+	stmt := `SELECT event_id, author_id, author_name, start_date, message,
+		response FROM events_by_user
+		WHERE user_id = ? AND event_bucket = ? AND start_date >= ? LIMIT ?`
+
+	event_bucket := 1 // TODO: Add bucket logic
+	query := d.session.Query(stmt, user_id, event_bucket, fromDate, MAX_EVENTS_IN_RECENT_LIST)
+
+	return d.loadUserInboxHelper(query)
+}
+
+// Load events in open range [..., fromDate), where lower bound isn't constrained
+// and it's lower than fromDate. fromDate must be a date lower than current_time.
+// Retrieved events are ordered from newer to older. This function returns
+// MAX_EVENTS_IN_HISTORY_LIST events as much.
+func (d *EventDAO) loadUserInboxReverse(user_id int64, fromDate int64) ([]*userEvent, error) {
+
+	checkSession(d.session)
+
+	currentTime := utils.GetCurrentTimeMillis()
+
+	if fromDate > currentTime {
+		fromDate = currentTime
+	}
+
+	stmt := `SELECT event_id, author_id, author_name, start_date, message, response
+		FROM events_by_user
+		WHERE user_id = ? AND event_bucket = ? AND start_date < ? LIMIT ?`
+
+	event_bucket := 1 // TODO: Add bucket logic
+	query := d.session.Query(stmt, user_id, event_bucket, fromDate, MAX_EVENTS_IN_HISTORY_LIST)
+
+	return d.loadUserInboxHelper(query)
+}
+
+// Load events in open range (fromDate, toDate), where fromDate < toDate.  Retrieved
+// events are ordered from older to newer. toDate must be a date lower than current_time.
+// This function returns MAX_EVENTS_IN_HISTORY_LIST as much.
+func (d *EventDAO) loadUserInboxBetween(user_id int64, fromDate int64,
+	toDate int64) ([]*userEvent, error) {
+
+	checkSession(d.session)
+
+	currentTime := utils.GetCurrentTimeMillis()
+
+	if toDate > currentTime {
+		toDate = currentTime
+	}
+
+	if fromDate >= toDate {
+		return nil, api.ErrInvalidArg
+	}
+
+	stmt := `SELECT event_id, author_id, author_name, start_date, message, response
+		FROM events_by_user
+		WHERE user_id = ? AND event_bucket = ? AND start_date > ? AND start_date < ?
+		ORDER BY start_date ASC LIMIT ?`
+
+	event_bucket := 1 // TODO: Add bucket logic
+	query := d.session.Query(stmt, user_id, event_bucket, fromDate, toDate, MAX_EVENTS_IN_HISTORY_LIST)
+
+	return d.loadUserInboxHelper(query)
+}
+
+func (d *EventDAO) loadUserInboxHelper(query *gocql.Query) ([]*userEvent, error) {
 
 	iter := query.Iter()
-	events := make([]*core.EventInbox, 0, 20)
+	events := make([]*userEvent, 0, 20)
 
 	var event_id int64
 	var author_id int64
@@ -111,22 +182,22 @@ func (dao *EventDAO) loadUserInboxHelper(query *gocql.Query) ([]*core.EventInbox
 
 	for iter.Scan(&event_id, &author_id, &author_name, &start_date, &message, &response) {
 
-		events = append(events, &core.EventInbox{
+		events = append(events, &userEvent{
 			EventId:    event_id,
 			AuthorId:   author_id,
 			AuthorName: author_name,
 			StartDate:  start_date,
 			Message:    message,
-			Response:   core.AttendanceResponse(response),
+			Response:   api.AttendanceResponse(response),
 		})
 	}
 
 	if err := iter.Close(); err != nil {
-		return nil, err
+		return nil, convErr(err)
 	}
 
 	if len(events) == 0 {
-		return nil, ErrNoResults
+		return nil, api.ErrNoResults
 	}
 
 	return events, nil
