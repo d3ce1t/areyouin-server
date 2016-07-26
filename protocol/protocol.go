@@ -3,6 +3,7 @@ package protocol
 import (
 	"io"
 	"net"
+	"peeple/areyouin/protocol/core"
 	"syscall"
 	"time"
 )
@@ -10,9 +11,9 @@ import (
 const (
 	MAX_WRITE_TIMEOUT = 15 * time.Second
 	MAX_PAYLOAD_SIZE  = 1024000 // 1 Mb
-	VERSION_1         = 0 // Use old packet v1
-	VERSION_2         = 1 // Use new header format pb based
-	VERSION_3         = 2 // Same header but different behaviour
+	VERSION_1         = 0       // Use old packet v1
+	VERSION_2         = 1       // Use new header format pb based
+	VERSION_3         = 2       // Same header but different behaviour
 )
 
 func NewPacket(version uint8) *PacketBuilder {
@@ -41,7 +42,7 @@ func getError(err error) (protoerror error) {
 }
 
 func WriteBytes(data []byte, conn net.Conn) (int, error) {
-	
+
 	if conn == nil {
 		return -1, ErrInvalidSocket
 	}
@@ -165,7 +166,7 @@ func createEmptyMessage(packet_type PacketType) Message {
 	case M_USER_AUTH:
 		message = &AccessToken{}
 	case M_CHANGE_PROFILE_PICTURE:
-		message = &UserAccount{}
+		message = &core.UserAccount{}
 	case M_CHANGE_EVENT_PICTURE:
 		message = &ModifyEvent{}
 	case M_SYNC_GROUPS:
@@ -185,18 +186,18 @@ func createEmptyMessage(packet_type PacketType) Message {
 	case M_READ_EVENT:
 		message = &ReadEvent{}
 	/*case M_LIST_AUTHORED_EVENTS:
-		message = &ListCursor{}*/
+	message = &ListCursor{}*/
 	/*case M_LIST_PRIVATE_EVENTS:
-		message = &ListCursor{}*/
+	message = &ListCursor{}*/
 	/*case M_LIST_PUBLIC_EVENTS:
-		message = &ListPublicEvents{}*/
+	message = &ListPublicEvents{}*/
 	/*case M_HISTORY_AUTHORED_EVENTS:
-		fallthrough*/
+	fallthrough*/
 	case M_HISTORY_PRIVATE_EVENTS:
 		message = &EventListRequest{}
 	/*case M_HISTORY_PUBLIC_EVENTS:
-		message = &ListCursor{}*/
-		///case M_USER_FRIENDS: UserFriends has no payload
+	message = &ListCursor{}*/
+	///case M_USER_FRIENDS: UserFriends has no payload
 	// Replies
 	case M_PONG:
 		message = &TimeInfo{}

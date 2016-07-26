@@ -59,7 +59,7 @@ message CancelUsersInvitation {
 // CONFIRM ATTENDANCE
 message ConfirmAttendance {
   int64 event_id = 1;
-  common.AttendanceResponse action_code = 2;
+  core.AttendanceResponse action_code = 2;
 }
 
 // MODIFY EVENT DATE
@@ -82,7 +82,7 @@ message VoteChange {
 
 // USER POSITION
 message UserPosition {
-  common.Location global_coordinates = 1;
+  core.Location global_coordinates = 1;
   float estimation_error = 2;
 }
 
@@ -128,8 +128,8 @@ message InstanceIDToken {
 // SYNC GROUPS
 message SyncGroups {
   int64 owner = 1;
-  repeated common.Group groups = 2;
-  common.SyncBehaviour sync_behaviour = 3;
+  repeated core.Group groups = 2;
+  core.SyncBehaviour sync_behaviour = 3;
 }
 
 // CREATE FRIEND REQUEST
@@ -158,7 +158,7 @@ message EventCancelled {
   int64 who_id = 1;
   int64 event_id = 2;
   string reason = 3;
-  common.Event event = 4;
+  core.Event event = 4;
 }
 
 // EVENT EXPIRED
@@ -178,7 +178,7 @@ message InvitationCancelled {
 // ATTENDANCE STATUS
 message AttendanceStatus {
   int64 event_id = 1;
-  repeated common.EventParticipant attendance_status = 2;
+  repeated core.EventParticipant attendance_status = 2;
   int32 num_guests = 3;
 }
 
@@ -259,7 +259,7 @@ message ReadEvent {
 message EventListRequest {
   int64 start_window = 1;
   int64 end_window = 2;
-  common.Location user_coordinates = 3;
+  core.Location user_coordinates = 3;
   uint32 range_in_meters = 4;
 }
 
@@ -269,31 +269,22 @@ message EventListRequest {
 
 // EVENTS LIST
 message EventsList {
-  repeated common.Event event = 1;
+  repeated core.Event event = 1;
   int64 startWindow = 2;
   int64 endWindow = 3;
 }
 
 // FRIENDS LIST
 message FriendsList {
-  repeated common.Friend friends = 1;
-}
-
-// USER ACCOUNT
-message UserAccount {
-  string name = 1;
-  string email = 2;
-  bytes picture = 3;
-  bytes picture_digest = 4;
-  string fbId = 5;
+  repeated core.Friend friends = 1;
 }
 
 // GROUPS LIST
 message GroupsList {
-  repeated common.Group groups = 1;
+  repeated core.Group groups = 1;
 }
 
 // FRIEND REQUESTS LIST
 message FriendRequestsList {
-  repeated common.FriendRequest friendRequests = 1;
+  repeated core.FriendRequest friendRequests = 1;
 }

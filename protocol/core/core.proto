@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package core;
+
+option java_package = "es.peeple.areyouin.sdk.network";
+//option java_outer_classname = "Core";
+option objc_class_prefix="Core";
+
+enum SyncBehaviour {
+  // Previous groups are removed and new ones are added.
+  TRUNCATE = 0;
+
+  // Previous groups are updated, new ones are added
+  PRESERVE = 1;
+}
+
+enum AttendanceResponse {
+  NO_RESPONSE = 0;
+  NO_ASSIST = 1;
+  CANNOT_ASSIST = 2;
+  ASSIST = 3;
+}
+
+enum EventState {
+  NOT_STARTED = 0;
+  ONGOING = 1;
+  FINISHED = 2;
+  CANCELLED = 3;
+}
+
+enum InvitationStatus {
+  NO_DELIVERED = 0;
+  SERVER_DELIVERED = 1;
+  CLIENT_DELIVERED = 2;
+}
+
+message UserAccount {
+  string name = 1;
+  string email = 2;
+  bytes picture = 3;
+  bytes picture_digest = 4;
+  string fbId = 5;
+}
+
+message Event {
+  int64 event_id = 1;
+  int64 author_id = 2;
+  string author_name = 3;
+  int64 start_date = 4;
+  int64 end_date = 5;
+  string message = 6;
+  bool is_public = 7;
+  Location geolocation = 8;
+  int32 num_attendees = 9;
+  int32 num_guests = 10;
+  int64 created_date = 11;
+  map<int64, EventParticipant> participants = 12;
+  int64 inbox_position = 13;
+  EventState state = 14;
+  bytes picture_digest = 15;
+}
+
+message Location {
+  float latitude = 1;
+  float longitude = 2;
+}
+
+message EventParticipant {
+  int64 user_id = 1;
+  string name = 2;
+  AttendanceResponse response = 3;
+  InvitationStatus delivered = 4;
+}
+
+message Friend {
+  int64 user_id = 1;
+  string name = 2;
+  bytes picture_digest = 3;
+}
+
+message Group {
+  int32 id = 1;
+  string name = 2;
+	int32 size = 3;
+  repeated int64 members = 4;
+}
+
+message FriendRequest {
+  int64 friend_id = 1;
+  string name = 2;
+  string email = 3;
+  int64 created_date = 4;
+}
