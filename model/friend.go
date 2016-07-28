@@ -2,6 +2,7 @@ package model
 
 import (
 	"peeple/areyouin/api"
+	"peeple/areyouin/utils"
 )
 
 type Friend struct {
@@ -18,7 +19,7 @@ func NewFriend(id int64, name string, pictureDigest []byte) *Friend {
 	}
 }
 
-func NewFriendFromDTO(dto *api.FriendDTO) *Friend {
+func newFriendFromDTO(dto *api.FriendDTO) *Friend {
 	return &Friend{
 		id:            dto.UserId,
 		name:          dto.Name,
@@ -61,6 +62,22 @@ func NewGroup(id int32, name string, size int32) *Group {
 	}
 }
 
+func newGroupFromDTO(dto *api.GroupDTO) *Group {
+	group := NewGroup(dto.Id, dto.Name, dto.Size)
+	for _, memberID := range dto.Members {
+		group.members = append(group.members, memberID)
+	}
+	return group
+}
+
+func newGroupListFromDTO(dtos []*api.GroupDTO) []*Group {
+	groupList := make([]*Group, 0, len(dtos))
+	for _, groupDTO := range dtos {
+		groupList = append(groupList, newGroupFromDTO(groupDTO))
+	}
+	return groupList
+}
+
 func (g *Group) Id() int32 {
 	return g.id
 }
@@ -73,46 +90,128 @@ func (g *Group) Size() int {
 	return len(g.members)
 }
 
-/*func (g *Group) AddMember(userId int64) {
-	g.pbg.Members = append(g.pbg.Members, userId)
-}*/
-
-/*func (g *Group) Members() []int64 {
-	return g.pbg.Members
-}*/
-
-type FriendRequest struct {
-	friendId    int64
-	fromUser    int64
-	name        string
-	email       string
-	createdDate int64
+func (g *Group) Members() []int64 {
+	copy := make([]int64, 0, len(g.members))
+	for _, gid := range g.members {
+		copy = append(copy, gid)
+	}
+	return copy
 }
 
-func NewFriendRequest(toUser int64, fromUser int64, name string, email string, createdDate int64) *FriendRequest {
+func (g *Group) Clone() *Group {
+	copy := *g
+	copy.members = make([]int64, 0, len(g.members))
+	for _, gid := range g.members {
+		copy.members = append(copy.members, gid)
+	}
+	return &copy
+}
+
+func (g *Group) AsDTO() *api.GroupDTO {
+
+	dto := &api.GroupDTO{
+		Id:   g.id,
+		Name: g.name,
+		Size: int32(g.size),
+	}
+
+	for _, friendID := range g.members {
+		dto.Members = append(dto.Members, friendID)
+	}
+
+	return dto
+}
+
+type GroupBuilder struct {
+	g Group
+}
+
+func NewGroupBuilder() *GroupBuilder {
+	return &GroupBuilder{}
+}
+
+func (b *GroupBuilder) SetId(id int32) *GroupBuilder {
+	b.g.id = id
+	return b
+}
+
+func (b *GroupBuilder) SetName(name string) *GroupBuilder {
+	b.g.name = name
+	return b
+}
+
+func (b *GroupBuilder) AddMember(friendId int64) *GroupBuilder {
+	b.g.members = append(b.g.members, friendId)
+	b.g.size = len(b.g.members)
+	return b
+}
+
+func (b *GroupBuilder) Build() *Group {
+	return b.g.Clone()
+}
+
+type FriendRequest struct {
+	toUser        int64
+	fromUser      int64
+	fromUserName  string
+	fromUserEmail string
+	createdDate   int64
+}
+
+func NewFriendRequest(toUser int64, fromUser int64, name string, email string) *FriendRequest {
 	return &FriendRequest{
-		friendId:    toUser,
-		fromUser:    fromUser,
-		name:        name,
-		email:       email,
-		createdDate: createdDate,
+		toUser:        toUser,
+		fromUser:      fromUser,
+		fromUserName:  name,
+		fromUserEmail: email,
+		createdDate:   utils.GetCurrentTimeMillis(),
 	}
 }
 
-/*type UserFriend interface {
-	GetName() string
-	GetUserId() int64
-	GetPictureDigest() []byte
-}*/
-
-/*func (f *Friend) GetName() string {
-	return f.Name
+func newFriendRequestFromDTO(dto *api.FriendRequestDTO) *FriendRequest {
+	return &FriendRequest{
+		toUser:        dto.ToUser,
+		fromUser:      dto.FromUser,
+		fromUserName:  dto.Name,
+		fromUserEmail: dto.Email,
+		createdDate:   dto.CreatedDate,
+	}
 }
 
-func (f *Friend) GetUserId() int64 {
-	return f.UserId
+func newFriendRequestListFromDTO(dtos []*api.FriendRequestDTO) []*FriendRequest {
+	results := make([]*FriendRequest, 0, len(dtos))
+	for _, friendRequestDTO := range dtos {
+		results = append(results, newFriendRequestFromDTO(friendRequestDTO))
+	}
+	return results
 }
 
-func (f *Friend) GetPictureDigest() []byte {
-	return f.PictureDigest
-}*/
+func (r *FriendRequest) FromUser() int64 {
+	return r.fromUser
+}
+
+func (r *FriendRequest) ToUser() int64 {
+	return r.toUser
+}
+
+func (r *FriendRequest) FromUserName() string {
+	return r.fromUserName
+}
+
+func (r *FriendRequest) FromUserEmail() string {
+	return r.fromUserEmail
+}
+
+func (r *FriendRequest) CreatedDate() int64 {
+	return r.createdDate
+}
+
+func (r *FriendRequest) AsDTO() *api.FriendRequestDTO {
+	return &api.FriendRequestDTO{
+		ToUser:      r.toUser,
+		FromUser:    r.fromUser,
+		Name:        r.fromUserName,
+		Email:       r.fromUserEmail,
+		CreatedDate: r.createdDate,
+	}
+}

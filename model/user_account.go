@@ -1,11 +1,12 @@
 package model
 
 import (
-	"github.com/twinj/uuid"
 	"peeple/areyouin/api"
 	"peeple/areyouin/idgen"
 	"peeple/areyouin/utils"
 	"strings"
+
+	"github.com/twinj/uuid"
 )
 
 const (
@@ -71,7 +72,7 @@ func NewUserAccount(name string, email string, password string, phone string,
 	return user, nil
 }
 
-func NewUserFromDTO(dto *api.UserDTO) *UserAccount {
+func newUserFromDTO(dto *api.UserDTO) *UserAccount {
 	return &UserAccount{
 		id:            dto.Id,
 		name:          dto.Name,
@@ -79,8 +80,8 @@ func NewUserFromDTO(dto *api.UserDTO) *UserAccount {
 		emailVerified: dto.EmailVerified,
 		pictureDigest: dto.PictureDigest,
 		iidToken: &IIDToken{
-			Token:   dto.IidToken.Token,
-			Version: dto.IidToken.Version,
+			token:   dto.IidToken.Token,
+			version: dto.IidToken.Version,
 		},
 		authToken: dto.AuthToken,
 		emailCred: &EmailCredential{
@@ -95,6 +96,14 @@ func NewUserFromDTO(dto *api.UserDTO) *UserAccount {
 		lastConnection: dto.LastConn,
 		createdDate:    dto.CreatedDate,
 	}
+}
+
+func newUserListFromDTO(dtos []*api.UserDTO) []*UserAccount {
+	results := make([]*UserAccount, 0, len(dtos))
+	for _, userDTO := range dtos {
+		results = append(results, newUserFromDTO(userDTO))
+	}
+	return results
 }
 
 func (u *UserAccount) Id() int64 {
@@ -132,9 +141,8 @@ func (u *UserAccount) FbToken() string {
 func (u *UserAccount) PushToken() IIDToken {
 	if u.iidToken != nil {
 		return *u.iidToken
-	} else {
-		return IIDToken{}
 	}
+	return IIDToken{}
 }
 
 func (u *UserAccount) PictureDigest() []byte {
@@ -177,7 +185,7 @@ func (u *UserAccount) AsDTO() *api.UserDTO {
 		Name:          u.name,
 		FbId:          u.fbCred.FbId,
 		FbToken:       u.fbCred.Token,
-		IidToken:      u.iidToken.AsDTO(),
+		IidToken:      *(u.iidToken.AsDTO()),
 		LastConn:      u.lastConnection,
 		CreatedDate:   u.createdDate,
 		PictureDigest: u.pictureDigest,
@@ -239,14 +247,33 @@ type FBCredential struct {
 }
 
 type IIDToken struct {
-	Token string
+	token string
 	// Protocol Version stored when IIDtoken was received
-	Version int
+	version int
 }
 
-func (t *IIDToken) AsDTO() api.IIDTokenDTO {
-	return api.IIDTokenDTO{
-		Token:   t.Token,
-		Version: t.Version,
+func NewIIDToken(token string, version int) *IIDToken {
+	return &IIDToken{token: token, version: version}
+}
+
+func newIIDTokenFromDTO(dto *api.IIDTokenDTO) *IIDToken {
+	return &IIDToken{
+		token:   dto.Token,
+		version: dto.Version,
+	}
+}
+
+func (t *IIDToken) Token() string {
+	return t.token
+}
+
+func (t *IIDToken) Version() int {
+	return t.version
+}
+
+func (t *IIDToken) AsDTO() *api.IIDTokenDTO {
+	return &api.IIDTokenDTO{
+		Token:   t.token,
+		Version: t.version,
 	}
 }

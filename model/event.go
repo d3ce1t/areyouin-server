@@ -52,7 +52,7 @@ func NewEvent(authorId int64, authorName string, createdDate int64, startDate in
 	return event
 }
 
-func NewEventFromDTO(dto *api.EventDTO) *Event {
+func newEventFromDTO(dto *api.EventDTO) *Event {
 
 	event := &Event{
 		id:            dto.Id,
@@ -70,10 +70,18 @@ func NewEventFromDTO(dto *api.EventDTO) *Event {
 	}
 
 	for _, p := range dto.Participants {
-		event.participants[p.UserId] = NewParticipantFromDTO(p)
+		event.participants[p.UserId] = newParticipantFromDTO(p)
 	}
 
 	return event
+}
+
+func newEventListFromDTO(dtos []*api.EventDTO) []*Event {
+	results := make([]*Event, 0, len(dtos))
+	for _, eventDTO := range dtos {
+		results = append(results, newEventFromDTO(eventDTO))
+	}
+	return results
 }
 
 func (e *Event) Id() int64 {
@@ -221,6 +229,27 @@ func (e *Event) AsDTO() *api.EventDTO {
 	}
 }*/
 
+func (e *Event) GetParticipant(id int64) *Participant {
+	v, _ := e.participants[id]
+	return v
+}
+
+func (e *Event) ParticipantIds() []int64 {
+	keys := make([]int64, 0, len(e.participants))
+	for k := range e.participants {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (e *Event) Participants() []*Participant {
+	values := make([]*Participant, 0, len(e.participants))
+	for _, v := range e.participants {
+		values = append(values, v)
+	}
+	return values
+}
+
 func (e *Event) addParticipant(p *Participant) {
 	e.participants[p.id] = p
 	e.numGuests = int32(len(e.participants))
@@ -243,7 +272,7 @@ func (e *Event) addParticipant(p *Participant) {
 	return eventCopy
 }*/
 
-func (event *Event) cloneEmpty() *Event {
+func (event *Event) CloneEmptyParticipants() *Event {
 	eventCopy := new(Event)
 	*eventCopy = *event
 	eventCopy.participants = nil
@@ -251,146 +280,3 @@ func (event *Event) cloneEmpty() *Event {
 	//eventCopy.NumAttendees = 0
 	return eventCopy
 }
-
-type ParticipantList struct {
-	m map[int64]*Participant
-}
-
-func NewParticipantList() *ParticipantList {
-	pl := &ParticipantList{
-		m: make(map[int64]*Participant),
-	}
-	return pl
-}
-
-func (l *ParticipantList) add(p *Participant) {
-	l.m[p.Id()] = p
-}
-
-func (l *ParticipantList) Get(id int64) (*Participant, bool) {
-	v, ok := l.m[id]
-	return v, ok
-}
-
-func (l *ParticipantList) Len() int {
-	return len(l.m)
-}
-
-func (l *ParticipantList) Range(f func(k int64, v *Participant)) {
-	for k, v := range l.m {
-		f(k, v)
-	}
-}
-
-func (l *ParticipantList) UserIds() []int64 {
-	keys := make([]int64, 0, len(l.m))
-	for k := range l.m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-/*type EventBuilder struct {
-	e *Event
-}
-
-func NewEventBuilder() *EventBuilder {
-	return &EventBuilder{
-		e: &Event{},
-	}
-}
-
-func (b *EventBuilder) SetId(id int64) *EventBuilder {
-	b.e.ev.EventId = id
-	return b
-}
-
-func (b *EventBuilder) SetAuthorId(authorId int64) *EventBuilder {
-	b.e.ev.AuthorId = authorId
-	return b
-}
-
-func (b *EventBuilder) SetAuthorName(name string) *EventBuilder {
-	b.e.ev.AuthorName = name
-	return b
-}
-
-func (b *EventBuilder) SetDescription(description string) *EventBuilder {
-	b.e.ev.Message = description
-	return b
-}
-
-func (b *EventBuilder) SetStartDate(startDate int64) *EventBuilder {
-	b.e.ev.StartDate = startDate
-	return b
-}
-
-func (b *EventBuilder) SetEndDate(endDate int64) *EventBuilder {
-	b.e.ev.EndDate = endDate
-	return b
-}
-
-func (b *EventBuilder) SetCreatedDate(createdDate int64) *EventBuilder {
-	b.e.ev.CreatedDate = createdDate
-	return b
-}
-
-func (b *EventBuilder) SetInboxPosition(timestamp int64) *EventBuilder {
-	b.e.ev.InboxPosition = timestamp
-	return b
-}
-
-func (b *EventBuilder) SetPictureDigest(pictureDigest []byte) *EventBuilder {
-	b.e.ev.PictureDigest = pictureDigest
-	return b
-}
-
-func (b *EventBuilder) SetPublic(isPublic bool) *EventBuilder {
-	b.e.ev.IsPublic = isPublic
-	return b
-}
-
-func (b *EventBuilder) SetNumAttendees(numAttendees int32) *EventBuilder {
-	b.e.ev.NumAttendees = numAttendees
-	return b
-}
-
-func (b *EventBuilder) SetNumGuests(numGuests int32) *EventBuilder {
-	b.e.ev.NumGuests = numGuests
-	return b
-}
-
-func (b *EventBuilder) SetCancelled(isCancelled bool) *EventBuilder {
-	if isCancelled {
-		b.e.ev.State = pb.EventState_CANCELLED
-	}
-	return b
-}
-
-func (b *EventBuilder) AddMember(participant *Participant) *EventBuilder {
-	b.e.pl.m[participant.Id()] = participant
-	return b
-}
-
-func (b *EventBuilder) Build() *Event {
-	return b.e
-}
-
-type ParticipantListBuilder struct {
-	pl *ParticipantList
-}
-
-func NewParticipantListBuilder() *ParticipantListBuilder {
-	return &ParticipantListBuilder{
-		pl: NewParticipantList(),
-	}
-}
-
-func (b *ParticipantListBuilder) AddParticipant(p *Participant) *ParticipantListBuilder {
-	b.pl.m[p.Id()] = p
-	return b
-}
-
-func (b *ParticipantListBuilder) Build() *ParticipantList {
-	return b.pl
-}*/

@@ -29,6 +29,20 @@ type EventManager struct {
 	thumbDAO  api.ThumbnailDAO
 }
 
+func (m *EventManager) GetEvent(eventID int64) (*Event, error) {
+
+	events, err := m.eventDAO.LoadEvents(eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(events) > 0 {
+		return newEventFromDTO(events[0]), nil
+	}
+
+	return nil, ErrNotFound
+}
+
 // Prominent errors:
 // - ErrInvalidAuthor
 // - ErrEventOutOfCreationWindow
@@ -66,7 +80,7 @@ func (self *EventManager) CreateNewEvent(author *UserAccount, createdDate int64,
 }
 
 // Create a participant list by means of the provided participants id.
-// Only friends of user with authorId are included in the resulting list.
+// Only friends of user 'authorId' are included in the resulting list.
 func (self *EventManager) CreateParticipantsList(authorId int64,
 	participants []int64) (map[int64]*UserAccount, error) {
 
@@ -98,7 +112,7 @@ func (self *EventManager) CreateParticipantsList(authorId int64,
 				return nil, err
 			}
 
-			usersList[user.Id] = NewUserFromDTO(user)
+			usersList[user.Id] = newUserFromDTO(user)
 
 		} else if err != nil {
 			return nil, err
@@ -163,7 +177,7 @@ func (self *EventManager) PublishEvent(event *Event, users map[int64]*UserAccoun
 		return err
 	}
 
-	author := NewUserFromDTO(authorDto)
+	author := newUserFromDTO(authorDto)
 
 	// Store event: If suceed, it's guaranteed that event exists, author is one of
 	// the participants, and author has the event in his events inbox.
@@ -415,7 +429,7 @@ func (self *EventManager) GetRecentEvents(userId int64) ([]*Event, error) {
 
 	events := make([]*Event, 0, len(eventsDto))
 	for _, ev := range eventsDto {
-		events = append(events, NewEventFromDTO(ev))
+		events = append(events, newEventFromDTO(ev))
 	}
 
 	return events, nil
@@ -440,7 +454,7 @@ func (self *EventManager) GetEventsHistory(userId int64, start int64, end int64)
 
 	events := make([]*Event, 0, len(eventsDto))
 	for _, ev := range eventsDto {
-		events = append(events, NewEventFromDTO(ev))
+		events = append(events, newEventFromDTO(ev))
 	}
 
 	return events, nil
@@ -457,7 +471,7 @@ func (self *EventManager) FilterEvents(events []*Event, targetParticipant int64)
 	return filteredEvents
 }
 
-func (self *EventManager) FilterParticipants(participants map[int64]*Participant, targetParticipant int64) map[int64]*Participant {
+func (self *EventManager) filterParticipants(participants map[int64]*Participant, targetParticipant int64) map[int64]*Participant {
 
 	result := make(map[int64]*Participant)
 
@@ -490,7 +504,7 @@ func (self *EventManager) FilterParticipantsSlice(participants []*Participant, t
 func (self *EventManager) GetFilteredEvent(event *Event, targetParticipant int64) *Event {
 
 	// Clone event with empty participant list (num.attendees and num.guest are preserved)
-	eventCopy := event.cloneEmpty()
+	eventCopy := event.CloneEmptyParticipants()
 
 	// Copy filtered participants list to the new event
 	eventCopy.participants = self.GetFilteredParticipants(event, targetParticipant)
@@ -504,7 +518,7 @@ func (self *EventManager) GetFilteredParticipants(event *Event, targetParticipan
 		return nil
 	}
 
-	return self.FilterParticipants(event.participants, targetParticipant)
+	return self.filterParticipants(event.participants, targetParticipant)
 }
 
 // Insert an event into database, add participants to it and send it to users' inbox.

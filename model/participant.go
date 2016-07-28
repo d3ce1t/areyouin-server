@@ -21,7 +21,7 @@ func NewParticipant(id int64, name string, response api.AttendanceResponse,
 	}
 }
 
-func NewParticipantFromDTO(dto *api.ParticipantDTO) *Participant {
+func newParticipantFromDTO(dto *api.ParticipantDTO) *Participant {
 	return &Participant{
 		id:               dto.UserId,
 		name:             dto.Name,

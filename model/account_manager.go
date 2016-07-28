@@ -3,30 +3,33 @@ package model
 import (
 	"bytes"
 	"crypto/sha256"
-	"github.com/twinj/uuid"
 	"image"
 	"peeple/areyouin/api"
 	"peeple/areyouin/cqldao"
 	fb "peeple/areyouin/facebook"
 	"peeple/areyouin/utils"
+
+	"github.com/twinj/uuid"
 )
 
 func newAccountManager(parent *AyiModel, session api.DbSession) *AccountManager {
 	return &AccountManager{
-		parent:    parent,
-		dbsession: session,
-		userDAO:   cqldao.NewUserDAO(session),
-		thumbDAO:  cqldao.NewThumbnailDAO(session),
-		friendDAO: cqldao.NewFriendDAO(session),
+		parent:         parent,
+		dbsession:      session,
+		userDAO:        cqldao.NewUserDAO(session),
+		thumbDAO:       cqldao.NewThumbnailDAO(session),
+		friendDAO:      cqldao.NewFriendDAO(session),
+		accessTokenDAO: cqldao.NewAccessTokenDAO(session),
 	}
 }
 
 type AccountManager struct {
-	dbsession api.DbSession
-	parent    *AyiModel
-	userDAO   api.UserDAO
-	thumbDAO  api.ThumbnailDAO
-	friendDAO api.FriendDAO
+	dbsession      api.DbSession
+	parent         *AyiModel
+	userDAO        api.UserDAO
+	thumbDAO       api.ThumbnailDAO
+	friendDAO      api.FriendDAO
+	accessTokenDAO api.AccessTokenDAO
 }
 
 // Prominent Errors:
@@ -62,7 +65,7 @@ func (self *AccountManager) CreateUserAccount(name string, email string, passwor
 // Prominent Errors:
 // - ErrInvalidUserOrPassword
 // - Others (except dao.ErrNotFound)
-func (self *AccountManager) NewAuthCredentialByEmailAndPassword(email string, password string) (*AuthCredential, error) {
+func (self *AccountManager) NewAuthCredentialByEmailAndPassword(email string, password string) (*AccessToken, error) {
 
 	userDTO, err := self.userDAO.LoadByEmail(email)
 	if err == api.ErrNotFound {
@@ -78,13 +81,13 @@ func (self *AccountManager) NewAuthCredentialByEmailAndPassword(email string, pa
 
 	// Email and password right. Create a new auth credential
 
-	new_auth_token := uuid.NewV4().String()
+	newAuthToken := uuid.NewV4().String()
 
-	if err = self.userDAO.SetAuthToken(userDTO.Id, new_auth_token); err != nil {
+	if err = self.userDAO.SetAuthToken(userDTO.Id, newAuthToken); err != nil {
 		return nil, err
 	}
 
-	return &AuthCredential{UserId: userDTO.Id, Token: new_auth_token}, nil
+	return newAccesToken(userDTO.Id, newAuthToken), nil
 }
 
 // Prominent Errors:
@@ -92,7 +95,7 @@ func (self *AccountManager) NewAuthCredentialByEmailAndPassword(email string, pa
 // - ErrInvalidUserOrPassword
 // - ErrModelInconsistency
 // - Others (except dao.ErrNotFound)
-func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken string) (*AuthCredential, error) {
+func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken string) (*AccessToken, error) {
 
 	// Use Facebook servers to check if the id and token are valid
 
@@ -110,13 +113,26 @@ func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken str
 		return nil, err
 	}
 
-	new_auth_token := uuid.NewV4().String()
+	newAuthToken := uuid.NewV4().String()
 
-	if err = self.userDAO.SetAuthToken(userDTO.Id, new_auth_token); err != nil {
+	if err = self.userDAO.SetAuthToken(userDTO.Id, newAuthToken); err != nil {
 		return nil, err
 	}
 
-	return &AuthCredential{UserId: userDTO.Id, Token: new_auth_token}, nil
+	return newAccesToken(userDTO.Id, newAuthToken), nil
+}
+
+func (m *AccountManager) NewImageAccessToken(userID int64) (*AccessToken, error) {
+
+	accessToken := newAccesToken(userID, uuid.NewV4().String())
+
+	// Overwrites previous one if exists
+	err := m.accessTokenDAO.Insert(accessToken.AsDTO())
+	if err != nil {
+		return nil, err
+	}
+
+	return accessToken, nil
 }
 
 func (self *AccountManager) AuthenticateUser(userId int64, authToken string) (bool, error) {
@@ -142,7 +158,86 @@ func (self *AccountManager) GetUserAccount(userId int64) (*UserAccount, error) {
 		return nil, err
 	}
 
-	return NewUserFromDTO(userDTO), nil
+	return newUserFromDTO(userDTO), nil
+}
+
+func (self *AccountManager) GetUserAccountByEmail(email string) (*UserAccount, error) {
+
+	userDTO, err := self.userDAO.LoadByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+
+	return newUserFromDTO(userDTO), nil
+}
+
+func (self *AccountManager) GetUserAccountByFacebook(fbId string) (*UserAccount, error) {
+
+	userDTO, err := self.userDAO.LoadByFB(fbId)
+	if err != nil {
+		return nil, err
+	}
+
+	return newUserFromDTO(userDTO), nil
+}
+
+func (m *AccountManager) ListUsers() ([]*UserAccount, error) {
+
+	usersDTO, err := m.userDAO.LoadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	users := newUserListFromDTO(usersDTO)
+	return users, nil
+}
+
+func (self *AccountManager) GetPushToken(userId int64) (*IIDToken, error) {
+
+	tokenDTO, err := self.userDAO.LoadIIDToken(userId)
+	if err != nil {
+		return nil, err
+	}
+
+	return newIIDTokenFromDTO(tokenDTO), nil
+}
+
+func (m *AccountManager) SetPushToken(userID int64, pushToken *IIDToken) error {
+
+	err := m.userDAO.SetIIDToken(userID, pushToken.AsDTO())
+	if err != nil {
+		return err
+	}
+
+	//user.iidToken = pushToken
+	return nil
+}
+
+func (self *AccountManager) SetLastConnection(userId int64, time int64) error {
+	return self.userDAO.SetLastConnection(userId, time)
+}
+
+func (m *AccountManager) ChangePassword(user *UserAccount, newPassword string) error {
+
+	if user == nil {
+		return ErrNotFound
+	}
+
+	if !isValidPassword(newPassword) {
+		return ErrInvalidPassword
+	}
+
+	salt := utils.NewRandomSalt32()
+	hashedPassword := utils.HashPasswordWithSalt(newPassword, salt)
+
+	if _, err := m.userDAO.SetPassword(user.email, hashedPassword, salt); err != nil {
+		return err
+	}
+
+	user.emailCred.Password = hashedPassword
+	user.emailCred.Salt = salt
+
+	return nil
 }
 
 // Change profile picture in order to let user's friends to see the new picture
@@ -186,6 +281,10 @@ func (self *AccountManager) ChangeProfilePicture(user *UserAccount, picture []by
 
 	return nil
 }
+
+/*func (m *AccountManager) DeleteUserAccount(userID int64) error {
+	return nil
+}*/
 
 // Saves a profile picture i its original size and alto saves thumbnails for supported dpis
 func (self *AccountManager) saveProfilePicture(user_id int64, picture *Picture) error {
