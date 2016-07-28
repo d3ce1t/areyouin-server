@@ -28,7 +28,7 @@ func (d *EventDAO) Insert(event *api.EventDTO) error {
 	stmt_event := `INSERT INTO event (event_id, author_id, author_name, message,
 		start_date, end_date, num_attendees, num_guests, created_date,
 		inbox_position, event_state)
-	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	var status int32
 	if event.Cancelled {
@@ -170,6 +170,7 @@ func (ed *EventDAO) LoadEvents(event_ids ...int64) (events []*api.EventDTO, err 
 		if !ok {
 			event = new(api.EventDTO)
 			*event = dto
+			event.Participants = make(map[int64]*api.ParticipantDTO)
 			if status == 3 {
 				event.Cancelled = true
 			}
@@ -287,7 +288,6 @@ func (dao *EventDAO) LoadEventsHistoryFromUser(user_id int64, fromDate int64,
 	}
 
 	if err != nil {
-		log.Println("LoadUserEventsHistoryAndparticipants 1 (", user_id, "):", err)
 		return nil, err
 	}
 
@@ -300,7 +300,6 @@ func (dao *EventDAO) LoadEventsHistoryFromUser(user_id int64, fromDate int64,
 	events, err := dao.LoadEvents(event_id_list...)
 
 	if err != nil {
-		log.Println("LoadUserEventsHistoryAndparticipants 2 (", user_id, "):", err)
 		return nil, err
 	}
 

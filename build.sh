@@ -28,4 +28,6 @@ build_and_install $protocol_pkg
 build_and_install $facebook_pkg
 build_and_install $webhook_pkg
 build_and_install $images_server_pkg
+cd server
 build_and_install $server
+cd ..

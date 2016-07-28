@@ -1,15 +1,9 @@
 package main
 
-import (
-	"fmt"
-	"strconv"
-	"peeple/areyouin/dao"
-)
-
 // send_msg client
 func (shell *Shell) sendMsg(args []string) {
 
-	user_id, err := strconv.ParseInt(args[1], 10, 64)
+	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	if len(args) < 2 {
@@ -22,5 +16,5 @@ func (shell *Shell) sendMsg(args []string) {
 	manageShellError(err)
 
 	sendGcmDataAvailableNotification(user_account.Id, user_account.IIDtoken, 3600)
-	fmt.Fprintf(shell.io, "Message Sent\n")
+	fmt.Fprintf(shell.io, "Message Sent\n")*/
 }

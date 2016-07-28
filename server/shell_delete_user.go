@@ -1,19 +1,12 @@
 package main
 
-import (
-	"fmt"
-	"strconv"
-	"peeple/areyouin/dao"
-)
-
 // delete_user $user_id --force
 func (shell *Shell) deleteUser(args []string) {
 
-	user_id, err := strconv.ParseInt(args[1], 10, 64)
+	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	server := shell.server
-	dao := dao.NewUserDAO(server.DbSession)
 	user, err := dao.Load(user_id)
 	manageShellError(err)
 
@@ -65,5 +58,5 @@ func (shell *Shell) deleteUser(args []string) {
 
 	}
 
-	fmt.Fprintf(shell.io, "User with id %d has been removed\n", user_id)
+	fmt.Fprintf(shell.io, "User with id %d has been removed\n", user_id)*/
 }

@@ -1,20 +1,11 @@
 package main
 
-import (
-	"bytes"
-	"fmt"
-	"image"
-	_ "image/jpeg"
-	core "peeple/areyouin/common"
-	"peeple/areyouin/dao"
-	fb "peeple/areyouin/facebook"
-	"strconv"
-)
+import _ "image/jpeg"
 
 // reset_picture
 func (shell *Shell) resetPicture(args []string) {
 
-	user_id, err := strconv.ParseInt(args[1], 10, 64)
+	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	server := shell.server
@@ -41,5 +32,5 @@ func (shell *Shell) resetPicture(args []string) {
 	err = server.Model.Accounts.ChangeProfilePicture(user_account, picture_bytes)
 	manageShellError(err)
 
-	fmt.Fprintf(shell.io, "Picture size %v bytes\n", len(picture_bytes))
+	fmt.Fprintf(shell.io, "Picture size %v bytes\n", len(picture_bytes))*/
 }

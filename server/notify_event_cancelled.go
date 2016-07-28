@@ -31,7 +31,7 @@ func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 
 	for _, participant := range t.Event.Participants() {
 
-		session := t.server.GetSession(participant.Id())
+		session := t.server.getSession(participant.Id())
 
 		if session == nil {
 

@@ -1,15 +1,9 @@
 package main
 
-import (
-	"fmt"
-	"strconv"
-	"peeple/areyouin/dao"
-)
-
 // make_friends user1 user2
 func (shell *Shell) makeFriends(args []string) {
 
-	friend_one_id, err := strconv.ParseInt(args[1], 10, 64)
+	/*friend_one_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	friend_two_id, err := strconv.ParseInt(args[2], 10, 64)
@@ -28,5 +22,5 @@ func (shell *Shell) makeFriends(args []string) {
 	err = friendDAO.MakeFriends(user1, user2)
 	manageShellError(err)
 
-	fmt.Fprintf(shell.io, "%v and %v are now friends\n", user1.Id, user2.Id)
+	fmt.Fprintf(shell.io, "%v and %v are now friends\n", user1.Id, user2.Id)*/
 }

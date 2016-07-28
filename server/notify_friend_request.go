@@ -13,7 +13,7 @@ type NotifyFriendRequest struct {
 func (t *NotifyFriendRequest) Run(ex *TaskExecutor) {
 
 	server := ex.server
-	session := server.GetSession(t.UserId)
+	session := server.getSession(t.UserId)
 
 	if session != nil {
 		session.Write(session.NewMessage().FriendRequestReceived(convFriendRequest2Net(t.FriendRequest)))

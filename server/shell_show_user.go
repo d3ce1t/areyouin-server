@@ -1,16 +1,9 @@
 package main
 
-import (
-	"fmt"
-	core "peeple/areyouin/common"
-	"peeple/areyouin/dao"
-	"strconv"
-)
-
 // show_user
 func (shell *Shell) showUser(args []string) {
 
-	user_id, err := strconv.ParseInt(args[1], 10, 64)
+	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
 	server := shell.server
@@ -80,5 +73,5 @@ func (shell *Shell) showUser(args []string) {
 
 	if account_status != "" {
 		fmt.Fprintf(shell.io, "\nACCOUNT INFO: %v\n", account_status)
-	}
+	}*/
 }

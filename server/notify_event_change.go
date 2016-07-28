@@ -23,7 +23,7 @@ func (t *NotifyEventChange) Run(ex *TaskExecutor) {
 
 	for _, participant_dst := range t.Target {
 
-		session := server.GetSession(participant_dst)
+		session := server.getSession(participant_dst)
 
 		if session != nil {
 

@@ -67,6 +67,7 @@ func newEventFromDTO(dto *api.EventDTO) *Event {
 		numAttendees:  dto.NumAttendees,
 		numGuests:     dto.NumGuests,
 		cancelled:     dto.Cancelled,
+		participants:  make(map[int64]*Participant),
 	}
 
 	for _, p := range dto.Participants {
@@ -213,6 +214,7 @@ func (e *Event) AsDTO() *api.EventDTO {
 		NumAttendees:  e.numAttendees,
 		NumGuests:     e.numGuests,
 		Cancelled:     e.cancelled,
+		Participants:  make(map[int64]*api.ParticipantDTO),
 	}
 
 	for _, v := range e.participants {

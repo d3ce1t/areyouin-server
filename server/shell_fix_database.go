@@ -1,28 +1,23 @@
 package main
 
-import (
-	"errors"
-	"fmt"
-)
-
 // fix_database
 func (shell *Shell) fixDatabase(args []string) {
 	switch args[1] {
 	case "--event":
 		shell.fixEvent()
-	/*case "--import-old-friends-table":
+		/*case "--import-old-friends-table":
 		shell.importFriendsFromOldFormat()*/
-	/*case "--copy-events-by-users-to-tmp":
-		shell.copyEventsByUser("events_by_user", "events_by_user_new")
-	case "--copy-tmp-to-events-by-user":
-		shell.copyEventsByUser("events_by_user_new", "events_by_user")*/
+		/*case "--copy-events-by-users-to-tmp":
+			shell.copyEventsByUser("events_by_user", "events_by_user_new")
+		case "--copy-tmp-to-events-by-user":
+			shell.copyEventsByUser("events_by_user_new", "events_by_user")*/
 	}
 }
 
 // Fill event.inbox_position with event.start_date if the first one is not set
 func (shell *Shell) fixEvent() {
 
-	server := shell.server
+	/*server := shell.server
 	stmt_select := `SELECT event_id, start_date, inbox_position FROM event`
 	stmt_update := `UPDATE event SET inbox_position = ? WHERE event_id = ?`
 
@@ -61,7 +56,7 @@ func (shell *Shell) fixEvent() {
 	manageShellError(iter.Close())
 
 	fmt.Fprintf(shell.io, "Completed: (fixes: %v, rows_processed: %v)\n",
-		fixes, rows_processed)
+		fixes, rows_processed)*/
 }
 
 // Copy user_friends to friends_by_user. It only takes into account ALL_CONTACTS group.

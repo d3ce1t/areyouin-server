@@ -68,7 +68,7 @@ func (s *Server) init() {
 	s.task_executor.Start()
 }
 
-func (s *Server) Run() {
+func (s *Server) run() {
 
 	// Start webhook
 	if !s.MaintenanceMode {
@@ -102,14 +102,14 @@ func (s *Server) Run() {
 	}
 }
 
-func (s *Server) RegisterCallback(command proto.PacketType, f Callback) {
+func (s *Server) registerCallback(command proto.PacketType, f Callback) {
 	if s.callbacks == nil {
 		s.callbacks = make(map[proto.PacketType]Callback)
 	}
 	s.callbacks[command] = f
 }
 
-func (s *Server) RegisterSession(session *AyiSession) {
+func (s *Server) registerSession(session *AyiSession) {
 
 	if oldSession, ok := s.sessions.Get(session.UserId); ok {
 		oldSession.WriteSync(oldSession.NewMessage().Error(proto.M_USER_AUTH, proto.E_INVALID_USER_OR_PASSWORD))
@@ -122,7 +122,7 @@ func (s *Server) RegisterSession(session *AyiSession) {
 	log.Printf("* (%v) Register session for endpoint %v\n", session, session.Conn.RemoteAddr())
 }
 
-func (s *Server) UnregisterSession(session *AyiSession) {
+func (s *Server) unregisterSession(session *AyiSession) {
 
 	user_id := session.UserId
 	if !session.IsClosed() {
@@ -138,7 +138,7 @@ func (s *Server) UnregisterSession(session *AyiSession) {
 }
 
 // Private methods
-func (server *Server) handleSession(session *AyiSession) {
+func (s *Server) handleSession(session *AyiSession) {
 
 	defer func() { // session.RunLoop() may throw panic
 		if r := recover(); r != nil {
@@ -157,9 +157,9 @@ func (server *Server) handleSession(session *AyiSession) {
 			// Normal operation
 
 			if err := s.Server.serveMessage(packet, s); err != nil { // may block until writes are performed
-				error_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
-				log.Printf("< (%v) ERROR %v: %v\n", session, error_code, err)
-				s.WriteResponse(packet.Header.GetToken(), s.NewMessage().Error(packet.Type(), error_code))
+				errorCode := getNetErrorCode(err, proto.E_OPERATION_FAILED)
+				log.Printf("< (%v) ERROR %v: %v\n", session, errorCode, err)
+				s.WriteResponse(packet.Header.GetToken(), s.NewMessage().Error(packet.Type(), errorCode))
 			}
 
 		} else {
@@ -208,13 +208,13 @@ func (server *Server) handleSession(session *AyiSession) {
 	}()
 
 	// Closed connection
-	session.OnClosed = func(s *AyiSession, peer bool) {
+	session.OnClosed = func(session *AyiSession, peer bool) {
 
-		if s.IsAuth {
+		if session.IsAuth {
 			//NOTE: If a user is deleted from user_account while it is still connected,
 			// a row in invalid state will be created when updating last connection
-			server.Model.Accounts.SetLastConnection(s.UserId, utils.GetCurrentTimeMillis())
-			s.Server.UnregisterSession(s)
+			session.Server.Model.Accounts.SetLastConnection(session.UserId, utils.GetCurrentTimeMillis())
+			session.Server.unregisterSession(session)
 		}
 
 		if peer {
@@ -295,12 +295,11 @@ func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 	} // End outter loop
 }
 
-func (s *Server) GetSession(user_id int64) *AyiSession {
-	if session, ok := s.sessions.Get(user_id); ok {
+func (s *Server) getSession(userID int64) *AyiSession {
+	if session, ok := s.sessions.Get(userID); ok {
 		return session
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func checkAuthenticated(session *AyiSession) {
@@ -337,10 +336,4 @@ func checkEventAuthorOrPanic(authorID int64, event *model.Event) {
 	if event.AuthorId() != authorID {
 		panic(ErrAuthorMismatch)
 	}
-}
-
-func (s *Server) isFriend(user1 int64, user2 int64) bool {
-	ok, err := s.Model.Friends.IsFriend(user2, user1)
-	checkNoErrorOrPanic(err)
-	return ok
 }

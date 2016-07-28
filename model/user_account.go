@@ -25,7 +25,7 @@ type UserAccount struct {
 	phone          string
 	phoneVerified  bool
 	pictureDigest  []byte
-	iidToken       *IIDToken // Instance ID token
+	iidToken       IIDToken // Instance ID token
 	lastConnection int64
 	authToken      string
 	emailCred      *EmailCredential
@@ -62,10 +62,12 @@ func NewUserAccount(name string, email string, password string, phone string,
 	}
 
 	if email != "" && password != "" {
+		salt := utils.NewRandomSalt32()
+		hashedPassword := utils.HashPasswordWithSalt(password, salt)
 		user.emailCred = &EmailCredential{
 			Email:    email,
-			Salt:     utils.NewRandomSalt32(),
-			Password: utils.HashPasswordWithSalt(password, user.emailCred.Salt),
+			Salt:     salt,
+			Password: hashedPassword,
 		}
 	}
 
@@ -79,7 +81,7 @@ func newUserFromDTO(dto *api.UserDTO) *UserAccount {
 		email:         dto.Email,
 		emailVerified: dto.EmailVerified,
 		pictureDigest: dto.PictureDigest,
-		iidToken: &IIDToken{
+		iidToken: IIDToken{
 			token:   dto.IidToken.Token,
 			version: dto.IidToken.Version,
 		},
@@ -139,10 +141,7 @@ func (u *UserAccount) FbToken() string {
 }
 
 func (u *UserAccount) PushToken() IIDToken {
-	if u.iidToken != nil {
-		return *u.iidToken
-	}
-	return IIDToken{}
+	return u.iidToken
 }
 
 func (u *UserAccount) PictureDigest() []byte {
@@ -175,21 +174,30 @@ func (u *UserAccount) AsFriend() *Friend {
 }
 
 func (u *UserAccount) AsDTO() *api.UserDTO {
-	return &api.UserDTO{
+
+	userDTO := &api.UserDTO{
 		Id:            u.id,
 		AuthToken:     u.authToken,
 		Email:         u.email,
 		EmailVerified: u.emailVerified,
-		Password:      u.emailCred.Password,
-		Salt:          u.emailCred.Salt,
 		Name:          u.name,
-		FbId:          u.fbCred.FbId,
-		FbToken:       u.fbCred.Token,
-		IidToken:      *(u.iidToken.AsDTO()),
+		IidToken:      *u.iidToken.AsDTO(),
 		LastConn:      u.lastConnection,
 		CreatedDate:   u.createdDate,
 		PictureDigest: u.pictureDigest,
 	}
+
+	if u.fbCred != nil {
+		userDTO.FbId = u.fbCred.FbId
+		userDTO.FbToken = u.fbCred.Token
+	}
+
+	if u.emailCred != nil {
+		userDTO.Password = u.emailCred.Password
+		userDTO.Salt = u.emailCred.Salt
+	}
+
+	return userDTO
 }
 
 func validateUserData(name string, email string, password string, fbId string,
@@ -271,7 +279,7 @@ func (t *IIDToken) Version() int {
 	return t.version
 }
 
-func (t *IIDToken) AsDTO() *api.IIDTokenDTO {
+func (t IIDToken) AsDTO() *api.IIDTokenDTO {
 	return &api.IIDTokenDTO{
 		Token:   t.token,
 		Version: t.version,

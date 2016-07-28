@@ -56,7 +56,7 @@ func (t *SendUserFriends) Run(ex *TaskExecutor) {
 
 	server := ex.server
 
-	if session := server.GetSession(t.UserId); session != nil {
+	if session := server.getSession(t.UserId); session != nil {
 
 		friends, err := server.Model.Friends.GetAllFriends(t.UserId)
 		if err != nil {

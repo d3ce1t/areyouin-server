@@ -81,7 +81,7 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 func (t *NotifyEventInvitation) notifyUser(user *model.UserAccount, event *model.Event, server *Server) bool {
 
 	// Notify participant about the invitation only if it's connected.
-	session := server.GetSession(user.Id())
+	session := server.getSession(user.Id())
 	token := user.PushToken()
 
 	if session == nil {

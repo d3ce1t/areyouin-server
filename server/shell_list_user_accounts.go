@@ -1,18 +1,11 @@
 package main
 
-import (
-	"fmt"
-	"log"
-	core "peeple/areyouin/common"
-	"peeple/areyouin/dao"
-)
-
 // list_users
 func (shell *Shell) listUserAccounts(args []string) {
 
-	server := shell.server
-	dao := dao.NewUserDAO(server.DbSession)
-	users, err := dao.LoadAllUsers()
+	/*server := shell.server
+
+	users, err := server.Model.Accounts.ListUsers()
 	manageShellError(err)
 
 	fmt.Fprintln(shell.io, rp("-", 105))
@@ -33,5 +26,5 @@ func (shell *Shell) listUserAccounts(args []string) {
 	}
 	fmt.Fprintln(shell.io, rp("-", 105))
 
-	fmt.Fprintln(shell.io, "Num. Users:", len(users))
+	fmt.Fprintln(shell.io, "Num. Users:", len(users))*/
 }

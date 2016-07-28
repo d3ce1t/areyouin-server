@@ -1,8 +1,8 @@
 #/bin/bash
 
 # Core.proto
-protoc -I./ \
-  --go_out=./ \
+protoc -Icore  \
+  --go_out=./core/ \
   --java_out="/Users/jpadilla/AndroidStudioProjects/areyouin-android/app/src/main/java" \
   --objc_out="/Users/jpadilla/Git/Peeple/areyouin-ios/AreYouIN/" \
   core/core.proto

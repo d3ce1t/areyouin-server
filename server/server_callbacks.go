@@ -135,7 +135,7 @@ func onUserAuthentication(request *proto.AyiPacket, message proto.Message, sessi
 	session.IIDToken = iidToken
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) AUTH OK\n", session)
-	server.RegisterSession(session)
+	server.registerSession(session)
 
 	err = server.Model.Accounts.SetLastConnection(session.UserId, utils.GetCurrentTimeMillis())
 	if err != nil {
@@ -314,7 +314,7 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 		// Error
 
 		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
-		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session, err)
+		log.Printf("< (%v) CREATE EVENT ERROR: %v\n", session, err)
 	}
 }
 

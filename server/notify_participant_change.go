@@ -38,7 +38,7 @@ func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 
 		// Send message to each participant
 
-		session := server.GetSession(target)
+		session := server.getSession(target)
 
 		if session != nil {
 
