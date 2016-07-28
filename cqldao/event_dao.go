@@ -1,10 +1,11 @@
 package cqldao
 
 import (
-	"github.com/gocql/gocql"
 	"log"
 	"peeple/areyouin/api"
 	"peeple/areyouin/utils"
+
+	"github.com/gocql/gocql"
 )
 
 const (
@@ -188,7 +189,6 @@ func (ed *EventDAO) LoadEvents(event_ids ...int64) (events []*api.EventDTO, err 
 	}
 
 	if err := iter.Close(); err != nil {
-		log.Println("LoadEventAndParticipants Error:", err)
 		return nil, convErr(err)
 	}
 

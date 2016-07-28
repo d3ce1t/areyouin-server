@@ -1,9 +1,10 @@
 package cqldao
 
 import (
-	"github.com/gocql/gocql"
 	"log"
 	"peeple/areyouin/api"
+
+	"github.com/gocql/gocql"
 )
 
 const (
@@ -12,6 +13,41 @@ const (
 
 type UserDAO struct {
 	session *GocqlSession
+}
+
+// TODO: Include Password and Salt in user_account table
+// TODO: Make up some type of high level iterator in order to control scanning
+// steps in model layer.
+func (d *UserDAO) LoadAll() ([]*api.UserDTO, error) {
+
+	checkSession(d.session)
+
+	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
+						iid_token, network_version, last_connection, created_date, picture_digest
+						FROM user_account LIMIT 2000`
+
+	iter := d.session.Query(stmt).Iter()
+
+	if iter == nil {
+		return nil, ErrUnexpected
+	}
+
+	users := make([]*api.UserDTO, 0, 1024)
+	var dto api.UserDTO
+
+	for iter.Scan(&dto.Id, &dto.AuthToken, &dto.Email, &dto.EmailVerified, &dto.Name,
+		&dto.FbId, &dto.FbToken, &dto.IidToken.Token, &dto.IidToken.Version, &dto.LastConn,
+		&dto.CreatedDate, &dto.PictureDigest) {
+		userDTO := new(api.UserDTO)
+		*userDTO = dto
+		users = append(users, userDTO)
+	}
+
+	if err := iter.Close(); err != nil {
+		return nil, convErr(err)
+	}
+
+	return users, nil
 }
 
 func (d *UserDAO) Load(userId int64) (*api.UserDTO, error) {
@@ -251,21 +287,27 @@ func (d *UserDAO) Insert(user *api.UserDTO) error {
 	return nil
 }
 
-/*func (dao *UserDAO) SetPassword(userId int64, password [32]byte, salt [32]byte) (ok bool, err error) {
+func (d *UserDAO) SetPassword(email string, newPassword [32]byte, newSalt [32]byte) (bool, error) {
 
-	checkSession(dao.session)
+	checkSession(d.session)
 
-	if cred == nil || cred.UserId == 0 || cred.Email == "" ||
-		cred.Password == EMPTY_ARRAY_32B || cred.Salt == EMPTY_ARRAY_32B {
-		return false, ErrInvalidArg
+	if email == "" || newPassword == EMPTY_ARRAY_32B || newSalt == EMPTY_ARRAY_32B {
+		return false, api.ErrInvalidArg
+	}
+
+	cred, err := d.loadEmailCredential(email)
+	if err != nil {
+		return false, err
 	}
 
 	updateEmailCredentials := `UPDATE user_email_credentials SET password = ?, salt = ?
 			WHERE email = ? IF user_id = ?`
 
-	return dao.session.Query(updateEmailCredentials, cred.Password[:], cred.Salt[:],
+	ok, err := d.session.Query(updateEmailCredentials, newPassword[:], newSalt[:],
 		cred.Email, cred.UserId).ScanCAS(nil)
-}*/
+
+	return ok, convErr(err)
+}
 
 func (d *UserDAO) SaveProfilePicture(user_id int64, picture *api.PictureDTO) error {
 
@@ -330,17 +372,17 @@ func (d *UserDAO) SetFacebookToken(user_id int64, fb_id string, fb_token string)
 	return convErr(d.session.ExecuteBatch(batch))
 }
 
-func (d *UserDAO) SetIIDToken(user_id int64, iid_token *api.IIDTokenDTO) error {
+func (d *UserDAO) SetIIDToken(userID int64, iidToken *api.IIDTokenDTO) error {
 
 	checkSession(d.session)
 
-	if user_id == 0 {
+	if userID == 0 || iidToken == nil || iidToken.Token == "" {
 		return api.ErrInvalidArg
 	}
 
 	stmt := `UPDATE user_account SET iid_token = ?, network_version = ?
 						WHERE user_id = ?`
-	err := d.session.Query(stmt, iid_token.Token, iid_token.Version, user_id).Exec()
+	err := d.session.Query(stmt, iidToken.Token, iidToken.Version, userID).Exec()
 	return convErr(err)
 }
 
@@ -437,31 +479,4 @@ func (dao *UserDAO) Delete(user *api.UserDTO) error {
 	batch.Query(`DELETE FROM user_account WHERE user_id = ?`, user.Id)
 
 	return convErr(dao.session.ExecuteBatch(batch))
-}
-
-func (d *UserDAO) deleteUserAccount(user_id int64) error {
-	checkSession(d.session)
-	if user_id == 0 {
-		return api.ErrInvalidArg
-	}
-	err := d.session.Query(`DELETE FROM user_account WHERE user_id = ?`, int64(user_id)).Exec()
-	return convErr(err)
-}
-
-func (d *UserDAO) deleteEmailCredentials(email string) error {
-	checkSession(d.session)
-	if email == "" {
-		return api.ErrInvalidArg
-	}
-	err := d.session.Query(`DELETE FROM user_email_credentials WHERE email = ?`, email).Exec()
-	return convErr(err)
-}
-
-func (d *UserDAO) deleteFacebookCredentials(fb_id string) error {
-	checkSession(d.session)
-	if fb_id == "" {
-		return api.ErrInvalidArg
-	}
-	err := d.session.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, fb_id).Exec()
-	return convErr(err)
 }

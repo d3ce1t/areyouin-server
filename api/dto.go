@@ -60,8 +60,8 @@ type FriendDTO struct {
 }
 
 type FriendRequestDTO struct {
-	FromUser    int64
 	ToUser      int64
+	FromUser    int64
 	Name        string
 	Email       string
 	CreatedDate int64

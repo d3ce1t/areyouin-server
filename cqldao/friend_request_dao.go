@@ -1,55 +1,56 @@
 package cqldao
 
 import (
-	"github.com/gocql/gocql"
 	"peeple/areyouin/api"
+
+	"github.com/gocql/gocql"
 )
 
 type FriendRequestDAO struct {
 	session *GocqlSession
 }
 
-/*func (dao *FriendDAO) LoadFriendRequest(user_id int64, friend_id int64) (*FriendRequestDTO, error) {
+func (d *FriendRequestDAO) Load(fromUser int64, toUser int64) (*api.FriendRequestDTO, error) {
 
-	checkSession(dao.session)
+	checkSession(d.session)
 
-	if user_id == 0 || friend_id == 0 {
-		return nil, ErrNotFound
+	if fromUser == 0 || toUser == 0 {
+		return nil, api.ErrNotFound
 	}
 
-	// Load created date from friend_requests_sent
-	stmt_requests_sent := `SELECT created_date FROM friend_requests_sent
+	// Get created date from friend_requests_sent
+	stmtRequestSent := `SELECT created_date FROM friend_requests_sent
 	 	WHERE user_id = ? AND friend_id = ? LIMIT 1`
 
-	var created_date int64
+	var createdDate int64
 
-	if err := dao.session.Query(stmt_requests_sent, friend_id, user_id).Scan(&created_date); err != nil {
+	if err := d.session.Query(stmtRequestSent, fromUser, toUser).Scan(&createdDate); err != nil {
 		return nil, err
 	}
 
 	// Now load friend request in friend_requests_received
-	stmt_requests_received := `SELECT name, email FROM friend_requests_received
+	stmtRequestsReceived := `SELECT name, email FROM friend_requests_received
 		WHERE user_id = ? AND created_date = ? AND friend_id = ?`
 
 	var name string
 	var email string
 
-	q := dao.session.Query(stmt_requests_received, user_id, created_date, friend_id)
+	q := d.session.Query(stmtRequestsReceived, toUser, createdDate, fromUser)
 	if err := q.Scan(&name, &email); err != nil {
 		return nil, err
 	}
 
 	// All data has been read
-	friendRequest := &FriendRequestDTO{
-		FromUser:    user_id,
-		ToUser:      friend_id,
+	friendRequest := &api.FriendRequestDTO{
+		FromUser:    fromUser,
+		ToUser:      toUser,
 		Name:        name,
 		Email:       email,
-		CreatedDate: created_date,
+		CreatedDate: createdDate,
 	}
 
 	return friendRequest, nil
-}*/
+}
 
 func (d *FriendRequestDAO) LoadAll(user_id int64) ([]*api.FriendRequestDTO, error) {
 
@@ -90,7 +91,7 @@ func (d *FriendRequestDAO) LoadAll(user_id int64) ([]*api.FriendRequestDTO, erro
 
 // Check if exists a friend request from user_id to friend_id. In other words, if user_id
 // has already sent (or not) a friend request to friend_id.
-func (d *FriendRequestDAO) Exist(toUser int64, fromUser int64) (bool, error) {
+func (d *FriendRequestDAO) Exist(fromUser int64, toUser int64) (bool, error) {
 
 	checkSession(d.session)
 
@@ -103,7 +104,7 @@ func (d *FriendRequestDAO) Exist(toUser int64, fromUser int64) (bool, error) {
 
 	var created_date int64
 
-	if err := d.session.Query(stmt, toUser, fromUser).Scan(&created_date); err != nil {
+	if err := d.session.Query(stmt, fromUser, toUser).Scan(&created_date); err != nil {
 		if err == gocql.ErrNotFound {
 			return false, nil
 		} else {

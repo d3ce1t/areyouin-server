@@ -1,9 +1,10 @@
 package cqldao
 
 import (
-	"github.com/gocql/gocql"
 	"peeple/areyouin/api"
 	"peeple/areyouin/utils"
+
+	"github.com/gocql/gocql"
 )
 
 var (
@@ -36,38 +37,6 @@ func (d *UserDAO) loadUserAccount(userId int64) (*api.UserDTO, error) {
 	}
 
 	return dto, nil
-}
-
-func (d *UserDAO) loadAllUserAccounts() ([]*api.UserDTO, error) {
-
-	checkSession(d.session)
-
-	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, network_version, last_connection, created_date, picture_digest
-						FROM user_account`
-
-	iter := d.session.Query(stmt).Iter()
-
-	if iter == nil {
-		return nil, ErrUnexpected
-	}
-
-	users := make([]*api.UserDTO, 0, 1000)
-	var dto api.UserDTO
-
-	for iter.Scan(&dto.Id, &dto.AuthToken, &dto.Email, &dto.EmailVerified, &dto.Name,
-		&dto.FbId, &dto.FbToken, &dto.IidToken.Token, &dto.IidToken.Version, &dto.LastConn,
-		&dto.CreatedDate, &dto.PictureDigest) {
-		userDTO := new(api.UserDTO)
-		*userDTO = dto
-		users = append(users, userDTO)
-	}
-
-	if err := iter.Close(); err != nil {
-		return nil, convErr(err)
-	}
-
-	return users, nil
 }
 
 func (d *UserDAO) loadEmailCredential(email string) (*emailCredential, error) {
@@ -207,6 +176,8 @@ func (dao *UserDAO) insertUserAccount(user *api.UserDTO) (bool, error) {
 	return ok, convErr(err)
 }
 
+// Insert email credentials into db. If a credential with same e-mail address
+// already exists, an error will be triggered.
 func (d *UserDAO) insertEmailCredentials(cred *emailCredential) (bool, error) {
 
 	checkSession(d.session)
@@ -216,12 +187,12 @@ func (d *UserDAO) insertEmailCredentials(cred *emailCredential) (bool, error) {
 		return false, api.ErrInvalidArg
 	}
 
-	insertUserEmailCredentials := `INSERT INTO user_email_credentials
+	insertEmailCredentials := `INSERT INTO user_email_credentials
 			(email, user_id, password, salt)
 			VALUES (?, ?, ?, ?)
 			IF NOT EXISTS`
 
-	ok, err := d.session.Query(insertUserEmailCredentials, cred.Email, cred.UserId,
+	ok, err := d.session.Query(insertEmailCredentials, cred.Email, cred.UserId,
 		cred.Password[:], cred.Salt[:]).ScanCAS(nil)
 
 	return ok, convErr(err)
@@ -311,4 +282,31 @@ func (d *UserDAO) insertFacebookCredentials(userId int64, fbId string, fbToken s
 	}
 
 	return applied, err // returns true, nil
+}
+
+func (d *UserDAO) deleteUserAccount(user_id int64) error {
+	checkSession(d.session)
+	if user_id == 0 {
+		return api.ErrInvalidArg
+	}
+	err := d.session.Query(`DELETE FROM user_account WHERE user_id = ?`, int64(user_id)).Exec()
+	return convErr(err)
+}
+
+func (d *UserDAO) deleteEmailCredentials(email string) error {
+	checkSession(d.session)
+	if email == "" {
+		return api.ErrInvalidArg
+	}
+	err := d.session.Query(`DELETE FROM user_email_credentials WHERE email = ?`, email).Exec()
+	return convErr(err)
+}
+
+func (d *UserDAO) deleteFacebookCredentials(fb_id string) error {
+	checkSession(d.session)
+	if fb_id == "" {
+		return api.ErrInvalidArg
+	}
+	err := d.session.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, fb_id).Exec()
+	return convErr(err)
 }

@@ -7,13 +7,14 @@ type DbSession interface {
 }
 
 type UserDAO interface {
+	LoadAll() ([]*UserDTO, error)
 	Load(userId int64) (*UserDTO, error)
 	LoadByEmail(email string) (*UserDTO, error)
 	LoadByFB(fbId string) (*UserDTO, error)
 	LoadProfilePicture(userId int64) (*PictureDTO, error)
 	LoadIIDToken(userId int64) (*IIDTokenDTO, error)
 	Insert(user *UserDTO) error
-	//SetPassword(userId int64, password [32]byte, salt [32]byte) (ok bool, err error)
+	SetPassword(email string, newPassword [32]byte, newSalt [32]byte) (bool, error)
 	SaveProfilePicture(userId int64, picture *PictureDTO) error
 	SetLastConnection(userId int64, time int64) error
 	SetAuthToken(userId int64, auth_token string) error
@@ -63,8 +64,9 @@ type FriendDAO interface {
 }
 
 type FriendRequestDAO interface {
+	Load(fromUser int64, toUser int64) (*FriendRequestDTO, error)
 	LoadAll(user_id int64) ([]*FriendRequestDTO, error)
-	Exist(toUser int64, fromUser int64) (bool, error)
+	Exist(fromUser int64, toUser int64) (bool, error)
 	Insert(friendRequest *FriendRequestDTO) error
 	Delete(friendRequest *FriendRequestDTO) error
 }
