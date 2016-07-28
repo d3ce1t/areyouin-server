@@ -1,62 +1,62 @@
 package main
 
 import (
-  "fmt"
-  "os"
-  "peeple/areyouin/dao"
-  "peeple/areyouin/model"
-  proto "peeple/areyouin/protocol"
-  imgserv "peeple/areyouin/images_server"
-  "log"
-  "time"
+	"fmt"
+	"log"
+	"os"
+	"peeple/areyouin/cqldao"
+	imgserv "peeple/areyouin/images_server"
+	"peeple/areyouin/model"
+	proto "peeple/areyouin/protocol"
+	"time"
 )
 
 func main() {
 
 	// Flags
 
-  testingMode := true
+	testingMode := true
 	maintenanceMode := false
 
-  // Process args
+	// Process args
 
-  args := os.Args[1:]
+	args := os.Args[1:]
 	if len(args) > 0 && args[0] == "--enable-maintenance" {
 		maintenanceMode = true
 	}
 
-  // Initialisation
+	// Initialisation
 
-  var db_keyspace string
-  var db_address string
+	var db_keyspace string
+	var db_address string
 
-  if !testingMode {
-    db_keyspace = "areyouin"
-    db_address = "192.168.1.2"
-  } else {
+	if !testingMode {
+		db_keyspace = "areyouin"
+		db_address = "192.168.1.2"
+	} else {
 
-    fmt.Println("----------------------------------------")
-  	fmt.Println("! WARNING WARNING WARNING              !")
-  	fmt.Println("! You have started a testing server    !")
-  	fmt.Println("! WARNING WARNING WARNING              !")
-  	fmt.Println("----------------------------------------")
+		fmt.Println("----------------------------------------")
+		fmt.Println("! WARNING WARNING WARNING              !")
+		fmt.Println("! You have started a testing server    !")
+		fmt.Println("! WARNING WARNING WARNING              !")
+		fmt.Println("----------------------------------------")
 
-    db_keyspace = "areyouin"
-    db_address = "192.168.1.10"
-  }
+		db_keyspace = "areyouin"
+		db_address = "192.168.1.10"
+	}
 
-  session := dao.NewSession(db_keyspace, db_address)
-  model := model.New(session, "default")
+	session := cqldao.NewSession(db_keyspace, db_address)
+	model := model.New(session, "default")
 
-  // Connect to database
+	// Connect to database
 
-  err := session.Connect()
+	err := session.Connect()
 
-  for err != nil {
-    log.Println(err)
+	for err != nil {
+		log.Println(err)
 		time.Sleep(5 * time.Second)
-    err = session.Connect()
-  }
+		err = session.Connect()
+	}
 
 	log.Println("Connected to Cassandra successfully")
 
@@ -64,7 +64,7 @@ func main() {
 
 	server := NewServer(session, model)
 	server.MaintenanceMode = maintenanceMode
-  server.Testing = testingMode
+	server.Testing = testingMode
 
 	// Register callbacks
 
@@ -91,7 +91,7 @@ func main() {
 	server.RegisterCallback(proto.M_GET_FRIEND_REQUESTS, onListFriendRequests)
 	server.RegisterCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
 
-  // Create images HTTP server and start
+	// Create images HTTP server and start
 	if !maintenanceMode {
 		images_server := imgserv.NewServer(session, model)
 		go images_server.Run()

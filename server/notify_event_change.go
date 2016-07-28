@@ -1,12 +1,12 @@
 package main
 
 import (
-  core "peeple/areyouin/common"
-  "log"
+	"log"
+	"peeple/areyouin/model"
 )
 
 type NotifyEventChange struct {
-	Event  *core.Event
+	Event  *model.Event
 	Target []int64
 }
 
@@ -19,7 +19,7 @@ func (t *NotifyEventChange) Run(ex *TaskExecutor) {
 
 	// Send message to each participant
 	server := ex.server
-	light_event := t.Event.GetEventWithoutParticipants()
+	light_event := convEvent2Net(t.Event.CloneEmptyParticipants())
 
 	for _, participant_dst := range t.Target {
 
@@ -30,7 +30,7 @@ func (t *NotifyEventChange) Run(ex *TaskExecutor) {
 			msg := session.NewMessage().EventModified(light_event)
 
 			if session.Write(msg) {
-				log.Printf("< (%v) EVENT %v CHANGED\n", participant_dst, t.Event.EventId)
+				log.Printf("< (%v) EVENT %v CHANGED\n", participant_dst, t.Event.Id())
 			} else {
 				log.Println("NotifyEventChange: Coudn't send notification to", participant_dst)
 			}

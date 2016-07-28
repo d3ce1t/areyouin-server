@@ -1,14 +1,13 @@
 package main
 
 import (
-  core "peeple/areyouin/common"
-  "peeple/areyouin/dao"
-  "log"
+	"log"
+	"peeple/areyouin/model"
 )
 
 type NotifyFriendRequest struct {
-	UserId 				int64
-	FriendRequest *core.FriendRequest
+	UserId        int64
+	FriendRequest *model.FriendRequest
 }
 
 func (t *NotifyFriendRequest) Run(ex *TaskExecutor) {
@@ -17,17 +16,16 @@ func (t *NotifyFriendRequest) Run(ex *TaskExecutor) {
 	session := server.GetSession(t.UserId)
 
 	if session != nil {
-		session.Write(session.NewMessage().FriendRequestReceived(t.FriendRequest))
+		session.Write(session.NewMessage().FriendRequestReceived(convFriendRequest2Net(t.FriendRequest)))
 		log.Printf("< (%v) FRIEND REQUEST RECEIVED: %v\n", session, t.FriendRequest)
 	} else {
 
-    userDAO := dao.NewUserDAO(server.DbSession)
-    iid_token, err := userDAO.GetIIDToken(t.UserId)
-    if err != nil {
-      log.Printf("* NotifyFriendRequest error (userId %v) %v\n", t.UserId, err)
-      return
-    }
+		iid_token, err := server.Model.Accounts.GetPushToken(t.UserId)
+		if err != nil {
+			log.Printf("* NotifyFriendRequest error (userId %v) %v\n", t.UserId, err)
+			return
+		}
 
-    sendGcmDataAvailableNotification(t.UserId, iid_token.Token, GCM_MAX_TTL)
-  }
+		sendGcmDataAvailableNotification(t.UserId, iid_token, GCM_MAX_TTL)
+	}
 }

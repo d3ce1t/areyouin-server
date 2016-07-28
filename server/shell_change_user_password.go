@@ -1,29 +1,29 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
-  "errors"
-  "fmt"
-	"peeple/areyouin/dao"
 )
 
 func (shell *Shell) changeUserPassword(args []string) {
 
-  user_id, err := strconv.ParseInt(args[1], 10, 64)
+	userID, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
-  if len(args) != 3 {
-    manageShellError(errors.New("New password isn't provided"))
-  }
+	if len(args) != 3 {
+		manageShellError(errors.New("New password isn't provided"))
+	}
 
-  var newPassword string = args[2]
+	var newPassword string = args[2]
 
-  server := shell.server
-	userDAO := dao.NewUserDAO(server.DbSession)
-	user, err := userDAO.Load(user_id)
+	server := shell.server
+
+	user, err := server.Model.Accounts.GetUserAccount(userID)
 	manageShellError(err)
 
-  _, err = userDAO.ResetEmailCredentialPassword(user.Id, user.Email, newPassword)
-  manageShellError(err)
-  fmt.Fprint(shell.io, "Password changed\n")
+	err = server.Model.Accounts.ChangePassword(user, newPassword)
+	manageShellError(err)
+
+	fmt.Fprint(shell.io, "Password changed\n")
 }

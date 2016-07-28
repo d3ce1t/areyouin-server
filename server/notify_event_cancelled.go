@@ -1,94 +1,87 @@
 package main
 
 import (
-  core "peeple/areyouin/common"
-  "peeple/areyouin/dao"
-  proto "peeple/areyouin/protocol"
-  "log"
-  "encoding/base64"
+	"log"
+	"peeple/areyouin/model"
+	"peeple/areyouin/utils"
 )
 
 type UserData struct {
-  Future   chan bool
-  IIDToken *core.IIDToken
+	Future   chan bool
+	IIDToken *model.IIDToken
 }
 
 type NotifyEventCancelled struct {
 	CancelledBy int64
-	Event       *core.Event
-  server      *Server
-  user_data map[int64]*UserData
+	Event       *model.Event
+	server      *Server
+	user_data   map[int64]*UserData
 }
 
 func (t *NotifyEventCancelled) Run(ex *TaskExecutor) {
 
-  if len(t.Event.GetParticipants()) == 0 {
-    log.Println("NotifyEventCancelled: There aren't targetted participants to send notification")
-    return
-  }
+	if t.Event.NumGuests() == 0 {
+		log.Println("NotifyEventCancelled: There aren't targetted participants to send notification")
+		return
+	}
 
 	t.server = ex.server
 	t.user_data = make(map[int64]*UserData)
-	lite_event := t.Event.GetEventWithoutParticipants()
-	gcm_data := proto.NewPacket(1).EventCancelled(t.CancelledBy, lite_event)
-	base64_data := base64.StdEncoding.EncodeToString(gcm_data.Marshal())
+	lite_event := convEvent2Net(t.Event.CloneEmptyParticipants())
 
-	for _, participant := range t.Event.GetParticipants() {
+	for _, participant := range t.Event.Participants() {
 
-    session := t.server.GetSession(participant.UserId)
+		session := t.server.GetSession(participant.Id())
 
-    if session == nil {
+		if session == nil {
 
-      // Not connected
+			// Not connected
 
-      log.Printf("* (%v) User isn't connected. Fallback to GcmNotification\n", participant.UserId)
-      t.sendNotificationFallback(participant.UserId, base64_data)
+			log.Printf("* (%v) User isn't connected. Fallback to GcmNotification\n", participant.Id())
+			t.sendNotificationFallback(participant.Id())
 
-    } else {
+		} else {
 
-      // Connected
+			// Connected
 
-      packet := session.NewMessage().EventCancelled(t.CancelledBy, lite_event)
-      future := NewFuture(true)
+			packet := session.NewMessage().EventCancelled(t.CancelledBy, lite_event)
+			future := NewFuture(true)
 
-      if ok := session.WriteAsync(future, packet); ok {
-        t.user_data[participant.UserId] = &UserData{future.C, session.IIDToken}
-        log.Printf("< (%v) EVENT CANCELLED (event_id=%v)\n", session.UserId, t.Event.EventId)
-      } else {
-        log.Printf("* (%v) Session write failed. Fallback to GcmNotification\n", participant.UserId)
-        t.sendNotificationFallback(participant.UserId, base64_data)
-      }
-    }
+			if ok := session.WriteAsync(future, packet); ok {
+				t.user_data[participant.Id()] = &UserData{future.C, session.IIDToken}
+				log.Printf("< (%v) EVENT CANCELLED (event_id=%v)\n", session.UserId, t.Event.Id())
+			} else {
+				log.Printf("* (%v) Session write failed. Fallback to GcmNotification\n", participant.Id())
+				t.sendNotificationFallback(participant.Id())
+			}
+		}
 
-	} // End loop
+	}
 
 	for participant_id, data := range t.user_data {
 		ok := <-data.Future // TODO: Code is blocked 10 seconds as much for each participant. CHANGE IT!!
 		if !ok {
 			log.Printf("* (%v) ACK Timeout. Fallback to GcmNotification\n", participant_id)
-      t.sendNotificationFallback(participant_id, base64_data)
+			t.sendNotificationFallback(participant_id)
 		}
 	}
 }
 
-func (t *NotifyEventCancelled) sendNotificationFallback(participant_id int64, gcm_data string) {
+func (t *NotifyEventCancelled) sendNotificationFallback(participantID int64) {
 
-  userDAO := dao.NewUserDAO(t.server.DbSession)
-  user, err := userDAO.Load(participant_id)
-  if err != nil {
-    log.Printf("* Notify event cancelled error (userId %v) %v\n", participant_id, err)
-    return
-  }
+	user, err := t.server.Model.Accounts.GetUserAccount(participantID)
+	if err != nil {
+		log.Printf("* Notify event cancelled error (userId %v) %v\n", participantID, err)
+		return
+	}
 
-  if user.IIDtoken == "" {
-    log.Printf("* (%v) Coudn't send GCM event cancelled notification (Invalid IID token)", participant_id)
-    return
-  }
+	iidToken := user.PushToken()
 
-  if user.NetworkVersion == 0 || user.NetworkVersion == 1 {
-    sendGcmEventNotification(participant_id, user.IIDtoken, t.Event.StartDate, gcm_data)
-  } else {
-    ttl := uint32(t.Event.StartDate - core.GetCurrentTimeMillis()) / 1000
-    sendGcmDataAvailableNotification(participant_id, user.IIDtoken,  ttl)
-  }
+	if iidToken.Token() == "" {
+		log.Printf("* (%v) Coudn't send GCM event cancelled notification (Invalid IID token)", participantID)
+		return
+	}
+
+	ttl := uint32(t.Event.StartDate()-utils.GetCurrentTimeMillis()) / 1000
+	sendGcmDataAvailableNotification(participantID, &iidToken, ttl)
 }

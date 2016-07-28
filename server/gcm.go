@@ -1,10 +1,12 @@
 package main
 
 import (
-  core "peeple/areyouin/common"
-  gcm "github.com/google/go-gcm"
-  "log"
-  "fmt"
+	"fmt"
+	"log"
+	"peeple/areyouin/model"
+	"peeple/areyouin/utils"
+
+	gcm "github.com/google/go-gcm"
 )
 
 // GCM MESSAGES
@@ -12,20 +14,20 @@ const (
 	GCM_NEW_EVENT_MESSAGE       = 1
 	GCM_NEW_FRIEND_MESSAGE      = 2
 	GCM_EVENT_CANCELLED_MESSAGE = 3
-  GCM_NEW_DATA_AVAILABLE      = 4
+	GCM_NEW_DATA_AVAILABLE      = 4
 )
 
-func sendGcmEventNotification(user_id int64, token string, start_date int64, data string) {
+func sendGcmEventNotification(user_id int64, token *model.IIDToken, start_date int64, data string) {
 
-  if token == "" {
-    return
-  }
+	if token == nil || token.Token() == "" {
+		return
+	}
 
-	time_to_start := uint32(start_date-core.GetCurrentTimeMillis()) / 1000
-	ttl := core.MinUint32(time_to_start, GCM_MAX_TTL) // Seconds
+	time_to_start := uint32(start_date-utils.GetCurrentTimeMillis()) / 1000
+	ttl := utils.MinUint32(time_to_start, GCM_MAX_TTL) // Seconds
 
 	gcm_message := gcm.HttpMessage{
-		To:         token,
+		To:         token.Token(),
 		Priority:   "high",
 		TimeToLive: uint(ttl),
 		Data: gcm.Data{
@@ -37,44 +39,44 @@ func sendGcmEventNotification(user_id int64, token string, start_date int64, dat
 	sendGcmMessage(user_id, gcm_message)
 }
 
-func sendGcmNewFriendNotification(user_id int64, token string, new_friend core.UserFriend) {
+func sendGcmNewFriendNotification(user_id int64, token *model.IIDToken, new_friend *model.Friend) {
 
-  if token == "" {
-    return
-  }
+	if token == nil || token.Token() == "" {
+		return
+	}
 
 	gcm_message := gcm.HttpMessage{
-		To:       token,
+		To:       token.Token(),
 		Priority: "high",
 		Data: gcm.Data{
 			"msg_type":      "notification",
 			"notify_type":   GCM_NEW_FRIEND_MESSAGE,
-			"friend_name":   new_friend.GetName(),
-			"friend_id":     new_friend.GetUserId(),
-			"friend_digest": fmt.Sprintf("%x", new_friend.GetPictureDigest()),
+			"friend_name":   new_friend.Name(),
+			"friend_id":     new_friend.Id(),
+			"friend_digest": fmt.Sprintf("%x", new_friend.PictureDigest()),
 		},
 	}
 
 	sendGcmMessage(user_id, gcm_message)
 }
 
-func sendGcmNewEventNotification(user_id int64, token string, event *core.Event) {
+func sendGcmNewEventNotification(user_id int64, token *model.IIDToken, event *model.Event) {
 
-  if token == "" {
-    return
-  }
+	if token == nil || token.Token() == "" {
+		return
+	}
 
-	time_to_start := uint32(event.StartDate - core.GetCurrentTimeMillis()) / 1000
-	ttl := core.MinUint32(time_to_start, GCM_MAX_TTL) // Seconds
+	time_to_start := uint32(event.StartDate()-utils.GetCurrentTimeMillis()) / 1000
+	ttl := utils.MinUint32(time_to_start, GCM_MAX_TTL) // Seconds
 
 	gcm_message := gcm.HttpMessage{
-		To:         token,
+		To:         token.Token(),
 		TimeToLive: uint(ttl),
 		Priority:   "high",
 		Data: gcm.Data{
 			"msg_type":    "notification",
 			"notify_type": GCM_NEW_EVENT_MESSAGE,
-			"event_id":    event.EventId,
+			"event_id":    event.Id(),
 		},
 	}
 
@@ -82,28 +84,28 @@ func sendGcmNewEventNotification(user_id int64, token string, event *core.Event)
 }
 
 // Send-to-Sync PUSH Message
-func sendGcmDataAvailableNotification(user_id int64, token string, ttl uint32) {
+func sendGcmDataAvailableNotification(user_id int64, token *model.IIDToken, ttl uint32) {
 
-  if token == "" {
-    return
-  }
+	if token == nil || token.Token() == "" {
+		return
+	}
 
-  gcm_ttl := core.MinUint32(ttl, GCM_MAX_TTL) // Seconds
+	gcm_ttl := utils.MinUint32(ttl, GCM_MAX_TTL) // Seconds
 
-  gcm_message := gcm.HttpMessage{
-		To:         token,
-		TimeToLive: uint(gcm_ttl),
-		Priority:   "high",
-    CollapseKey: "send-to-sync",
-    ContentAvailable: true, // For iOS
+	gcm_message := gcm.HttpMessage{
+		To:               token.Token(),
+		TimeToLive:       uint(gcm_ttl),
+		Priority:         "high",
+		CollapseKey:      "send-to-sync",
+		ContentAvailable: true, // For iOS
 		Data: gcm.Data{
-			"msg_type":    "notification",
-			"notify_type": GCM_NEW_DATA_AVAILABLE,
-      "created_date": core.GetCurrentTimeMillis(),
+			"msg_type":     "notification",
+			"notify_type":  GCM_NEW_DATA_AVAILABLE,
+			"created_date": utils.GetCurrentTimeMillis(),
 		},
 	}
 
-  sendGcmMessage(user_id, gcm_message)
+	sendGcmMessage(user_id, gcm_message)
 }
 
 func sendGcmMessage(user_id int64, message gcm.HttpMessage) {

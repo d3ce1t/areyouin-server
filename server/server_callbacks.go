@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	core "peeple/areyouin/common"
-	"peeple/areyouin/model"
-	"peeple/areyouin/dao"
+	"peeple/areyouin/api"
 	fb "peeple/areyouin/facebook"
+	"peeple/areyouin/model"
 	proto "peeple/areyouin/protocol"
-	"github.com/twinj/uuid"
+	"peeple/areyouin/protocol/core"
+	"peeple/areyouin/utils"
 )
 
 func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -22,8 +22,8 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 
 	userAccount, err := server.Model.Accounts.CreateUserAccount(msg.Name, msg.Email, msg.Password, msg.Phone, msg.Fbid, msg.Fbtoken)
 	if err != nil {
-		error_code := getNetErrorCode(err, proto.E_OPERATION_FAILED)
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), error_code))
+		errorCode := getNetErrorCode(err, proto.E_OPERATION_FAILED)
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), errorCode))
 		log.Printf("< (%v) CREATE ACCOUNT ERROR: %v\n", session, err)
 		return
 	}
@@ -36,17 +36,17 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 		}
 	}
 
-	if userAccount.HasFacebookCredentials() {
+	if userAccount.HasFacebook() {
 
 		// Import Facebook friends that uses AreYouIN if needed
 
 		server.task_executor.Submit(&ImportFacebookFriends{
 			TargetUser: userAccount,
-			Fbtoken:    userAccount.Fbtoken,
+			Fbtoken:    userAccount.FbToken(),
 		})
 	}
 
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccessGranted(userAccount.Id, userAccount.AuthToken))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccessGranted(userAccount.Id(), userAccount.AuthToken()))
 	log.Printf("< (%v) CREATE ACCOUNT OK\n", session)
 }
 
@@ -71,10 +71,10 @@ func onUserNewAuthToken(request *proto.AyiPacket, message proto.Message, session
 
 		// Get new token by e-mail and password
 
-		auth_cred, err := server.Model.Accounts.NewAuthCredentialByEmailAndPassword(msg.Pass1, msg.Pass2)
+		authCred, err := server.Model.Accounts.NewAuthCredentialByEmailAndPassword(msg.Pass1, msg.Pass2)
 
 		if err == nil {
-			reply = session.NewMessage().UserAccessGranted(auth_cred.UserId, auth_cred.Token)
+			reply = session.NewMessage().UserAccessGranted(authCred.UserID(), authCred.Token())
 			log.Printf("< (%v) USER NEW AUTH TOKEN ACCESS GRANTED\n", session)
 		} else if err == model.ErrInvalidUserOrPassword {
 			reply = session.NewMessage().Error(request.Type(), proto.E_INVALID_USER_OR_PASSWORD)
@@ -90,10 +90,10 @@ func onUserNewAuthToken(request *proto.AyiPacket, message proto.Message, session
 		// In this context, E_INVALID_USER_OR_PASSWORD means that account
 		// does not exist or it is an invalid account.
 
-		auth_cred, err := server.Model.Accounts.NewAuthCredentialByFacebook(msg.Pass1, msg.Pass2)
+		authCred, err := server.Model.Accounts.NewAuthCredentialByFacebook(msg.Pass1, msg.Pass2)
 
 		if err == nil {
-			reply = session.NewMessage().UserAccessGranted(auth_cred.UserId, auth_cred.Token)
+			reply = session.NewMessage().UserAccessGranted(authCred.UserID(), authCred.Token())
 			log.Printf("< (%v) USER NEW AUTH TOKEN ACCESS GRANTED\n", session)
 		} else if err == fb.ErrFacebookAccessForbidden {
 			reply = session.NewMessage().Error(request.Type(), proto.E_FB_INVALID_ACCESS)
@@ -127,8 +127,7 @@ func onUserAuthentication(request *proto.AyiPacket, message proto.Message, sessi
 		return
 	}
 
-	userDAO := dao.NewUserDAO(server.DbSession)
-	iidToken, err := userDAO.GetIIDToken(msg.UserId)
+	iidToken, err := server.Model.Accounts.GetPushToken(msg.UserId)
 	checkNoErrorOrPanic(err)
 
 	session.IsAuth = isAuthenticated
@@ -137,10 +136,10 @@ func onUserAuthentication(request *proto.AyiPacket, message proto.Message, sessi
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) AUTH OK\n", session)
 	server.RegisterSession(session)
-	userDAO.SetLastConnection(session.UserId, core.GetCurrentTimeMillis())
 
-	if session.ProtocolVersion < 2 {
-		sendPrivateEvents(session)
+	err = server.Model.Accounts.SetLastConnection(session.UserId, utils.GetCurrentTimeMillis())
+	if err != nil {
+		log.Printf("* (%v) SET LAST CONNECTION ERROR: %v", session, err)
 	}
 }
 
@@ -151,11 +150,7 @@ func onNewAccessToken(request *proto.AyiPacket, message proto.Message, session *
 
 	checkAuthenticated(session)
 
-	accessTokenDAO := dao.NewAccessTokenDAO(server.DbSession)
-	new_access_token := uuid.NewV4().String()
-
-	// Overwrites previous one if exists
-	err := accessTokenDAO.Insert(session.UserId, new_access_token)
+	accessToken, err := server.Model.Accounts.NewImageAccessToken(session.UserId)
 	if err != nil {
 		reply := session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 		log.Printf("< (%v) REQUEST NEW ACCESS TOKEN ERROR: %v\n", session, err)
@@ -163,8 +158,8 @@ func onNewAccessToken(request *proto.AyiPacket, message proto.Message, session *
 		return
 	}
 
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().NewAccessToken(session.UserId, new_access_token))
-	log.Printf("< (%v) ACCESS TOKEN: %v\n", session, new_access_token)
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().NewAccessToken(accessToken.UserID(), accessToken.Token()))
+	log.Printf("< (%v) ACCESS TOKEN: %v\n", session, accessToken.Token())
 }
 
 func onIIDTokenReceived(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -175,16 +170,8 @@ func onIIDTokenReceived(request *proto.AyiPacket, message proto.Message, session
 
 	checkAuthenticated(session)
 
-	if msg.Token == "" || len(msg.Token) < 10 {
-		reply := session.NewMessage().Error(request.Type(), proto.E_INVALID_INPUT)
-		log.Printf("< (%v) IID TOKEN ERROR: INVALID INPUT\n", session)
-		session.WriteResponse(request.Header.GetToken(), reply)
-		return
-	}
-
-	userDAO := dao.NewUserDAO(server.DbSession)
-	iidToken := &core.IIDToken{Token: msg.Token, Version: int(session.ProtocolVersion)}
-	if err := userDAO.SetIIDToken(session.UserId, iidToken); err != nil {
+	iidToken := model.NewIIDToken(msg.Token, int(session.ProtocolVersion))
+	if err := server.Model.Accounts.SetPushToken(session.UserId, iidToken); err != nil {
 		reply := session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 		log.Printf("< (%v) IID TOKEN ERROR: %v\n", session, err)
 		session.WriteResponse(request.Header.GetToken(), reply)
@@ -203,25 +190,23 @@ func onGetUserAccount(request *proto.AyiPacket, message proto.Message, session *
 
 	checkAuthenticated(session)
 
-	userDAO := dao.NewUserDAO(server.DbSession)
-	user, err := userDAO.Load(session.UserId) // Do not include picture
+	user, err := server.Model.Accounts.GetUserAccount(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccount(user))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccount(convUser2Net(user)))
 	log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session)
 }
 
 func onChangeProfilePicture(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
-	msg := message.(*proto.UserAccount)
+	msg := message.(*core.UserAccount)
 	log.Printf("> (%v) CHANGE PROFILE PICTURE (%v bytes)\n", session, len(msg.Picture))
 
 	checkAuthenticated(session)
 
 	// Load account
-	userDAO := dao.NewUserDAO(server.DbSession)
-	user, err := userDAO.Load(session.UserId)
+	user, err := server.Model.Accounts.GetUserAccount(session.UserId)
 	checkNoErrorOrPanic(err)
 
 	// Add or remove profile picture
@@ -230,7 +215,7 @@ func onChangeProfilePicture(request *proto.AyiPacket, message proto.Message, ses
 
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) PROFILE PICTURE CHANGED\n", session)
-	session.Write(session.NewMessage().UserAccount(user))
+	session.Write(session.NewMessage().UserAccount(convUser2Net(user)))
 	log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session)
 }
 
@@ -242,18 +227,24 @@ func onSyncGroups(request *proto.AyiPacket, message proto.Message, session *AyiS
 
 	checkAuthenticated(session)
 
-	// Load server groups
+	// Convert received groups to model.Group objects
+	clientGroups := make([]*model.Group, 0, 4)
+	builder := model.NewGroupBuilder()
 
-	friendDAO := dao.NewFriendDAO(server.DbSession)
+	for _, g := range msg.Groups {
+		builder.SetId(g.Id)
+		builder.SetName(g.Name)
+		for _, friendID := range g.Members {
+			builder.AddMember(friendID)
+		}
+		clientGroups = append(clientGroups, builder.Build())
+	}
 
-	// FIXME: All groups are always loaded. However, a subset could be loaded when sync
-	// behaviour is not TRUNCATE.
-	serverGroups, err := friendDAO.LoadGroupsAndMembers(session.UserId)
+	// Add groups
+	err := server.Model.Friends.SyncGroups(session.UserId, clientGroups)
 	checkNoErrorOrPanic(err)
 
-	// Sync
-	server.syncFriendGroups(msg.Owner, serverGroups, msg.Groups, msg.SyncBehaviour)
-
+	// Write response back
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) SYNC GROUPS OK\n", session)
 }
@@ -265,11 +256,10 @@ func onGetGroups(request *proto.AyiPacket, message proto.Message, session *AyiSe
 
 	checkAuthenticated(session)
 
-	friendDAO := dao.NewFriendDAO(server.DbSession)
-	groups, err := friendDAO.LoadGroupsAndMembers(session.UserId)
+	groups, err := server.Model.Friends.GetAllGroups(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().GroupsList(groups))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().GroupsList(convGroupList2Net(groups)))
 	log.Printf("< (%v) GROUPS LIST (num.groups: %v)\n", session, len(groups))
 }
 
@@ -282,15 +272,13 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	checkAuthenticated(session)
 
-	userDAO := dao.NewUserDAO(server.DbSession)
-	author, err := userDAO.Load(session.UserId)
+	author, err := server.Model.Accounts.GetUserAccount(session.UserId)
 	checkNoErrorOrPanic(err)
 
 	event, err := server.Model.Events.CreateNewEvent(author, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
 	checkNoErrorOrPanic(err)
 
-	// Load users participants
-	userParticipants, err := server.Model.Events.CreateParticipantsList(author.Id, msg.Participants)
+	userParticipants, err := server.Model.Events.CreateParticipantsList(author.Id(), msg.Participants)
 	checkNoErrorOrPanic(err)
 
 	if err = server.Model.Events.PublishEvent(event, userParticipants); err == nil {
@@ -300,24 +288,21 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 		if len(msg.Picture) != 0 {
 			if err = server.Model.Events.ChangeEventPicture(event, msg.Picture); err != nil {
 				// Only log error but do nothing. Event has already been published.
-				log.Printf("* (%v) Error saving picture for event %v (%v)\n", session, event.EventId, err)
+				log.Printf("* (%v) Error saving picture for event %v (%v)\n", session, event.Id(), err)
 			}
 		}
 
-		// From protocol v2 onward, OK message is removed in favour of only one message that
-		// includes all of the event info (including participants)
-
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventCreated(event))
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventCreated(convEvent2Net(event)))
 		log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v, Remaining.Participants: %v)\n",
-			session, event.EventId, len(event.Participants), 1 + len(msg.Participants) - len(event.Participants))
+			session, event.Id(), event.NumGuests(), len(msg.Participants)-event.NumGuests())
 
-		notification := &NotifyEventInvitation {
+		notification := &NotifyEventInvitation{
 			Event:  event,
 			Target: userParticipants,
 		}
 		server.task_executor.Submit(notification)
 
-	}	else if err == model.ErrParticipantsRequired {
+	} else if err == model.ErrParticipantsRequired {
 
 		// Participants required
 
@@ -331,7 +316,6 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
 		log.Printf("< (%v) CREATE EVENT ERROR %v\n", session, err)
 	}
-
 }
 
 func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -342,19 +326,15 @@ func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, sessi
 
 	checkAuthenticated(session)
 
-	eventDAO := dao.NewEventDAO(server.DbSession)
-	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
+	// Load event
+	event, err := server.Model.Events.GetEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
-	// Check event exists
-	checkAtLeastOneEventOrPanic(events)
-
 	// Check author
-	event := events[0]
-	author_id := session.UserId
-	checkEventAuthorOrPanic(author_id, event)
+	authorID := session.UserId
+	checkEventAuthorOrPanic(authorID, event)
 
-	// Actually change event picture
+	// Change event picture
 	err = server.Model.Events.ChangeEventPicture(event, msg.Picture)
 	checkNoErrorOrPanic(err)
 
@@ -365,7 +345,7 @@ func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, sessi
 	// Notify change to participants
 	server.task_executor.Submit(&NotifyEventChange{
 		Event:  event,
-		Target: core.GetParticipantKeys(event.Participants),
+		Target: event.ParticipantIds(),
 	})
 }
 
@@ -377,17 +357,12 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	checkAuthenticated(session)
 
-	eventDAO := dao.NewEventDAO(server.DbSession)
-	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
+	event, err := server.Model.Events.GetEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
-	// Event exist
-	checkAtLeastOneEventOrPanic(events)
-
-	// Author math
-	event := events[0]
-	author_id := session.UserId
-	checkEventAuthorOrPanic(author_id, event)
+	// Check author
+	authorID := session.UserId
+	checkEventAuthorOrPanic(authorID, event)
 
 	// Cancel event
 	err = server.Model.Events.CancelEvent(event)
@@ -420,28 +395,22 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 		return
 	}
 
-	eventDAO := dao.NewEventDAO(server.DbSession)
-	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
+	event, err := server.Model.Events.GetEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
-	// Event does exist
-	checkAtLeastOneEventOrPanic(events)
-
-	// Author mismath
-	event := events[0]
-	author_id := session.UserId
-	checkEventAuthorOrPanic(author_id, event)
+	// Check author
+	authorID := session.UserId
+	checkEventAuthorOrPanic(authorID, event)
 
 	// Event can be modified
 	checkEventWritableOrPanic(event)
 
 	// Load user participants
-	participants_id := core.GetNewParticipants(msg.Participants, event)
-	newParticipants, err := server.Model.Events.CreateParticipantsList(author_id, participants_id)
+	newParticipants, err := server.Model.Events.CreateParticipantsList(authorID, msg.Participants)
 	checkNoErrorOrPanic(err)
 
 	// Get current participants for later use
-	oldParticipants := core.GetParticipantKeys(event.Participants)
+	oldParticipants := event.ParticipantIds()
 
 	// Invite participants
 	usersInvited, err := server.Model.Events.InviteUsers(event, newParticipants)
@@ -450,14 +419,14 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	// Write response back
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) INVITE USERS OK (event_id: %v, invitations: %v/%v, total: %v)\n",
-		session, event.EventId, len(usersInvited), len(newParticipants), len(msg.Participants))
+		session, event.Id(), len(usersInvited), len(newParticipants), len(msg.Participants))
 
 	// Notify previous participants of the new ones added
 	server.task_executor.Submit(&NotifyParticipantChange{
 		Event:               event,
-		ParticipantsChanged: core.GetUserKeys(usersInvited),
+		ParticipantsChanged: model.GetUserKeys(usersInvited),
 		Target:              oldParticipants,
-		NumGuests:           event.NumGuests, // Include also total NumGuests because it's changed
+		NumGuests:           int32(event.NumGuests()), // Include also total NumGuests because it's changed
 	})
 
 	server.task_executor.Submit(&NotifyEventInvitation{
@@ -478,17 +447,11 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 
 	checkAuthenticated(session)
 
-	eventDAO := dao.NewEventDAO(server.DbSession)
-	events, err := eventDAO.LoadEventAndParticipants(msg.EventId)
+	event, err := server.Model.Events.GetEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
-	// Event does exist
-	checkAtLeastOneEventOrPanic(events)
-
-	event := events[0]
-
 	// Change response
-	changed, err := server.Model.Events.ChangeParticipantResponse(session.UserId, msg.ActionCode, event)
+	changed, err := server.Model.Events.ChangeParticipantResponse(session.UserId, api.AttendanceResponse(msg.ActionCode), event)
 	checkNoErrorOrPanic(err)
 
 	// Send OK Response
@@ -500,7 +463,7 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 		server.task_executor.Submit(&NotifyParticipantChange{
 			Event:               event,
 			ParticipantsChanged: []int64{session.UserId},
-			Target:              core.GetParticipantKeys(event.Participants),
+			Target:              event.ParticipantIds(),
 		})
 	}
 }
@@ -524,7 +487,7 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 	// Send event list to user
 	filteredEvents := server.Model.Events.FilterEvents(events, session.UserId)
 	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, len(filteredEvents))
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(filteredEvents))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(convEventList2Net(filteredEvents)))
 
 	// Update delivery status
 	for _, event := range events {
@@ -532,7 +495,7 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 		// TODO: I should receive an ACK before try to change state.
 		// Moreover, err is ignored. What should server do in that case?
 
-		changed, _ := server.Model.Events.ChangeDeliveryState(event, session.UserId, core.MessageStatus_CLIENT_DELIVERED)
+		changed, _ := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
 
 		if changed {
 
@@ -540,7 +503,7 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 			task := &NotifyParticipantChange{
 				Event:               event,
 				ParticipantsChanged: []int64{session.UserId},
-				Target:              core.GetParticipantKeys(event.Participants),
+				Target:              event.ParticipantIds(),
 			}
 
 			// I'm also sending notification to the author. Could avoid this
@@ -566,22 +529,22 @@ func onListEventsHistory(request *proto.AyiPacket, message proto.Message, sessio
 	// Check event exists
 	checkAtLeastOneEventOrPanic(events)
 
-	var startWindow int64 = 0
-	var endWindow int64 = 0
+	var startWindow int64
+	var endWindow int64
 
 	if msg.StartWindow < msg.EndWindow {
-		startWindow = events[0].StartDate
-		endWindow = events[len(events)-1].StartDate
+		startWindow = events[0].StartDate()
+		endWindow = events[len(events)-1].StartDate()
 	} else {
-		startWindow = events[len(events)-1].StartDate
-		endWindow = events[0].StartDate
+		startWindow = events[len(events)-1].StartDate()
+		endWindow = events[0].StartDate()
 	}
 
 	filteredEvents := server.Model.Events.FilterEvents(events, session.UserId)
 
 	// Send event list to user
 	log.Printf("< (%v) SEND EVENTS HISTORY (num.events: %v)", session, len(events))
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsHistoryList(filteredEvents, startWindow, endWindow))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsHistoryList(convEventList2Net(filteredEvents), startWindow, endWindow))
 }
 
 func onGetUserFriends(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -591,11 +554,10 @@ func onGetUserFriends(request *proto.AyiPacket, message proto.Message, session *
 	log.Printf("> (%v) GET USER FRIENDS\n", session) // Message does not has payload
 	checkAuthenticated(session)
 
-	friend_dao := dao.NewFriendDAO(server.DbSession)
-	friends, err := friend_dao.LoadFriends(session.UserId, 0) // TODO: Fix this
+	friends, err := server.Model.Friends.GetAllFriends(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().FriendsList(friends))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().FriendsList(convFriendList2Net(friends)))
 	log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", session, len(friends))
 }
 
@@ -607,54 +569,26 @@ func onFriendRequest(request *proto.AyiPacket, message proto.Message, session *A
 	log.Printf("> (%v) CREATE FRIEND REQUEST: %v\n", session, msg)
 	checkAuthenticated(session)
 
-	user_dao := dao.NewUserDAO(server.DbSession)
-	friend_dao := dao.NewFriendDAO(server.DbSession)
-
 	// Load session.UserId account
-	userAccount, err := user_dao.Load(session.UserId)
+	userAccount, err := server.Model.Accounts.GetUserAccount(session.UserId)
 	checkNoErrorOrPanic(err)
 
 	// Exist user with provided email
-	friendAccount, err := user_dao.LoadByEmail(msg.Email)
+	friendAccount, err := server.Model.Accounts.GetUserAccountByEmail(msg.Email)
 	if err != nil {
-		if err == dao.ErrNotFound {
+		if err == model.ErrNotFound {
 			panic(ErrFriendNotFound)
 		} else {
 			panic(err)
 		}
 	}
 
-	// Not friends
-	areFriends, err := server.Model.Accounts.AreFriends(session.UserId, friendAccount.Id)
+	// Send friend request
+	friendRequest, err := server.Model.Friends.SendFriendRequest(userAccount, friendAccount)
 	checkNoErrorOrPanic(err)
-
-	if areFriends {
-		panic(ErrSendRequest_AlreadyFriends)
-	}
-
-	// Not exist previous request
-	exist_previous_request, err := friend_dao.ExistFriendRequest(session.UserId, friendAccount.Id)
-	checkNoErrorOrPanic(err)
-	if exist_previous_request {
-		panic(ErrSendRequest_AlreadySent)
-	}
-
-	// Preconditions satisfied
-
-	created_date := core.GetCurrentTimeMillis()
-	err = friend_dao.InsertFriendRequest(friendAccount.Id, userAccount.Id, userAccount.Name,
-																					userAccount.Email, created_date)
-	checkNoErrorOrPanic(err)
-
-	friendRequest := &core.FriendRequest {
-		FriendId: userAccount.Id,
-		Name: userAccount.Name,
-		Email: userAccount.Email,
-		CreatedDate: created_date,
-	}
 
 	server.task_executor.Submit(&NotifyFriendRequest{
-		UserId:  friendAccount.Id,
+		UserId:        friendAccount.Id(),
 		FriendRequest: friendRequest,
 	})
 
@@ -669,11 +603,10 @@ func onListFriendRequests(request *proto.AyiPacket, message proto.Message, sessi
 	log.Printf("> (%v) GET FRIEND REQUESTS\n", session)
 	checkAuthenticated(session)
 
-	friend_dao := dao.NewFriendDAO(server.DbSession)
-	requests, err := friend_dao.LoadFriendRequests(session.UserId)
+	requests, err := server.Model.Friends.GetAllFriendRequests(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().FriendRequestsList(requests))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().FriendRequestsList(convFriendRequestList2Net(requests)))
 	log.Printf("< (%v) SEND FRIEND REQUESTS (num.requests: %v)\n", session, len(requests))
 }
 
@@ -685,33 +618,17 @@ func onConfirmFriendRequest(request *proto.AyiPacket, message proto.Message, ses
 	log.Printf("> (%v) CONFIRM FRIEND REQUEST: %v\n", session, msg)
 	checkAuthenticated(session)
 
-	friend_dao := dao.NewFriendDAO(server.DbSession)
+	// Load current user
+	currentUser, err := server.Model.Accounts.GetUserAccount(session.UserId)
+	checkNoErrorOrPanic(err)
 
-	// Load request from database in order to check that it exists
-	friendRequest, err := friend_dao.LoadFriendRequest(session.UserId, msg.FriendId)
+	// Load friend
+	friend, err := server.Model.Accounts.GetUserAccount(msg.FriendId)
 	checkNoErrorOrPanic(err)
 
 	if msg.Response == proto.ConfirmFriendRequest_CONFIRM {
 
-		// Friend Request has been accepted. Make friends.
-
-		user_dao := dao.NewUserDAO(server.DbSession)
-
-		// Load current user
-		currentUser, err := user_dao.Load(session.UserId)
-		checkNoErrorOrPanic(err)
-
-		// Load friend
-		friend, err := user_dao.Load(msg.FriendId)
-		checkNoErrorOrPanic(err)
-
-		// Make both friends
-		err = friend_dao.MakeFriends(currentUser, friend)
-		checkNoErrorOrPanic(err)
-		log.Printf("* (%v) User %v and User %v are now friends\n", session, currentUser.Id, friend.Id)
-
-		// Delete Friend Request
-		err = friend_dao.DeleteFriendRequest(session.UserId, msg.FriendId, friendRequest.CreatedDate)
+		err = server.Model.Friends.ConfirmFriendRequest(friend, currentUser, true)
 		checkNoErrorOrPanic(err)
 
 		// Send OK to user
@@ -721,22 +638,21 @@ func onConfirmFriendRequest(request *proto.AyiPacket, message proto.Message, ses
 		// Send Friend List to both users if connected
 		// TODO: In this case, FRIENDS_LIST is sent as a notification. Because of this,
 		// it should be only a subset of all friends in server.
-		server.task_executor.Submit(&SendUserFriends{UserId: currentUser.Id})
-		server.task_executor.Submit(&SendUserFriends{UserId: friend.Id})
+		server.task_executor.Submit(&SendUserFriends{UserId: currentUser.Id()})
+		server.task_executor.Submit(&SendUserFriends{UserId: friend.Id()})
 		//task.sendGcmNotification(friendUser.Id, friendUser.IIDtoken, task.TargetUser)
 
 	} else if msg.Response == proto.ConfirmFriendRequest_CANCEL {
 
-		// Friend Request has been cancelled. Remove it.
+		err = server.Model.Friends.ConfirmFriendRequest(friend, currentUser, false)
+		checkNoErrorOrPanic(err)
 
-		friend_dao.DeleteFriendRequest(session.UserId, msg.FriendId, friendRequest.CreatedDate)
 		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 		log.Printf("< (%v) CONFIRM FRIEND REQUEST OK (cancelled)\n", session)
 
 	} else {
 		panic(ErrOperationFailed)
 	}
-
 }
 
 func onOk(request *proto.AyiPacket, message proto.Message, session *AyiSession) {

@@ -8,8 +8,9 @@ import (
 	_ "image/jpeg"
 	"io/ioutil"
 	"net/http"
+	"peeple/areyouin/model"
+	"peeple/areyouin/utils"
 	"unicode"
-	core "peeple/areyouin/common"
 )
 
 func (shell *Shell) createFakeUser(args []string) {
@@ -56,7 +57,7 @@ func (shell *Shell) createFakeUser(args []string) {
 	manageShellError(err)
 
 	// Resize image to 512xauto
-	picture_bytes, err = core.ResizeImage(original_image, core.PROFILE_PICTURE_MAX_WIDTH)
+	picture_bytes, err = utils.ResizeImage(original_image, model.PROFILE_PICTURE_MAX_WIDTH)
 	manageShellError(err)
 
 	// Create new user account

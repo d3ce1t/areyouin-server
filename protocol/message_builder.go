@@ -1,12 +1,12 @@
 package protocol
 
 import (
-	core "peeple/areyouin/protocol/core"
+	"peeple/areyouin/protocol/core"
 )
 
 // Interface
 type MessageBuilder interface {
-	NewAccessToken(user_id int64, auth_token string) *AyiPacket
+	NewAccessToken(userId int64, authToken string) *AyiPacket
 	EventCreated(event *core.Event) *AyiPacket
 	EventCancelled(who_id int64, event *core.Event) *AyiPacket
 	EventExpired(event_id int64) *AyiPacket

@@ -3,8 +3,7 @@ package main
 import (
 	_ "image/jpeg"
 	"log"
-	core "peeple/areyouin/common"
-	"peeple/areyouin/dao"
+	"peeple/areyouin/model"
 )
 
 type NotifyDatasetChanged struct {
@@ -16,7 +15,7 @@ func (t *NotifyDatasetChanged) Run(ex *TaskExecutor) {
 }
 
 type ImportFacebookFriends struct {
-	TargetUser *core.UserAccount
+	TargetUser *model.UserAccount
 	Fbtoken    string // Facebook User Access token
 }
 
@@ -24,7 +23,7 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 
 	server := ex.server
 
-	addedFriends, err := server.Model.Accounts.ImportFacebookFriends(task.TargetUser)
+	addedFriends, err := server.Model.Friends.ImportFacebookFriends(task.TargetUser)
 	if err != nil {
 		log.Println("ImportFacebookFriends Error:", err)
 		return
@@ -36,19 +35,16 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 	for _, newFriend := range addedFriends {
 
 		// Send friends to existing user
-		ex.Submit(&SendUserFriends{UserId: newFriend.Id})
+		ex.Submit(&SendUserFriends{UserId: newFriend.Id()})
 
 		// Send new friends notification
-		if newFriend.NetworkVersion == 0 || newFriend.NetworkVersion == 1 {
-			sendGcmNewFriendNotification(newFriend.Id, newFriend.IIDtoken, task.TargetUser)
-		} else {
-			sendGcmDataAvailableNotification(newFriend.Id, newFriend.IIDtoken, GCM_MAX_TTL)
-		}
+		token := newFriend.PushToken()
+		sendGcmDataAvailableNotification(newFriend.Id(), &token, GCM_MAX_TTL)
 	}
 
 	if len(addedFriends) > 0 {
 		// Notify target user
-		ex.Submit(&SendUserFriends{UserId: task.TargetUser.GetUserId()})
+		ex.Submit(&SendUserFriends{UserId: task.TargetUser.Id()})
 	}
 }
 
@@ -62,16 +58,14 @@ func (t *SendUserFriends) Run(ex *TaskExecutor) {
 
 	if session := server.GetSession(t.UserId); session != nil {
 
-		friend_dao := dao.NewFriendDAO(server.DbSession)
-
-		friends, err := friend_dao.LoadFriends(t.UserId, 0)
+		friends, err := server.Model.Friends.GetAllFriends(t.UserId)
 		if err != nil {
 			log.Println("SendUserFriends Error:", err)
 			return
 		}
 
 		if len(friends) > 0 {
-			packet := session.NewMessage().FriendsList(friends)
+			packet := session.NewMessage().FriendsList(convFriendList2Net(friends))
 			if session.Write(packet) {
 				log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", t.UserId, len(friends))
 			}

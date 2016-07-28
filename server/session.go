@@ -2,12 +2,12 @@ package main
 
 import (
 	"crypto/tls"
+	"fmt"
 	"log"
 	"net"
+	"peeple/areyouin/model"
 	proto "peeple/areyouin/protocol"
-	core "peeple/areyouin/common"
 	"time"
-	"fmt"
 )
 
 const (
@@ -75,22 +75,22 @@ type AyiSession struct {
 	// Platform Version
 	PlatformVersion string
 
-	IsAuth           bool
-	readReadyChan    chan *proto.AyiPacket
-	errorChan        chan error
-	exitChan         chan bool
-	writeChan        chan *WriteMsg
-	ticker           *time.Ticker
-	Server           *Server
-	IIDToken         *core.IIDToken
-	closed           bool
-	lastRecvMsg      time.Time
-	pendingResp      map[uint16]chan bool
-	nextToken        uint16 // most significant bit reserved (1 -> Response, 0 -> Normal). Reset each 32768 messages (0 - 32767)
-	OnRead           func(s *AyiSession, packet *proto.AyiPacket)
-	OnError          func(s *AyiSession, err error)
-	OnClosed         func(s *AyiSession, peer bool)
-	pingTime         time.Time
+	IsAuth        bool
+	readReadyChan chan *proto.AyiPacket
+	errorChan     chan error
+	exitChan      chan bool
+	writeChan     chan *WriteMsg
+	ticker        *time.Ticker
+	Server        *Server
+	IIDToken      *model.IIDToken
+	closed        bool
+	lastRecvMsg   time.Time
+	pendingResp   map[uint16]chan bool
+	nextToken     uint16 // most significant bit reserved (1 -> Response, 0 -> Normal). Reset each 32768 messages (0 - 32767)
+	OnRead        func(s *AyiSession, packet *proto.AyiPacket)
+	OnError       func(s *AyiSession, err error)
+	OnClosed      func(s *AyiSession, peer bool)
+	pingTime      time.Time
 }
 
 func (s *AyiSession) String() string {
@@ -139,7 +139,7 @@ func (s *AyiSession) WriteResponse(token uint16, packet *proto.AyiPacket) (ok bo
 
 	// may panic if writeChan is closed
 	s.writeChan <- &WriteMsg{
-		Packet:   packet,
+		Packet: packet,
 		Future: nil,
 	}
 
@@ -159,7 +159,7 @@ func (s *AyiSession) WriteAsync(future *Future, packet *proto.AyiPacket) (ok boo
 
 	// may panic if writeChan is closed
 	s.writeChan <- &WriteMsg{
-		Packet:   packet,
+		Packet: packet,
 		Future: future,
 	}
 
@@ -212,11 +212,11 @@ func (s *AyiSession) eventLoop() (exit bool) {
 		select {
 		case packet := <-s.readReadyChan:
 			s.OnRead(s, packet)
-		case err := <- s.errorChan:
+		case err := <-s.errorChan:
 			s.OnError(s, err)
-		case <- s.ticker.C:
+		case <-s.ticker.C:
 			s.keepAlive()
-		case peerClosed := <- s.exitChan:
+		case peerClosed := <-s.exitChan:
 			s.closeSocket()
 			s.OnClosed(s, peerClosed)
 			return true
@@ -256,7 +256,7 @@ func (s *AyiSession) startRecv() {
 
 func (s *AyiSession) startWrite() {
 	if s.Conn != nil {
-		go func () {
+		go func() {
 			for !s.closed {
 				for writeMsg := range s.writeChan {
 					s.manageWrite(writeMsg)
@@ -365,9 +365,9 @@ func (s *AyiSession) manageWrite(writeMsg *WriteMsg) {
 	}()
 
 	if writeMsg.Future != nil && writeMsg.Future.RequireAck {
-			s.doWriteWithAck(writeMsg)
+		s.doWriteWithAck(writeMsg)
 	} else {
-			s.doWrite(writeMsg)
+		s.doWrite(writeMsg)
 	}
 }
 

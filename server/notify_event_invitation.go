@@ -1,24 +1,24 @@
 package main
 
 import (
-  core "peeple/areyouin/common"
-  "peeple/areyouin/dao"
-  "log"
+	"log"
+	"peeple/areyouin/api"
+	"peeple/areyouin/model"
+	"peeple/areyouin/utils"
 )
 
 // Task to notify guests/participants of an event that they have been invited. This
 // task is used whenever a new event is created and participants have not been
 // notified yet.
 type NotifyEventInvitation struct {
-	Event  *core.Event
-	Target map[int64]*core.UserAccount // Users that will be invited to the event
-  futures map[int64]chan bool
+	Event   *model.Event
+	Target  map[int64]*model.UserAccount // Users that will be invited to the event
+	futures map[int64]chan bool
 }
 
 func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 
 	server := ex.server
-	light_event := t.Event.GetEventWithoutParticipants()
 	t.futures = make(map[int64]chan bool)
 
 	if len(t.Target) == 0 {
@@ -28,21 +28,14 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 
 	// Send event and its attendance status to all of the target participants
 	for _, user := range t.Target {
-    switch user.NetworkVersion {
-    case 0, 1:
-      if ok := t.notifyUserV1(user, light_event, server); !ok {
-        continue
-      }
-    case 2:
-        if ok := t.notifyUserV2(user, t.Event, server); !ok {
-          continue
-        }
-    }
+		if ok := t.notifyUser(user, t.Event, server); !ok {
+			continue
+		}
+
 	} // End loop
 
 	// Update invitation delivery status
 	participants_changed := make([]int64, 0, len(t.Target))
-	eventDAO := dao.NewEventDAO(ex.server.DbSession)
 
 	for participant_id, c := range t.futures {
 
@@ -50,28 +43,26 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 
 		if ok {
 
-      // ACK Received
+			// ACK Received
 
-			err := eventDAO.SetParticipantStatus(participant_id, t.Event.EventId, core.MessageStatus_CLIENT_DELIVERED) // participant changed
-			if err == nil {
-				t.Event.Participants[participant_id].Delivered = core.MessageStatus_CLIENT_DELIVERED
+			applied, err := server.Model.Events.ChangeDeliveryState(t.Event, participant_id, api.InvitationStatus_CLIENT_DELIVERED)
+			if err != nil {
+				log.Println("NotifyEventInvitation Err:", err)
+			}
+
+			if applied {
 				// Add participant to changed set because delivery status has changed
 				participants_changed = append(participants_changed, participant_id)
-			} else {
-				log.Println("NotifyEventInvitation Err:", err)
 			}
 
 		} else {
 
-      // timeout or error
+			// timeout or error
 
-      user := t.Target[participant_id]
-      if user.NetworkVersion >= 2 {
-        ttl := uint32(t.Event.StartDate - core.GetCurrentTimeMillis()) / 1000
-        sendGcmDataAvailableNotification(user.Id, user.IIDtoken, ttl)
-      } else {
-			  sendGcmNewEventNotification(user.Id, user.IIDtoken, t.Event)
-      }
+			user := t.Target[participant_id]
+			token := user.PushToken()
+			ttl := uint32(t.Event.StartDate()-utils.GetCurrentTimeMillis()) / 1000
+			sendGcmDataAvailableNotification(user.Id(), &token, ttl)
 		}
 	}
 
@@ -80,86 +71,49 @@ func (t *NotifyEventInvitation) Run(ex *TaskExecutor) {
 		task := &NotifyParticipantChange{
 			Event:               t.Event,
 			ParticipantsChanged: participants_changed,
-			Target:              core.GetParticipantKeys(t.Event.Participants),
+			Target:              t.Event.ParticipantIds(),
 		}
 
 		task.Run(ex)
 	}
 }
 
-func (t *NotifyEventInvitation) notifyUserV1(user *core.UserAccount, lightEvent *core.Event, server *Server) bool {
+func (t *NotifyEventInvitation) notifyUser(user *model.UserAccount, event *model.Event, server *Server) bool {
 
-  // Notify participant about the invitation only if it's connected.
-  session := server.GetSession(user.Id)
+	// Notify participant about the invitation only if it's connected.
+	session := server.GetSession(user.Id())
+	token := user.PushToken()
 
-  if session == nil {
-    sendGcmNewEventNotification(user.Id, user.IIDtoken, t.Event)
-    return false
-  }
+	if session == nil {
+		ttl := uint32(event.StartDate()-utils.GetCurrentTimeMillis()) / 1000
+		sendGcmDataAvailableNotification(user.Id(), &token, ttl)
+		return false
+	}
 
-  // Create InvitationReceived message
-  // Keep this code for clients that uses v0 and v1
+	// From protocol v2 onward, invitation received message contains event info
+	// and participants.
 
-  // Filter event participants to protect privacy and create message
-  filtered_participants := server.Model.Events.FilterParticipants(t.Event.Participants, user.Id)
-  notify_msg := session.NewMessage().InvitationReceived(lightEvent)
-  attendance_status_msg := session.NewMessage().AttendanceStatus(t.Event.EventId, filtered_participants)
+	// Copy event with participants filtered
+	filteredEvent := server.Model.Events.GetFilteredEvent(event, user.Id())
 
-  // Notify (use a channel because it is needed to know if message arrived)
-  var future *Future
+	// Notify (use a channel because it is needed to know if message arrived)
+	notify_msg := session.NewMessage().InvitationReceived(convEvent2Net(filteredEvent))
+	var future *Future
 
-  if user.IIDtoken != "" {
-    future = NewFuture(true)
-  } else {
-    future = NewFuture(false)
-  }
+	if token.Token() != "" {
+		future = NewFuture(true)
+	} else {
+		future = NewFuture(false)
+	}
 
-  if ok := session.WriteAsync(future, notify_msg); ok {
-    session.Write(attendance_status_msg)
-    t.futures[user.Id] = future.C
-    log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id, t.Event.EventId)
-  } else {
-    sendGcmNewEventNotification(user.Id, user.IIDtoken, t.Event)
-  }
+	if ok := session.WriteAsync(future, notify_msg); ok {
+		t.futures[user.Id()] = future.C // May block here upto 10 seconds
+		log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id(), t.Event.Id())
+	} else {
+		// Fallback
+		ttl := uint32(event.StartDate()-utils.GetCurrentTimeMillis()) / 1000
+		sendGcmDataAvailableNotification(user.Id(), &token, ttl)
+	}
 
-  return true
-}
-
-func (t *NotifyEventInvitation) notifyUserV2(user *core.UserAccount, event *core.Event, server *Server) bool {
-
-  // Notify participant about the invitation only if it's connected.
-  session := server.GetSession(user.Id)
-
-  if session == nil {
-    ttl := uint32(event.StartDate - core.GetCurrentTimeMillis()) / 1000
-    sendGcmDataAvailableNotification(user.Id, user.IIDtoken, ttl)
-    return false
-  }
-
-  // From protocol v2 onward, invitation received message contains event info
-  // and participants.
-
-  // Copy event with participants filtered
-  filteredEvent := server.Model.Events.GetFilteredEvent(event, user.Id)
-
-  // Notify (use a channel because it is needed to know if message arrived)
-  notify_msg := session.NewMessage().InvitationReceived(filteredEvent)
-  var future *Future
-
-  if user.IIDtoken != "" {
-    future = NewFuture(true)
-  } else {
-    future = NewFuture(false)
-  }
-
-  if ok := session.WriteAsync(future, notify_msg); ok {
-    t.futures[user.Id] = future.C // May block here upto 10 seconds
-    log.Printf("< (%v) SEND EVENT INVITATION (event_id=%v)\n", user.Id, t.Event.EventId)
-  } else {
-    // Fallback
-    ttl := uint32(event.StartDate - core.GetCurrentTimeMillis()) / 1000
-    sendGcmDataAvailableNotification(user.Id, user.IIDtoken, ttl)
-  }
-
-  return true
+	return true
 }

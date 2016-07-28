@@ -2,10 +2,9 @@ package main
 
 import (
 	"errors"
-	core "peeple/areyouin/common"
-	"peeple/areyouin/model"
+	"peeple/areyouin/api"
 	"peeple/areyouin/facebook"
-	"peeple/areyouin/dao"
+	"peeple/areyouin/model"
 	proto "peeple/areyouin/protocol"
 )
 
@@ -22,8 +21,6 @@ var (
 	ErrEventNotFound              = errors.New("event not found")
 	ErrImageOutOfBounds           = errors.New("image is out of bounds")
 	ErrFriendNotFound             = errors.New("Friend not found")
-	ErrSendRequest_AlreadySent    = errors.New("Friend request already sent")
-	ErrSendRequest_AlreadyFriends = errors.New("Already friends")
 )
 
 func getNetErrorCode(err error, default_code int32) int32 {
@@ -35,26 +32,23 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case ErrAuthRequired:
 		err_code = proto.E_AUTH_REQUIRED
 
-	case core.ErrInvalidEmail:
+	case model.ErrInvalidEmail:
 		err_code = proto.E_INPUT_INVALID_EMAIL_ADDRESS
 
-	case core.ErrInvalidName:
+	case model.ErrInvalidName:
 		err_code = proto.E_INPUT_INVALID_USER_NAME
 
-	case core.ErrInvalidStartDate:
+	case model.ErrInvalidStartDate:
 		err_code = proto.E_EVENT_INVALID_START_DATE
 
-	case core.ErrInvalidEndDate:
+	case model.ErrInvalidEndDate:
 		err_code = proto.E_EVENT_INVALID_END_DATE
 
-	case dao.ErrEmailAlreadyExists:
+	case api.ErrEmailAlreadyExists:
 		err_code = proto.E_EMAIL_EXISTS
 
-	case dao.ErrFacebookAlreadyExists:
+	case api.ErrFacebookAlreadyExists:
 		err_code = proto.E_FB_EXISTS
-
-	case dao.ErrGracePeriod:
-		err_code = proto.E_OPERATION_FAILED
 
 	case model.ErrEventOutOfCreationWindow:
 		err_code = proto.E_EVENT_OUT_OF_CREATE_WINDOW
@@ -89,10 +83,10 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case ErrEventNotFound:
 		err_code = proto.E_INVALID_EVENT
 
-	case ErrSendRequest_AlreadySent:
+	case model.ErrFriendRequestAlreadyExist:
 		err_code = proto.E_FRIEND_REQUEST_ALREADY_SENT
 
-	case ErrSendRequest_AlreadyFriends:
+	case model.ErrAlreadyFriends:
 		err_code = proto.E_ALREADY_FRIENDS
 
 	case ErrFriendNotFound:

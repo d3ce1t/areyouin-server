@@ -1,13 +1,13 @@
 package main
 
 import (
-  core "peeple/areyouin/common"
-  proto "peeple/areyouin/protocol"
-  "log"
+	"log"
+	"peeple/areyouin/model"
+	proto "peeple/areyouin/protocol"
 )
 
 type NotifyParticipantChange struct {
-	Event               *core.Event
+	Event               *model.Event
 	ParticipantsChanged []int64 // Participants that has changed
 	NumGuests           int32
 	Target              []int64
@@ -25,39 +25,39 @@ func (t *NotifyParticipantChange) Run(ex *TaskExecutor) {
 		return
 	}
 
-  server := ex.server
+	server := ex.server
 
 	// Build list with participants that have changed
 
-  participant_list := make([]*core.EventParticipant, 0, len(t.ParticipantsChanged))
+	participantList := make([]*model.Participant, 0, len(t.ParticipantsChanged))
 	for _, id := range t.ParticipantsChanged {
-		participant_list = append(participant_list, t.Event.Participants[id])
+		participantList = append(participantList, t.Event.GetParticipant(id))
 	}
 
+	for _, target := range t.Target {
 
-	for _, participant_dst := range t.Target {
+		// Send message to each participant
 
-    // Send message to each participant
-
-		session := server.GetSession(participant_dst)
+		session := server.GetSession(target)
 
 		if session != nil {
 
-			privacy_participant_list :=  server.Model.Events.FilterParticipantsSlice(participant_list, participant_dst)
+			filteredParticipants := server.Model.Events.FilterParticipantsSlice(participantList, target)
+			netFilteredParticipants := convParticipantList2Net(filteredParticipants)
 
 			var msg *proto.AyiPacket
 
-      // TODO: Why am I doing this?
+			// TODO: Why am I doing this?
 			if t.NumGuests > 0 {
-				msg = session.NewMessage().AttendanceStatusWithNumGuests(t.Event.EventId, privacy_participant_list, t.NumGuests)
+				msg = session.NewMessage().AttendanceStatusWithNumGuests(t.Event.Id(), netFilteredParticipants, t.NumGuests)
 			} else {
-				msg = session.NewMessage().AttendanceStatus(t.Event.EventId, privacy_participant_list)
+				msg = session.NewMessage().AttendanceStatus(t.Event.Id(), netFilteredParticipants)
 			}
 
 			if session.Write(msg) {
-				log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", participant_dst, t.Event.EventId, len(privacy_participant_list))
+				log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", target, t.Event.Id(), len(netFilteredParticipants))
 			} else {
-				log.Println("NotifyParticipantChange: Coudn't send notification to", participant_dst)
+				log.Println("NotifyParticipantChange: Coudn't send notification to", target)
 			}
 		}
 	}
