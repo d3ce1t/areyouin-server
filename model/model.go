@@ -31,8 +31,12 @@ func New(session api.DbSession, key string) *AyiModel {
 
 	if !ok {
 		model = &AyiModel{
-			supportedDpi: []int32{utils.IMAGE_MDPI, utils.IMAGE_HDPI, utils.IMAGE_XHDPI,
-				utils.IMAGE_XXHDPI, utils.IMAGE_XXXHDPI},
+			supportedDpi: []int32{utils.IMAGE_MDPI,
+				utils.IMAGE_HDPI,
+				utils.IMAGE_XHDPI,
+				utils.IMAGE_XXHDPI,
+				utils.IMAGE_XXXHDPI},
+			dbsession: session,
 		}
 		model.Accounts = newAccountManager(model, session)
 		model.Events = newEventManager(model, session)
@@ -56,12 +60,15 @@ func Get(key string) *AyiModel {
 }
 
 type AyiModel struct {
-	dbHost       string
-	dbName       string
 	supportedDpi []int32
+	dbsession    api.DbSession
 	Accounts     *AccountManager
 	Events       *EventManager
 	Friends      *FriendManager
+}
+
+func (m *AyiModel) DbSession() api.DbSession {
+	return m.dbsession
 }
 
 func (self *AyiModel) GetClosestDpi(reqDpi int32) int32 {

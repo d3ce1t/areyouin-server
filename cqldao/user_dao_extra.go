@@ -11,7 +11,91 @@ var (
 	EMPTY_ARRAY_32B = [32]byte{}
 )
 
-func (d *UserDAO) loadUserAccount(userId int64) (*api.UserDTO, error) {
+// TODO: Include Password and Salt in user_account table
+// TODO: Make up some type of high level iterator in order to control scanning
+// steps in model layer.
+func (d *UserDAO) Int_LoadAllUserAccount() ([]*api.UserDTO, error) {
+
+	checkSession(d.session)
+
+	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
+						iid_token, network_version, last_connection, created_date, picture_digest
+						FROM user_account LIMIT 2000`
+
+	iter := d.session.Query(stmt).Iter()
+
+	if iter == nil {
+		return nil, ErrUnexpected
+	}
+
+	users := make([]*api.UserDTO, 0, 1024)
+	var dto api.UserDTO
+
+	for iter.Scan(&dto.Id, &dto.AuthToken, &dto.Email, &dto.EmailVerified, &dto.Name,
+		&dto.FbId, &dto.FbToken, &dto.IidToken.Token, &dto.IidToken.Version, &dto.LastConn,
+		&dto.CreatedDate, &dto.PictureDigest) {
+
+		userDTO := new(api.UserDTO)
+		*userDTO = dto
+		users = append(users, userDTO)
+	}
+
+	if err := iter.Close(); err != nil {
+		return nil, convErr(err)
+	}
+
+	return users, nil
+}
+
+func (d *UserDAO) Int_CheckUserConsistency(user *api.UserDTO) (bool, error) {
+
+	// Check Email
+	emailCred, err := d.Int_LoadEmailCredential(user.Email)
+	if err == api.ErrNotFound {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	// Check email cred points to this same user id
+	if user.Id != emailCred.UserId {
+		return false, nil
+	}
+
+	if user.FbId != "" {
+		// Check Facebook
+		fbCred, err := d.Int_LoadFacebookCredential(user.FbId)
+		if err == api.ErrNotFound {
+			return false, nil
+		} else if err != nil {
+			return false, err
+		}
+
+		// Check fb cred points to this same user id
+		if user.Id != fbCred.UserId {
+			return false, nil
+		}
+	}
+
+	// In case password is set, check that it is valid
+	emptyPassword := false
+
+	if emailCred.Password == EMPTY_ARRAY_32B && emailCred.Salt == EMPTY_ARRAY_32B {
+		emptyPassword = true
+	} else if (emailCred.Password != EMPTY_ARRAY_32B && emailCred.Salt == EMPTY_ARRAY_32B) ||
+		emailCred.Salt != EMPTY_ARRAY_32B && emailCred.Password == EMPTY_ARRAY_32B {
+		return false, nil
+	}
+
+	// Check there is at least one credential
+	if user.FbId == "" && emptyPassword {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (d *UserDAO) Int_LoadUserAccount(userId int64) (*api.UserDTO, error) {
 
 	checkSession(d.session)
 
@@ -39,7 +123,7 @@ func (d *UserDAO) loadUserAccount(userId int64) (*api.UserDTO, error) {
 	return dto, nil
 }
 
-func (d *UserDAO) loadEmailCredential(email string) (*emailCredential, error) {
+func (d *UserDAO) Int_LoadEmailCredential(email string) (*emailCredential, error) {
 
 	checkSession(d.session)
 
@@ -71,7 +155,7 @@ func (d *UserDAO) loadEmailCredential(email string) (*emailCredential, error) {
 	return credent, nil
 }
 
-func (d *UserDAO) loadFacebookCredential(fbId string) (*fbCredential, error) {
+func (d *UserDAO) Int_LoadFacebookCredential(fbId string) (*fbCredential, error) {
 
 	checkSession(d.session)
 

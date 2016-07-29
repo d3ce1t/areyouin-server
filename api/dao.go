@@ -7,7 +7,6 @@ type DbSession interface {
 }
 
 type UserDAO interface {
-	LoadAll() ([]*UserDTO, error)
 	Load(userId int64) (*UserDTO, error)
 	LoadByEmail(email string) (*UserDTO, error)
 	LoadByFB(fbId string) (*UserDTO, error)
@@ -21,18 +20,6 @@ type UserDAO interface {
 	SetFacebookToken(userId int64, fbId string, fb_token string) error
 	SetIIDToken(userId int64, iidToken *IIDTokenDTO) error
 	Delete(user *UserDTO) error
-
-	/*CheckValidAccountObject(user_id int64, email string, fb_id string, check_credentials bool) (bool, error)
-	CheckValidAccount(user_id int64, check_credentials bool) (bool, error)
-	GetIDByEmailAndPassword(email string, password string) (int64, error)
-	GetIDByFacebookID(fb_id string) (int64, error)*/
-
-	/*SetAuthTokenAndFBToken(user_id int64, auth_token string, fb_id string, fb_token string) error
-	ResetEmailCredentialPassword(user_id int64, email string, password string) (ok bool, err error)*/
-
-	/*DeleteUserAccount(user_id int64) error
-	DeleteEmailCredentials(email string) error
-	DeleteFacebookCredentials(fb_id string) error*/
 }
 
 type EventDAO interface {

@@ -15,45 +15,10 @@ type UserDAO struct {
 	session *GocqlSession
 }
 
-// TODO: Include Password and Salt in user_account table
-// TODO: Make up some type of high level iterator in order to control scanning
-// steps in model layer.
-func (d *UserDAO) LoadAll() ([]*api.UserDTO, error) {
-
-	checkSession(d.session)
-
-	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, network_version, last_connection, created_date, picture_digest
-						FROM user_account LIMIT 2000`
-
-	iter := d.session.Query(stmt).Iter()
-
-	if iter == nil {
-		return nil, ErrUnexpected
-	}
-
-	users := make([]*api.UserDTO, 0, 1024)
-	var dto api.UserDTO
-
-	for iter.Scan(&dto.Id, &dto.AuthToken, &dto.Email, &dto.EmailVerified, &dto.Name,
-		&dto.FbId, &dto.FbToken, &dto.IidToken.Token, &dto.IidToken.Version, &dto.LastConn,
-		&dto.CreatedDate, &dto.PictureDigest) {
-		userDTO := new(api.UserDTO)
-		*userDTO = dto
-		users = append(users, userDTO)
-	}
-
-	if err := iter.Close(); err != nil {
-		return nil, convErr(err)
-	}
-
-	return users, nil
-}
-
 func (d *UserDAO) Load(userId int64) (*api.UserDTO, error) {
 
 	// Load account
-	user, err := d.loadUserAccount(userId)
+	user, err := d.Int_LoadUserAccount(userId)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +26,7 @@ func (d *UserDAO) Load(userId int64) (*api.UserDTO, error) {
 	// Check that has an email. If it doesn't exist, do not consider it as an inconsistency.
 	// That account is in an invalid state (but managed), i.e. account exist, probably fb,
 	// but not e-mail
-	cred, err := d.loadEmailCredential(user.Email)
+	cred, err := d.Int_LoadEmailCredential(user.Email)
 	if err == api.ErrNotFound {
 		// TODO: Send e-mail to Admin
 		log.Printf("* LOAD WARNING: EMAIL %v NOT FOUND: This means an user (%v) exists but has Email (%v) that does not exist\n", user.Email, user.Id, user.Email)
@@ -91,12 +56,12 @@ func (d *UserDAO) LoadByEmail(email string) (*api.UserDTO, error) {
 		return nil, api.ErrNotFound
 	}
 
-	cred, err := d.loadEmailCredential(email)
+	cred, err := d.Int_LoadEmailCredential(email)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := d.loadUserAccount(cred.UserId)
+	user, err := d.Int_LoadUserAccount(cred.UserId)
 
 	// Check db consistency
 
@@ -295,7 +260,7 @@ func (d *UserDAO) SetPassword(email string, newPassword [32]byte, newSalt [32]by
 		return false, api.ErrInvalidArg
 	}
 
-	cred, err := d.loadEmailCredential(email)
+	cred, err := d.Int_LoadEmailCredential(email)
 	if err != nil {
 		return false, err
 	}
@@ -403,7 +368,7 @@ func (dao *UserDAO) Delete(user *api.UserDTO) error {
 	var can_remove_facebook bool
 
 	// Read email_credential for later
-	email_credential, err := dao.loadEmailCredential(user.Email)
+	email_credential, err := dao.Int_LoadEmailCredential(user.Email)
 	if err != nil {
 		return err
 	}
@@ -411,7 +376,7 @@ func (dao *UserDAO) Delete(user *api.UserDTO) error {
 	can_remove_email = email_credential.UserId == user.Id
 
 	if user.FbId != "" && user.FbToken != "" {
-		facebook_credentials, err := dao.loadFacebookCredential(user.FbId)
+		facebook_credentials, err := dao.Int_LoadFacebookCredential(user.FbId)
 		if err != nil {
 			return err
 		}
@@ -420,7 +385,6 @@ func (dao *UserDAO) Delete(user *api.UserDTO) error {
 
 	// Read friends for deleting
 	friendDAO := NewFriendDAO(dao.session)
-
 	friends, err := friendDAO.LoadFriends(user.Id, 0)
 	if err != nil {
 		return err
@@ -439,7 +403,7 @@ func (dao *UserDAO) Delete(user *api.UserDTO) error {
 	// Delete groups
 	for _, group := range groups {
 
-		// Empty user's friends groups
+		// Empty user's groups
 		for _, friend_id := range group.Members {
 			batch.Query(`DELETE FROM friends_by_group
 				WHERE user_id = ? AND group_id = ? AND friend_id = ?`,
