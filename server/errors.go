@@ -15,7 +15,6 @@ var (
 	ErrUnregisteredMessage        = errors.New("unregistered message")
 	ErrNonFriendsIgnored          = errors.New("ignored non friends participants")
 	ErrUnregisteredFriendsIgnored = errors.New("ignored unregistered participants")
-	ErrShellInvalidArgs           = errors.New("Invalid args")
 	ErrAuthorMismatch             = errors.New("author mismatch")
 	ErrOperationFailed            = errors.New("operation failed")
 	ErrEventNotFound              = errors.New("event not found")

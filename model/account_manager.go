@@ -181,17 +181,6 @@ func (self *AccountManager) GetUserAccountByFacebook(fbId string) (*UserAccount,
 	return newUserFromDTO(userDTO), nil
 }
 
-/*func (m *AccountManager) ListUsers() ([]*UserAccount, error) {
-
-	usersDTO, err := m.userDAO.LoadAll()
-	if err != nil {
-		return nil, err
-	}
-
-	users := newUserListFromDTO(usersDTO)
-	return users, nil
-}*/
-
 func (self *AccountManager) GetPushToken(userId int64) (*IIDToken, error) {
 
 	tokenDTO, err := self.userDAO.LoadIIDToken(userId)

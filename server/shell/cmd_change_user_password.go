@@ -15,12 +15,10 @@ func changeUserPassword(shell *Shell, args []string) {
 		manageShellError(errors.New("New password isn't provided"))
 	}
 
-	var newPassword string = args[2]
-
 	user, err := shell.model.Accounts.GetUserAccount(userID)
 	manageShellError(err)
 
-	err = shell.model.Accounts.ChangePassword(user, newPassword)
+	err = shell.model.Accounts.ChangePassword(user, args[2])
 	manageShellError(err)
 
 	fmt.Fprint(shell, "Password changed\n")

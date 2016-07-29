@@ -1,36 +1,41 @@
 package shell
 
-import _ "image/jpeg"
+import (
+	"bytes"
+	"fmt"
+	"image"
+	fb "peeple/areyouin/facebook"
+	"peeple/areyouin/model"
+	"peeple/areyouin/utils"
+	"strconv"
+)
 
 // reset_picture
 func resetPicture(shell *Shell, args []string) {
 
-	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
+	userID, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
-	server := shell.server
-	userDAO := dao.NewUserDAO(server.DbSession)
-
 	// Load user
-	user_account, err := userDAO.Load(user_id)
+	userAccount, err := shell.model.Accounts.GetUserAccount(userID)
 	manageShellError(err)
 
 	// Get profile picture
-	fbsession := fb.NewSession(user_account.Fbtoken)
-	picture_bytes, err := fb.GetProfilePicture(fbsession)
+	fbsession := fb.NewSession(userAccount.FbToken())
+	pictureBytes, err := fb.GetProfilePicture(fbsession)
 	manageShellError(err)
 
 	// Decode image
-	original_image, _, err := image.Decode(bytes.NewReader(picture_bytes))
+	originalImage, _, err := image.Decode(bytes.NewReader(pictureBytes))
 	manageShellError(err)
 
 	// Resize image to 512x512
-	picture_bytes, err = core.ResizeImage(original_image, core.PROFILE_PICTURE_MAX_WIDTH)
+	pictureBytes, err = utils.ResizeImage(originalImage, model.PROFILE_PICTURE_MAX_WIDTH)
 	manageShellError(err)
 
 	// Change image
-	err = server.Model.Accounts.ChangeProfilePicture(user_account, picture_bytes)
+	err = shell.model.Accounts.ChangeProfilePicture(userAccount, pictureBytes)
 	manageShellError(err)
 
-	fmt.Fprintf(shell.io, "Picture size %v bytes\n", len(picture_bytes))*/
+	fmt.Fprintf(shell, "Picture size %v bytes\n", len(pictureBytes))
 }

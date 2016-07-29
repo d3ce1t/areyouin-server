@@ -37,14 +37,6 @@ func (s *Shell) Run() {
 		s.OnStart(s)
 	}
 
-	/*if shell.server.Testing {
-		fmt.Fprint(shell.io, "------------------------------------------\n")
-		fmt.Fprint(shell.io, "! WARNING WARNING WARNING                !\n")
-		fmt.Fprint(shell.io, "! You have connected to a testing server !\n")
-		fmt.Fprint(shell.io, "! WARNING WARNING WARNING                !\n")
-		fmt.Fprint(shell.io, "------------------------------------------\n")
-	}*/
-
 	fmt.Fprintf(s, "\n%s\n\n", s.welcome)
 	exit := false
 
@@ -60,17 +52,17 @@ func (s *Shell) init() {
 	s.commands = map[string]Command{
 		"help": help,
 		//"list_sessions":        listSessions,
-		"list_users":  listUserAccounts,
+		"list_users":  listUsers,
 		"delete_user": deleteUser,
 		//"send_auth_error":      sendAuthError,
 		//"send_msg":             sendMsg,
 		//"close_session":        closeSession,
 		"show_user": showUser,
 		//"ping":                 pingClient,
-		"reset_picture":        resetPicture,
-		"create_fake_user":     createFakeUser,
-		"make_friends":         makeFriends,
-		"fix_database":         fixDatabase,
+		"reset_picture":    resetPicture,
+		"create_fake_user": createFakeUser,
+		//"make_friends":     makeFriends,
+		//"fix_database":         fixDatabase,
 		"change_user_password": changeUserPassword,
 	}
 }

@@ -1,77 +1,79 @@
 package shell
 
+import (
+	"fmt"
+	"peeple/areyouin/cqldao"
+	"peeple/areyouin/utils"
+	"strconv"
+)
+
 // show_user
 func showUser(shell *Shell, args []string) {
 
-	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
+	userID, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
 
-	server := shell.server
-	userDAO := dao.NewUserDAO(server.DbSession)
-	user, err := userDAO.Load(user_id)
+	userDAO := cqldao.NewUserDAO(shell.model.DbSession()).(*cqldao.UserDAO)
+	user, err := userDAO.Int_LoadUserAccount(userID)
 	manageShellError(err)
 
-	valid_user, _ := user.IsValid()
-	valid_account, err := userDAO.CheckValidAccount(user_id, true)
+	validAccount, err := userDAO.Int_CheckUserConsistency(user)
+	manageShellError(err)
 
-	if err != nil {
-		fmt.Fprintln(shell.io, "Error checking account:", err)
+	accountStatus := ""
+	if !validAccount {
+		accountStatus = "(¡¡¡INVALID STATUS!!!)"
 	}
 
-	account_status := ""
-	if !valid_user || !valid_account {
-		account_status = "¡¡¡INVALID STATUS!!!"
-	}
+	fmt.Fprintln(shell, "---------------------------------")
+	fmt.Fprintf(shell, "User details %v\n", accountStatus)
+	fmt.Fprintln(shell, "---------------------------------")
+	fmt.Fprintln(shell, "UserID:", user.Id)
+	fmt.Fprintln(shell, "Name:", user.Name)
+	fmt.Fprintln(shell, "Email:", user.Email)
+	fmt.Fprintln(shell, "Email Verified:", user.EmailVerified)
+	fmt.Fprintln(shell, "Created at:", utils.UnixMillisToTime(user.CreatedDate))
+	fmt.Fprintln(shell, "Last connection:", utils.UnixMillisToTime(user.LastConn))
+	fmt.Fprintln(shell, "Authtoken:", user.AuthToken)
+	fmt.Fprintln(shell, "Fbid:", user.FbId)
+	fmt.Fprintln(shell, "Fbtoken:", user.FbToken)
 
-	fmt.Fprintln(shell.io, "---------------------------------")
-	fmt.Fprintf(shell.io, "User details (%v)\n", account_status)
-	fmt.Fprintln(shell.io, "---------------------------------")
-	fmt.Fprintln(shell.io, "UserID:", user.Id)
-	fmt.Fprintln(shell.io, "Name:", user.Name)
-	fmt.Fprintln(shell.io, "Email:", user.Email)
-	fmt.Fprintln(shell.io, "Email Verified:", user.EmailVerified)
-	fmt.Fprintln(shell.io, "Created at:", core.UnixMillisToTime(user.CreatedDate))
-	fmt.Fprintln(shell.io, "Last connection:", core.UnixMillisToTime(user.LastConnection))
-	fmt.Fprintln(shell.io, "Authtoken:", user.AuthToken)
-	fmt.Fprintln(shell.io, "Fbid:", user.Fbid)
-	fmt.Fprintln(shell.io, "Fbtoken:", user.Fbtoken)
+	fmt.Fprintln(shell, "---------------------------------")
+	fmt.Fprintln(shell, "E-mail credentials")
+	fmt.Fprintln(shell, "---------------------------------")
 
-	fmt.Fprintln(shell.io, "---------------------------------")
-	fmt.Fprintln(shell.io, "E-mail credentials")
-	fmt.Fprintln(shell.io, "---------------------------------")
-
-	if email, err := userDAO.LoadEmailCredential(user.Email); err == nil {
-		fmt.Fprintln(shell.io, "E-mail:", email.Email == user.Email)
-		if email.Password == core.EMPTY_ARRAY_32B || email.Salt == core.EMPTY_ARRAY_32B {
-			fmt.Fprintln(shell.io, "No password set")
+	if emailCred, err := userDAO.Int_LoadEmailCredential(user.Email); err == nil {
+		fmt.Fprintln(shell, "E-mail:", emailCred.Email == user.Email)
+		if emailCred.Password == cqldao.EMPTY_ARRAY_32B || emailCred.Salt == cqldao.EMPTY_ARRAY_32B {
+			fmt.Fprintln(shell, "No password set")
 		} else {
-			fmt.Fprintf(shell.io, "Password: %x\n", email.Password)
-			fmt.Fprintf(shell.io, "Salt: %x\n", email.Salt)
+			fmt.Fprintf(shell, "Password: %x\n", emailCred.Password)
+			fmt.Fprintf(shell, "Salt: %x\n", emailCred.Salt)
 		}
-		fmt.Fprintln(shell.io, "UserID Match:", email.UserId == user.Id)
+		fmt.Fprintln(shell, "UserID Match:", emailCred.UserId == user.Id)
 	} else {
-		fmt.Fprintln(shell.io, "Error:", err)
+		fmt.Fprintln(shell, "Error:", err)
 	}
 
-	fmt.Fprintln(shell.io, "---------------------------------")
-	fmt.Fprintln(shell.io, "Facebook credentials")
-	fmt.Fprintln(shell.io, "---------------------------------")
+	fmt.Fprintln(shell, "---------------------------------")
+	fmt.Fprintln(shell, "Facebook credentials")
+	fmt.Fprintln(shell, "---------------------------------")
 
-	if user.HasFacebookCredentials() {
-		facebook, err := userDAO.LoadFacebookCredential(user.Fbid)
+	if user.FbId != "" {
+		fbCred, err := userDAO.Int_LoadFacebookCredential(user.FbId)
 		if err == nil {
-			fmt.Fprintln(shell.io, "Fbid:", facebook.Fbid == user.Fbid)
-			fmt.Fprintln(shell.io, "Fbtoken:", facebook.Fbtoken == user.Fbtoken)
-			fmt.Fprintln(shell.io, "UserID Match:", facebook.UserId == user.Id)
+			fmt.Fprintln(shell, "FbId:", fbCred.FbId == user.FbId)
+			fmt.Fprintln(shell, "FbToken:", fbCred.FbToken == user.FbToken)
+			fmt.Fprintln(shell, "UserID Match:", fbCred.UserId == user.Id)
 		} else {
-			fmt.Fprintln(shell.io, "Error:", err)
+			fmt.Fprintln(shell, "Error:", err)
 		}
 	} else {
-		fmt.Fprintln(shell.io, "There aren't credentials")
+		fmt.Fprintln(shell, "There isn't Facebook")
 	}
-	fmt.Fprintln(shell.io, "---------------------------------")
+	fmt.Fprintln(shell, "---------------------------------")
 
-	if account_status != "" {
-		fmt.Fprintf(shell.io, "\nACCOUNT INFO: %v\n", account_status)
-	}*/
+	if accountStatus != "" {
+		fmt.Fprintf(shell, "\nACCOUNT INFO: %v\n", accountStatus)
+	}
 }

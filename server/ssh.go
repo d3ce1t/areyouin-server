@@ -1,16 +1,16 @@
-package shell
+package main
 
 import (
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
-	"peeple/areyouin/model"
+	"peeple/areyouin/server/shell"
 
 	"golang.org/x/crypto/ssh"
 )
 
-func StartSSH(model *model.AyiModel) {
+func (server *Server) startShell() {
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -35,12 +35,12 @@ func StartSSH(model *model.AyiModel) {
 		if err != nil {
 			log.Printf("SSH Terminal: failed to accept incoming connection (%v)\n", err)
 		}
-		manageSSHSession(model, nConn, config)
+		server.manageSSHSession(nConn, config)
 		log.Println("Waiting for a new SSH connection...")
 	}
 }
 
-func manageSSHSession(model *model.AyiModel, nConn net.Conn, config *ssh.ServerConfig) {
+func (server *Server) manageSSHSession(nConn net.Conn, config *ssh.ServerConfig) {
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -103,8 +103,17 @@ func manageSSHSession(model *model.AyiModel, nConn net.Conn, config *ssh.ServerC
 		}
 	}(requests)
 
-	shell := NewShell(model, channel)
-	shell.Run()
+	sh := shell.NewShell(server.Model, channel)
+	if server.Testing {
+		sh.OnStart = func(shell *shell.Shell) {
+			fmt.Fprint(shell, "------------------------------------------\n")
+			fmt.Fprint(shell, "! WARNING WARNING WARNING                !\n")
+			fmt.Fprint(shell, "! You have connected to a testing server !\n")
+			fmt.Fprint(shell, "! WARNING WARNING WARNING                !\n")
+			fmt.Fprint(shell, "------------------------------------------\n")
+		}
+	}
+	sh.Run()
 }
 
 func loadConfig() *ssh.ServerConfig {

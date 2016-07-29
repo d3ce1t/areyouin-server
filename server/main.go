@@ -8,7 +8,6 @@ import (
 	imgserv "peeple/areyouin/images_server"
 	"peeple/areyouin/model"
 	proto "peeple/areyouin/protocol"
-	"peeple/areyouin/server/shell"
 	"time"
 )
 
@@ -99,7 +98,7 @@ func main() {
 	}
 
 	// Create shell and start listening in 2022 tcp port
-	go shell.StartSSH(model)
+	go server.startShell()
 
 	// start server loop
 	server.run()
