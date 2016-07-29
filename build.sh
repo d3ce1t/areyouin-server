@@ -9,6 +9,7 @@ protocol_pkg="peeple/areyouin/protocol"
 facebook_pkg="peeple/areyouin/facebook"
 webhook_pkg="peeple/areyouin/webhook"
 images_server_pkg="peeple/areyouin/images_server"
+server_shell_pkg="peeple/areyouin/server/shell"
 server="peeple/areyouin/server"
 
 function build_and_install {
@@ -28,6 +29,7 @@ build_and_install $protocol_pkg
 build_and_install $facebook_pkg
 build_and_install $webhook_pkg
 build_and_install $images_server_pkg
+build_and_install $server_shell_pkg
 cd server
 build_and_install $server
 cd ..

@@ -1,12 +1,7 @@
-package main
-
-import (
-	"strconv"
-	"fmt"
-)
+package shell
 
 // ping client
-func (shell *Shell) pingClient(args []string) {
+/*func pingClient(shell *Shell, args []string) {
 
 	user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
@@ -27,4 +22,4 @@ func (shell *Shell) pingClient(args []string) {
 	} else {
 		fmt.Fprintln(shell.io, "User isn't connected")
 	}
-}
+}*/

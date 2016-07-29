@@ -1,7 +1,7 @@
-package main
+package shell
 
 // list_users
-func (shell *Shell) listUserAccounts(args []string) {
+func listUserAccounts(shell *Shell, args []string) {
 
 	/*server := shell.server
 

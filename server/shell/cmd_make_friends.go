@@ -1,7 +1,7 @@
-package main
+package shell
 
 // make_friends user1 user2
-func (shell *Shell) makeFriends(args []string) {
+func makeFriends(shell *Shell, args []string) {
 
 	/*friend_one_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)

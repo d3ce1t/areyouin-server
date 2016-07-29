@@ -1,4 +1,4 @@
-package main // create_fake_user
+package shell
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"unicode"
 )
 
-func (shell *Shell) createFakeUser(args []string) {
+func createFakeUser(shell *Shell, args []string) {
 
 	// Request random user data
 	resp, err := http.Get("https://randomuser.me/api/")
@@ -61,16 +61,16 @@ func (shell *Shell) createFakeUser(args []string) {
 	manageShellError(err)
 
 	// Create new user account
-	user, err := shell.server.Model.Accounts.CreateUserAccount(name, email, password, "", "", "")
+	user, err := shell.model.Accounts.CreateUserAccount(name, email, password, "", "", "")
 	manageShellError(err)
 
 	// Success
-	fmt.Fprint(shell.io, "Account created successfully\n")
-	fmt.Fprintf(shell.io, "Name: %v\nEmail: %v\nPassword: %v\nPicture: %v\n",
+	fmt.Fprint(shell, "Account created successfully\n")
+	fmt.Fprintf(shell, "Name: %v\nEmail: %v\nPassword: %v\nPicture: %v\n",
 		name, email, password, picture_url)
 
-	err = shell.server.Model.Accounts.ChangeProfilePicture(user, picture_bytes)
+	err = shell.model.Accounts.ChangeProfilePicture(user, picture_bytes)
 	manageShellError(err)
 
-	fmt.Fprintf(shell.io, "Profile picture changed\n")
+	fmt.Fprintf(shell, "Profile picture changed\n")
 }

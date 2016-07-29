@@ -1,11 +1,7 @@
-package main
-
-import (
-	"fmt"
-)
+package shell
 
 // list_sessions
-func (shell *Shell) listSessions(args []string) {
+/*func listSessions(shell *Shell, args []string) {
 
 	server := shell.server
 
@@ -16,4 +12,4 @@ func (shell *Shell) listSessions(args []string) {
 		fmt.Fprintf(shell.io, "- %v %v (protocolVersion=%v, platform=%v, clientVersion=%v)\n", k, session.Conn.RemoteAddr().String(),
 			session.ProtocolVersion, session.Platform, session.ClientVersion)
 	}
-}
+}*/

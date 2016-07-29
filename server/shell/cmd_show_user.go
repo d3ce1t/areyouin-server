@@ -1,7 +1,7 @@
-package main
+package shell
 
 // show_user
-func (shell *Shell) showUser(args []string) {
+func showUser(shell *Shell, args []string) {
 
 	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)

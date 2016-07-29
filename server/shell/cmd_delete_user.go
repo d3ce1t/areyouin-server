@@ -1,7 +1,7 @@
-package main
+package shell
 
 // delete_user $user_id --force
-func (shell *Shell) deleteUser(args []string) {
+func deleteUser(shell *Shell, args []string) {
 
 	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)

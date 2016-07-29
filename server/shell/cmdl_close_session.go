@@ -1,11 +1,7 @@
-package main
-
-import (
-	"strconv"
-)
+package shell
 
 // close_session user_id
-func (shell *Shell) closeSession(args []string) {
+/*func closeSession(shell *Shell, args []string) {
 
 	user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
@@ -14,4 +10,4 @@ func (shell *Shell) closeSession(args []string) {
 	if session, ok := server.sessions.Get(user_id); ok {
 		session.Exit()
 	}
-}
+}*/

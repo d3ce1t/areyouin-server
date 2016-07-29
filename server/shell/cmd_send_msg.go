@@ -1,7 +1,7 @@
-package main
+package shell
 
 // send_msg client
-func (shell *Shell) sendMsg(args []string) {
+func sendMsg(shell *Shell, args []string) {
 
 	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)

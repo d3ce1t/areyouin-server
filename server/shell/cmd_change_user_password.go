@@ -1,4 +1,4 @@
-package main
+package shell
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func (shell *Shell) changeUserPassword(args []string) {
+func changeUserPassword(shell *Shell, args []string) {
 
 	userID, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
@@ -17,13 +17,11 @@ func (shell *Shell) changeUserPassword(args []string) {
 
 	var newPassword string = args[2]
 
-	server := shell.server
-
-	user, err := server.Model.Accounts.GetUserAccount(userID)
+	user, err := shell.model.Accounts.GetUserAccount(userID)
 	manageShellError(err)
 
-	err = server.Model.Accounts.ChangePassword(user, newPassword)
+	err = shell.model.Accounts.ChangePassword(user, newPassword)
 	manageShellError(err)
 
-	fmt.Fprint(shell.io, "Password changed\n")
+	fmt.Fprint(shell, "Password changed\n")
 }

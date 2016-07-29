@@ -1,9 +1,9 @@
-package main
+package shell
 
 import _ "image/jpeg"
 
 // reset_picture
-func (shell *Shell) resetPicture(args []string) {
+func resetPicture(shell *Shell, args []string) {
 
 	/*user_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)
