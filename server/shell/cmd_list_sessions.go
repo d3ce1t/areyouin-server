@@ -1,15 +1,18 @@
 package shell
 
+import (
+	"fmt"
+	"peeple/areyouin/utils"
+	"time"
+)
+
 // list_sessions
-/*func listSessions(shell *Shell, args []string) {
+func listSessions(shell *Shell, args []string) {
 
-	server := shell.server
+	activeSessions, err := shell.model.Accounts.GetActiveSessions(time.Now())
+	manageShellError(err)
 
-	keys := server.sessions.Keys()
-
-	for _, k := range keys {
-		session, _ := server.sessions.Get(k)
-		fmt.Fprintf(shell.io, "- %v %v (protocolVersion=%v, platform=%v, clientVersion=%v)\n", k, session.Conn.RemoteAddr().String(),
-			session.ProtocolVersion, session.Platform, session.ClientVersion)
+	for _, activeSession := range activeSessions {
+		fmt.Fprintf(shell, "- %v %v\n", activeSession.UserID, utils.UnixMillisToTime(activeSession.LastTime))
 	}
-}*/
+}

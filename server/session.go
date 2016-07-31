@@ -12,14 +12,11 @@ import (
 
 const (
 	// Times
-	MAX_IDLE_TIME          = 30 * time.Minute
+	MAX_IDLE_TIME          = 20 * time.Minute
 	MAX_LOGIN_TIME         = 30 * time.Second
-	PING_INTERVAL_MS       = 29 * time.Minute
+	PING_INTERVAL_MS       = 19 * time.Minute
 	PING_RETRY_INTERVAL_MS = 1 * time.Minute
-	TICKER_INTERVAL        = 30 * time.Second
-
-	// Channels Sizes
-	//WRITE_CHANNEL_SIZE = 5
+	TICKER_INTERVAL        = 10 * time.Minute
 )
 
 type WriteMsg struct {
@@ -90,6 +87,7 @@ type AyiSession struct {
 	OnRead        func(s *AyiSession, packet *proto.AyiPacket)
 	OnError       func(s *AyiSession, err error)
 	OnClosed      func(s *AyiSession, peer bool)
+	OnIdle        func(s *AyiSession)
 	pingTime      time.Time
 }
 
@@ -215,7 +213,9 @@ func (s *AyiSession) eventLoop() (exit bool) {
 		case err := <-s.errorChan:
 			s.OnError(s, err)
 		case <-s.ticker.C:
-			s.keepAlive()
+			if s.OnIdle != nil {
+				s.OnIdle(s)
+			}
 		case peerClosed := <-s.exitChan:
 			s.closeSocket()
 			s.OnClosed(s, peerClosed)
@@ -334,13 +334,10 @@ func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 
 	go func() {
 		var err error
-		// TODO: Change ticker by timer
-		timeout := time.NewTicker(10 * time.Second)
 
 		defer func() {
 			delete(s.pendingResp, msg.Packet.Id())
 			close(waitResponse)
-			timeout.Stop()
 
 			msg.Future.C <- (err == nil)
 			if err != nil {
@@ -350,7 +347,7 @@ func (s *AyiSession) doWriteWithAck(msg *WriteMsg) {
 
 		select {
 		case <-waitResponse:
-		case <-timeout.C:
+		case <-time.After(10 * time.Second):
 			err = proto.ErrTimeout
 		}
 	}()
@@ -440,26 +437,6 @@ func (s *AyiSession) manageSessionMsg(packet *proto.AyiPacket) bool {
 	}
 
 	return false
-}
-
-func (s *AyiSession) keepAlive() {
-
-	current_time := time.Now()
-
-	if !s.IsAuth {
-		if current_time.After(s.lastRecvMsg.Add(MAX_LOGIN_TIME)) {
-			log.Println("Connection IDLE", s)
-			s.Exit()
-		}
-	} else {
-		if current_time.After(s.lastRecvMsg.Add(MAX_IDLE_TIME)) {
-			log.Println("Connection IDLE", s)
-			s.Exit()
-		} else if current_time.After(s.pingTime) {
-			s.ping()
-			log.Printf("< (%v) PING", s.UserId)
-		}
-	}
 }
 
 func (s *AyiSession) ping() {

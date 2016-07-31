@@ -76,3 +76,9 @@ type PictureDTO struct {
 	RawData []byte
 	Digest  []byte
 }
+
+type ActiveSessionInfoDTO struct {
+	Node     int
+	UserID   int64
+	LastTime int64
+}

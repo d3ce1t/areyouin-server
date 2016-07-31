@@ -112,7 +112,7 @@ CREATE TABLE event (
 	message text STATIC,
 	picture blob STATIC,
 	picture_digest blob STATIC,
-  created_date timestamp STATIC,
+	created_date timestamp STATIC,
 	inbox_position timestamp STATIC,
 	start_date timestamp STATIC,
 	end_date timestamp STATIC,
@@ -180,25 +180,24 @@ WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 //
 // Stats
 //
-// Q13: Find number of users registered each day and be able of aggregating
-// by month and year quickly
-CREATE TABLE users_registered_by_day (
-	year int,
-	month int,
-	day int,
-	num_users int,
-	PRIMARY KEY (year, month, day)
-)
-WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
-AND CLUSTERING ORDER BY (month DESC, day DESC);
 
-// Auxiliary table to record registered users in order to provide Q13
-CREATE TABLE users_registered_log (
-	year int,
-	month int,
-	day int,
+// Q13: Find active sessions per node by day
+CREATE TABLE log_active_sessions_by_day (
+	node int,
+	day int,  // yyyyMMdd format
 	user_id bigint,
-	PRIMARY KEY ((year, month), day, user_id)
+	last_time timestamp,
+	PRIMARY KEY ((node, day), user_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
-AND CLUSTERING ORDER BY (day DESC, user_id ASC);
+AND CLUSTERING ORDER BY (user_id DESC);
+ 
+// Q14: Find registered users by day
+CREATE TABLE log_registered_users_by_day (
+	day int, // yyyyMMdd format
+	user_id bigint,
+	created_date timestamp,
+	PRIMARY KEY (day, user_id)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
+AND CLUSTERING ORDER BY (user_id DESC);

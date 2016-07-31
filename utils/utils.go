@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
-	"github.com/disintegration/imaging"
-	"github.com/gocql/gocql"
 	"image"
 	"image/jpeg"
 	"math/big"
 	"regexp"
 	"time"
+
+	"github.com/disintegration/imaging"
+	"github.com/gocql/gocql"
 )
 
 const (
@@ -94,7 +95,7 @@ func GetCurrentTimeMillis() int64 {
 	return TimeToMillis(time.Now())
 }
 
-// Return current time in millis with seconds precision
+// Return current time in millis but truncated to seconds precision
 func GetCurrentTimeSeconds() int64 {
 	return TimeToSeconds(time.Now()) * 1000
 }

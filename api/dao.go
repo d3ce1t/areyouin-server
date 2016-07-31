@@ -1,5 +1,7 @@
 package api
 
+import "time"
+
 type DbSession interface {
 	Connect() error
 	IsValid() bool
@@ -69,4 +71,10 @@ type AccessTokenDAO interface {
 	Insert(accessToken *AccessTokenDTO) error
 	SetLastUsed(user_id int64, time int64) error
 	Remove(user_id int64) error
+}
+
+type LogDAO interface {
+	LogRegisteredUser(userID int64, createdDate int64) error
+	LogActiveSession(node int, userIDA int64, lastTime int64) error
+	FindActiveSessions(node int, time time.Time) ([]*ActiveSessionInfoDTO, error)
 }

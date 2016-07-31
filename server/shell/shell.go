@@ -50,10 +50,10 @@ func (s *Shell) Run() {
 
 func (s *Shell) init() {
 	s.commands = map[string]Command{
-		"help": help,
-		//"list_sessions":        listSessions,
-		"list_users":  listUsers,
-		"delete_user": deleteUser,
+		"help":          help,
+		"list_sessions": listSessions,
+		"list_users":    listUsers,
+		"delete_user":   deleteUser,
 		//"send_auth_error":      sendAuthError,
 		//"send_msg":             sendMsg,
 		//"close_session":        closeSession,

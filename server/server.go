@@ -10,7 +10,6 @@ import (
 	fb "peeple/areyouin/facebook"
 	"peeple/areyouin/model"
 	proto "peeple/areyouin/protocol"
-	"peeple/areyouin/utils"
 	wh "peeple/areyouin/webhook"
 	"strings"
 	"time"
@@ -213,18 +212,56 @@ func (s *Server) handleSession(session *AyiSession) {
 		if session.IsAuth {
 			//NOTE: If a user is deleted from user_account while it is still connected,
 			// a row in invalid state will be created when updating last connection
-			session.Server.Model.Accounts.SetLastConnection(session.UserId, utils.GetCurrentTimeMillis())
+			session.Server.refreshSessionActivity(session)
 			session.Server.unregisterSession(session)
 		}
 
 		if peer {
-			log.Printf("* (%v) Session closed by remote peer\n", s)
+			log.Printf("* (%v) Session closed by remote peer\n", session)
 		} else {
-			log.Printf("* (%v) Session closed by server\n", s)
+			log.Printf("* (%v) Session closed by server\n", session)
+		}
+	}
+
+	// Called periodically (each 10 minutes)
+	session.OnIdle = func(session *AyiSession) {
+
+		currentTime := time.Now()
+
+		if !session.IsAuth {
+
+			if currentTime.After(session.lastRecvMsg.Add(MAX_LOGIN_TIME)) {
+				log.Println("Connection IDLE", s)
+				session.Exit()
+			}
+
+		} else {
+
+			if currentTime.After(session.lastRecvMsg.Add(MAX_IDLE_TIME)) {
+
+				log.Println("Connection IDLE", s)
+				session.Exit()
+
+			} else {
+
+				if currentTime.After(session.pingTime) {
+					session.ping()
+					log.Printf("< (%v) PING", session)
+				}
+
+				session.Server.refreshSessionActivity(session)
+			}
 		}
 	}
 
 	session.RunLoop() // Block here
+}
+
+func (s *Server) refreshSessionActivity(session *AyiSession) {
+	err := s.Model.Accounts.RefreshSessionActivity(session.UserId)
+	if err != nil {
+		log.Printf("* (%v) REFRESH SESSION ACTIVITY ERROR: %v", session, err)
+	}
 }
 
 func (s *Server) serveMessage(packet *proto.AyiPacket, session *AyiSession) (err error) {

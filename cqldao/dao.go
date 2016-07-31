@@ -34,6 +34,11 @@ func NewAccessTokenDAO(session api.DbSession) api.AccessTokenDAO {
 	return &AccessTokenDAO{session: session.(*GocqlSession)}
 }
 
+func NewLogDAO(session api.DbSession) api.LogDAO {
+	reconnectIfNeeded(session)
+	return &LogDAO{session: session.(*GocqlSession)}
+}
+
 func checkSession(session *GocqlSession) {
 	if session == nil || !session.IsValid() {
 		panic(ErrNoSession)

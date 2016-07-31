@@ -41,6 +41,7 @@ func New(session api.DbSession, key string) *AyiModel {
 		model.Accounts = newAccountManager(model, session)
 		model.Events = newEventManager(model, session)
 		model.Friends = newFriendManager(model, session)
+		registeredModels.Put(key, model)
 	} else {
 		panic(ErrModelAlreadyExist)
 	}
@@ -97,16 +98,6 @@ func (self *AyiModel) GetClosestDpi(reqDpi int32) int32 {
 	return self.supportedDpi[dpi_index]
 }
 
-func GetNewParticipants(participantsIds []int64, event *Event) []int64 {
-	result := make([]int64, 0, len(participantsIds))
-	for _, id := range participantsIds {
-		if _, ok := event.participants[id]; !ok {
-			result = append(result, id)
-		}
-	}
-	return result
-}
-
 func GetUserKeys(m map[int64]*UserAccount) []int64 {
 	keys := make([]int64, 0, len(m))
 	for k := range m {
@@ -114,19 +105,3 @@ func GetUserKeys(m map[int64]*UserAccount) []int64 {
 	}
 	return keys
 }
-
-/*func CreateParticipantsFromFriends(author_id int64, friends []*Friend) *ParticipantList {
-
-	pl := NewParticipantList()
-
-	if len(friends) > 0 {
-
-		for _, f := range friends {
-			participant := NewParticipant(f.Id(), f.Name(), AttendanceResponse_NO_RESPONSE,
-				InvitationStatus_NO_DELIVERED)
-			pl.add(participant)
-		}
-	}
-
-	return pl
-}*/

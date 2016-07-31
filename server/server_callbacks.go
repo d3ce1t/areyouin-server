@@ -7,7 +7,6 @@ import (
 	"peeple/areyouin/model"
 	proto "peeple/areyouin/protocol"
 	"peeple/areyouin/protocol/core"
-	"peeple/areyouin/utils"
 )
 
 func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -137,10 +136,7 @@ func onUserAuthentication(request *proto.AyiPacket, message proto.Message, sessi
 	log.Printf("< (%v) AUTH OK\n", session)
 	server.registerSession(session)
 
-	err = server.Model.Accounts.SetLastConnection(session.UserId, utils.GetCurrentTimeMillis())
-	if err != nil {
-		log.Printf("* (%v) SET LAST CONNECTION ERROR: %v", session, err)
-	}
+	server.refreshSessionActivity(session)
 }
 
 func onNewAccessToken(request *proto.AyiPacket, message proto.Message, session *AyiSession) {

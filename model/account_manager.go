@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"image"
+	"log"
 	"peeple/areyouin/api"
 	"peeple/areyouin/cqldao"
 	fb "peeple/areyouin/facebook"
 	"peeple/areyouin/utils"
+	"time"
 
 	"github.com/twinj/uuid"
 )
@@ -20,6 +22,7 @@ func newAccountManager(parent *AyiModel, session api.DbSession) *AccountManager 
 		thumbDAO:       cqldao.NewThumbnailDAO(session),
 		friendDAO:      cqldao.NewFriendDAO(session),
 		accessTokenDAO: cqldao.NewAccessTokenDAO(session),
+		logDAO:         cqldao.NewLogDAO(session),
 	}
 }
 
@@ -30,6 +33,7 @@ type AccountManager struct {
 	thumbDAO       api.ThumbnailDAO
 	friendDAO      api.FriendDAO
 	accessTokenDAO api.AccessTokenDAO
+	logDAO         api.LogDAO
 }
 
 // Prominent Errors:
@@ -57,6 +61,10 @@ func (self *AccountManager) CreateUserAccount(name string, email string, passwor
 	// Insert into users database
 	if err := self.userDAO.Insert(user.AsDTO()); err != nil {
 		return nil, err
+	}
+
+	if err := self.logDAO.LogRegisteredUser(user.Id(), utils.GetCurrentTimeMillis()); err != nil {
+		log.Printf("REGISTER USER LOGGING ERROR: %v", err)
 	}
 
 	return user, nil
@@ -202,8 +210,23 @@ func (m *AccountManager) SetPushToken(userID int64, pushToken *IIDToken) error {
 	return nil
 }
 
-func (self *AccountManager) SetLastConnection(userId int64, time int64) error {
-	return self.userDAO.SetLastConnection(userId, time)
+func (m *AccountManager) GetActiveSessions(forDay time.Time) ([]*api.ActiveSessionInfoDTO, error) {
+	return m.logDAO.FindActiveSessions(0, forDay)
+}
+
+func (m *AccountManager) RefreshSessionActivity(userId int64) error {
+
+	currentTime := utils.GetCurrentTimeMillis()
+
+	if err := m.logDAO.LogActiveSession(0, userId, currentTime); err != nil {
+		return err
+	}
+
+	if err := m.userDAO.SetLastConnection(userId, currentTime); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *AccountManager) ChangePassword(user *UserAccount, newPassword string) error {
