@@ -420,7 +420,7 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	// Notify previous participants of the new ones added
 	server.task_executor.Submit(&NotifyParticipantChange{
 		Event:               event,
-		ParticipantsChanged: model.GetUserKeys(usersInvited),
+		ParticipantsChanged: model.GetUserMapKeys(usersInvited),
 		Target:              oldParticipants,
 		NumGuests:           int32(event.NumGuests()), // Include also total NumGuests because it's changed
 	})

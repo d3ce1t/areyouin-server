@@ -6,6 +6,8 @@ import (
 	"peeple/areyouin/api"
 	"peeple/areyouin/cqldao"
 	fb "peeple/areyouin/facebook"
+
+	observer "github.com/imkira/go-observer"
 )
 
 type FriendManager struct {
@@ -14,6 +16,7 @@ type FriendManager struct {
 	userDAO          api.UserDAO
 	friendDAO        api.FriendDAO
 	friendRequestDAO api.FriendRequestDAO
+	friendSignal     observer.Property
 }
 
 func newFriendManager(parent *AyiModel, session api.DbSession) *FriendManager {
@@ -23,7 +26,12 @@ func newFriendManager(parent *AyiModel, session api.DbSession) *FriendManager {
 		userDAO:          cqldao.NewUserDAO(session),
 		friendDAO:        cqldao.NewFriendDAO(session),
 		friendRequestDAO: cqldao.NewFriendRequestDAO(session),
+		friendSignal:     observer.NewProperty(nil),
 	}
+}
+
+func (m *FriendManager) Observe() observer.Stream {
+	return m.friendSignal.Observe()
 }
 
 func (self *FriendManager) GetAllFriends(userID int64) ([]*Friend, error) {
@@ -128,12 +136,40 @@ func (self *FriendManager) ImportFacebookFriends(user *UserAccount) ([]*UserAcco
 		}
 	}
 
+	if len(newFriends) > 0 {
+		signal := &Signal{
+			Type: SignalNewFriendsImported,
+			Data: map[string]interface{}{
+				"UserID":     user.Id(),
+				"NewFriends": GetUserSliceKeys(newFriends),
+			},
+		}
+
+		self.friendSignal.Update(signal)
+	}
+
 	return newFriends, nil
 }
 
-func (m *FriendManager) MakeFriends(user1 *UserAccount, user2 *UserAccount) error {
-	return m.friendDAO.MakeFriends(user1.AsFriend().AsDTO(), user2.AsFriend().AsDTO())
-}
+/*func (m *FriendManager) MakeFriends(user1 *UserAccount, user2 *UserAccount) error {
+
+	err := m.friendDAO.MakeFriends(user1.AsFriend().AsDTO(), user2.AsFriend().AsDTO())
+	if err != nil {
+		return err
+	}
+
+	signal := &Signal{
+		Type: SIGNAL_NEW_FRIENDS,
+		Data: map[string]interface{}{
+			"user1": user1.Id(),
+			"user2": user2.Id(),
+		},
+	}
+
+	m.friendSignal.Update(signal)
+
+	return nil
+}*/
 
 // Since makeFriends() is bidirectional (adds the friend to user1 and user2). It can
 // be assumed that if first user is friend of the second one, then second user must also
@@ -204,6 +240,16 @@ func (m *FriendManager) SendFriendRequest(fromUser *UserAccount, toUser *UserAcc
 	friendRequest := NewFriendRequest(toUser.Id(), fromUser.Id(), fromUser.name, fromUser.email)
 	err := m.friendRequestDAO.Insert(friendRequest.AsDTO())
 
+	signal := &Signal{
+		Type: SignalNewFriendRequest,
+		Data: map[string]interface{}{
+			"fromUser": fromUser.Id(),
+			"toUser":   toUser.Id(),
+		},
+	}
+
+	m.friendSignal.Update(signal)
+
 	return nil, err
 }
 
@@ -217,17 +263,42 @@ func (m *FriendManager) ConfirmFriendRequest(fromUser *UserAccount, toUser *User
 	if accept {
 
 		// Make both friends
-		err = m.parent.Friends.MakeFriends(toUser, fromUser)
+		err := m.friendDAO.MakeFriends(toUser.AsFriend().AsDTO(), fromUser.AsFriend().AsDTO())
 		if err != nil {
 			return err
 		}
-	}
 
-	// Accepted or cancelled. Remove it.
+		err = m.friendRequestDAO.Delete(friendRequestDTO)
+		if err != nil {
+			return err
+		}
 
-	err = m.friendRequestDAO.Delete(friendRequestDTO)
-	if err != nil {
-		return err
+		signal := &Signal{
+			Type: SignalFriendRequestAccepted,
+			Data: map[string]interface{}{
+				"fromUser": fromUser.Id(),
+				"toUser":   toUser.Id(),
+			},
+		}
+
+		m.friendSignal.Update(signal)
+
+	} else {
+
+		err = m.friendRequestDAO.Delete(friendRequestDTO)
+		if err != nil {
+			return err
+		}
+
+		signal := &Signal{
+			Type: SignalFriendRequestCancelled,
+			Data: map[string]interface{}{
+				"fromUser": fromUser.Id(),
+				"toUser":   toUser.Id(),
+			},
+		}
+
+		m.friendSignal.Update(signal)
 	}
 
 	return nil

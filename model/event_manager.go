@@ -9,24 +9,32 @@ import (
 	"peeple/areyouin/cqldao"
 	"peeple/areyouin/utils"
 	"time"
+
+	"github.com/imkira/go-observer"
 )
+
+type EventManager struct {
+	dbsession   api.DbSession
+	parent      *AyiModel
+	userDAO     api.UserDAO
+	eventDAO    api.EventDAO
+	thumbDAO    api.ThumbnailDAO
+	eventSignal observer.Property
+}
 
 func newEventManager(parent *AyiModel, session api.DbSession) *EventManager {
 	return &EventManager{
-		parent:    parent,
-		dbsession: session,
-		userDAO:   cqldao.NewUserDAO(session),
-		eventDAO:  cqldao.NewEventDAO(session),
-		thumbDAO:  cqldao.NewThumbnailDAO(session),
+		parent:      parent,
+		dbsession:   session,
+		userDAO:     cqldao.NewUserDAO(session),
+		eventDAO:    cqldao.NewEventDAO(session),
+		thumbDAO:    cqldao.NewThumbnailDAO(session),
+		eventSignal: observer.NewProperty(nil),
 	}
 }
 
-type EventManager struct {
-	dbsession api.DbSession
-	parent    *AyiModel
-	userDAO   api.UserDAO
-	eventDAO  api.EventDAO
-	thumbDAO  api.ThumbnailDAO
+func (m *EventManager) Observe() observer.Stream {
+	return m.eventSignal.Observe()
 }
 
 func (m *EventManager) GetEvent(eventID int64) (*Event, error) {
@@ -187,8 +195,19 @@ func (self *EventManager) PublishEvent(event *Event, users map[int64]*UserAccoun
 		return err
 	}
 
+	// Emit signal
+	signal := &Signal{
+		Type: SignalNewEvent,
+		Data: map[string]interface{}{
+			"EventID": event.Id(),
+		},
+	}
+
+	self.eventSignal.Update(signal)
+
 	// Invite users. If error do nothing.
 	self.InviteUsers(event, users)
+
 	return nil
 }
 
@@ -228,6 +247,16 @@ func (self *EventManager) CancelEvent(event *Event) error {
 	// Update event object
 	event.inboxPosition = new_inbox_position
 	event.cancelled = true
+
+	// Emit signal
+	signal := &Signal{
+		Type: SignalEventCancelled,
+		Data: map[string]interface{}{
+			"EventID": event.Id(),
+		},
+	}
+
+	self.eventSignal.Update(signal)
 
 	return nil
 }
@@ -291,50 +320,18 @@ func (self *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount
 
 	event.numGuests = int32(len(event.participants))
 
+	// Emit signal
+	signal := &Signal{
+		Type: SignalEventParticipantsInvited,
+		Data: map[string]interface{}{
+			"EventID":      event.Id(),
+			"Participants": GetUserMapKeys(usersInvited),
+		},
+	}
+
+	self.eventSignal.Update(signal)
+
 	return usersInvited, nil
-}
-
-// Change participant response to an event.
-// Returns true if response changed, or false otherwise. For instance, if response
-// is equal to old response, then it would return false.
-//
-// Assumptions:
-// - (1) Event exist and is persisted in DB
-// - (2) User who performs this operation have permission
-//
-// Preconditions:
-// - (1) Event must have not started
-// - (2) User must have received this invitation, i.e. user is in event participant
-//       list and event is in his inbox.
-func (self *EventManager) ChangeParticipantResponse(userId int64,
-	response api.AttendanceResponse, event *Event) (bool, error) {
-
-	// Check precondition (1)
-
-	if event.Status() != api.EventState_NOT_STARTED {
-		return false, ErrEventNotWritable
-	}
-
-	// Check precondition (2)
-
-	participant, ok := event.participants[userId]
-	if !ok {
-		return false, ErrParticipantNotFound
-	}
-
-	if participant.response != response {
-
-		// Change response
-
-		if err := self.eventDAO.SetParticipantResponse(participant.id, response, event.AsDTO()); err != nil {
-			return false, err
-		}
-
-		participant.response = response
-		return true, nil
-	}
-
-	return false, nil
 }
 
 // Change event picture
@@ -382,7 +379,74 @@ func (self *EventManager) ChangeEventPicture(event *Event, picture []byte) error
 		event.pictureDigest = nil
 	}
 
+	// Emit signal
+	signal := &Signal{
+		Type: SignalEventInfoChanged,
+		Data: map[string]interface{}{
+			"EventID": event.Id(),
+		},
+	}
+
+	self.eventSignal.Update(signal)
+
 	return nil
+}
+
+// Change participant response to an event.
+// Returns true if response changed, or false otherwise. For instance, if response
+// is equal to old response, then it would return false.
+//
+// Assumptions:
+// - (1) Event exist and is persisted in DB
+// - (2) User who performs this operation have permission
+//
+// Preconditions:
+// - (1) Event must have not started
+// - (2) User must have received this invitation, i.e. user is in event participant
+//       list and event is in his inbox.
+func (self *EventManager) ChangeParticipantResponse(userId int64,
+	response api.AttendanceResponse, event *Event) (bool, error) {
+
+	// Check precondition (1)
+
+	if event.Status() != api.EventState_NOT_STARTED {
+		return false, ErrEventNotWritable
+	}
+
+	// Check precondition (2)
+
+	participant, ok := event.participants[userId]
+	if !ok {
+		return false, ErrParticipantNotFound
+	}
+
+	if participant.response != response {
+
+		// Change response
+
+		if err := self.eventDAO.SetParticipantResponse(participant.id, response, event.AsDTO()); err != nil {
+			return false, err
+		}
+
+		participant.response = response
+
+		// Emit signal
+		signal := &Signal{
+			Type: SignalParticipantChanged,
+			Data: map[string]interface{}{
+				"EventID":  event.Id(),
+				"UserID":   participant.Id(),
+				"Response": participant.Response(),
+				//"InvitationStatus": participant.InvitationStatus(),
+			},
+		}
+
+		self.eventSignal.Update(signal)
+
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (self *EventManager) ChangeDeliveryState(event *Event, userId int64, state api.InvitationStatus) (bool, error) {
@@ -392,13 +456,11 @@ func (self *EventManager) ChangeDeliveryState(event *Event, userId int64, state 
 	}
 
 	participant, ok := event.participants[userId]
+	if !ok {
+		return false, ErrParticipantNotFound
+	}
 
-	if ok {
-
-		if participant.invitationStatus == state {
-			return false, nil // Do nothing
-		}
-
+	if participant.invitationStatus != state {
 		// TODO: Add business logic to avoid moving to a previous state
 
 		err := self.eventDAO.SetParticipantInvitationStatus(userId, event.id, state)
@@ -408,11 +470,24 @@ func (self *EventManager) ChangeDeliveryState(event *Event, userId int64, state 
 		}
 
 		participant.invitationStatus = state
-		return true, nil
 
-	} else {
-		return false, ErrParticipantNotFound
+		// Emit signal
+		signal := &Signal{
+			Type: SignalParticipantChanged,
+			Data: map[string]interface{}{
+				"EventID": event.Id(),
+				"UserID":  participant.Id(),
+				//"Response":         participant.Response(),
+				"InvitationStatus": participant.InvitationStatus(),
+			},
+		}
+
+		self.eventSignal.Update(signal)
+
+		return true, nil
 	}
+
+	return false, nil
 }
 
 // FIXME: Do not get all of the private events, but limit to a fixed number.

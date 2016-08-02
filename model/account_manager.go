@@ -11,8 +11,20 @@ import (
 	"peeple/areyouin/utils"
 	"time"
 
+	observer "github.com/imkira/go-observer"
 	"github.com/twinj/uuid"
 )
+
+type AccountManager struct {
+	dbsession      api.DbSession
+	parent         *AyiModel
+	userDAO        api.UserDAO
+	thumbDAO       api.ThumbnailDAO
+	friendDAO      api.FriendDAO
+	accessTokenDAO api.AccessTokenDAO
+	logDAO         api.LogDAO
+	accountSignal  observer.Property
+}
 
 func newAccountManager(parent *AyiModel, session api.DbSession) *AccountManager {
 	return &AccountManager{
@@ -23,17 +35,12 @@ func newAccountManager(parent *AyiModel, session api.DbSession) *AccountManager 
 		friendDAO:      cqldao.NewFriendDAO(session),
 		accessTokenDAO: cqldao.NewAccessTokenDAO(session),
 		logDAO:         cqldao.NewLogDAO(session),
+		accountSignal:  observer.NewProperty(nil),
 	}
 }
 
-type AccountManager struct {
-	dbsession      api.DbSession
-	parent         *AyiModel
-	userDAO        api.UserDAO
-	thumbDAO       api.ThumbnailDAO
-	friendDAO      api.FriendDAO
-	accessTokenDAO api.AccessTokenDAO
-	logDAO         api.LogDAO
+func (m *AccountManager) Observe() observer.Stream {
+	return m.accountSignal.Observe()
 }
 
 // Prominent Errors:
@@ -66,6 +73,15 @@ func (self *AccountManager) CreateUserAccount(name string, email string, passwor
 	if err := self.logDAO.LogRegisteredUser(user.Id(), utils.GetCurrentTimeMillis()); err != nil {
 		log.Printf("REGISTER USER LOGGING ERROR: %v", err)
 	}
+
+	signal := &Signal{
+		Type: SignalNewUserAccount,
+		Data: map[string]interface{}{
+			"UserID": user.Id(),
+		},
+	}
+
+	self.accountSignal.Update(signal)
 
 	return user, nil
 }

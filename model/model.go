@@ -98,10 +98,18 @@ func (self *AyiModel) GetClosestDpi(reqDpi int32) int32 {
 	return self.supportedDpi[dpi_index]
 }
 
-func GetUserKeys(m map[int64]*UserAccount) []int64 {
+func GetUserMapKeys(m map[int64]*UserAccount) []int64 {
 	keys := make([]int64, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
+	}
+	return keys
+}
+
+func GetUserSliceKeys(m []*UserAccount) []int64 {
+	keys := make([]int64, 0, len(m))
+	for _, user := range m {
+		keys = append(keys, user.Id())
 	}
 	return keys
 }

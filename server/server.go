@@ -80,12 +80,15 @@ func (s *Server) run() {
 
 	// Start up server listener
 	listener, err := net.Listen("tcp", ":1822")
-
 	if err != nil {
 		panic("Couldn't start listening: " + err.Error())
 	}
 
 	defer listener.Close()
+
+	// Start up notification service
+	notificationManager := newNotificationManager(s.Model)
+	go notificationManager.run()
 
 	// Main Loop
 	for {
