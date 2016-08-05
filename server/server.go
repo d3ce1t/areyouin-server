@@ -15,11 +15,6 @@ import (
 	"time"
 )
 
-const (
-	GCM_API_KEY = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
-	GCM_MAX_TTL = 2419200
-)
-
 func NewServer(session api.DbSession, model *model.AyiModel) *Server {
 	server := &Server{
 		DbSession: session,
@@ -37,6 +32,7 @@ type Server struct {
 	task_executor   *TaskExecutor
 	callbacks       map[proto.PacketType]Callback
 	Model           *model.AyiModel
+	modelObserver   *ModelObserver
 	DbSession       api.DbSession
 	webhook         *wh.WebHookServer
 	Testing         bool
@@ -86,9 +82,9 @@ func (s *Server) run() {
 
 	defer listener.Close()
 
-	// Start up notification service
-	notificationManager := newNotificationManager(s.Model)
-	go notificationManager.run()
+	// Start up model observer
+	s.modelObserver = newModelObserver(s)
+	go s.modelObserver.run()
 
 	// Main Loop
 	for {

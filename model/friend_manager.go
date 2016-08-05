@@ -220,7 +220,7 @@ func (m *FriendManager) GetAllFriendRequests(toUser int64) ([]*FriendRequest, er
 	return newFriendRequestListFromDTO(friendRequestsDTO), nil
 }
 
-func (m *FriendManager) SendFriendRequest(fromUser *UserAccount, toUser *UserAccount) (*FriendRequest, error) {
+func (m *FriendManager) CreateFriendRequest(fromUser *UserAccount, toUser *UserAccount) (*FriendRequest, error) {
 
 	// Not friends
 	if areFriends, err := m.parent.Friends.AreFriends(fromUser.Id(), toUser.Id()); err != nil {
@@ -238,19 +238,22 @@ func (m *FriendManager) SendFriendRequest(fromUser *UserAccount, toUser *UserAcc
 
 	// Add friend request
 	friendRequest := NewFriendRequest(toUser.Id(), fromUser.Id(), fromUser.name, fromUser.email)
-	err := m.friendRequestDAO.Insert(friendRequest.AsDTO())
+	if err := m.friendRequestDAO.Insert(friendRequest.AsDTO()); err != nil {
+		return nil, err
+	}
 
 	signal := &Signal{
 		Type: SignalNewFriendRequest,
 		Data: map[string]interface{}{
-			"fromUser": fromUser.Id(),
-			"toUser":   toUser.Id(),
+			"FromUser":      fromUser,
+			"ToUser":        toUser,
+			"FriendRequest": friendRequest,
 		},
 	}
 
 	m.friendSignal.Update(signal)
 
-	return nil, err
+	return friendRequest, nil
 }
 
 func (m *FriendManager) ConfirmFriendRequest(fromUser *UserAccount, toUser *UserAccount, accept bool) error {
@@ -276,8 +279,8 @@ func (m *FriendManager) ConfirmFriendRequest(fromUser *UserAccount, toUser *User
 		signal := &Signal{
 			Type: SignalFriendRequestAccepted,
 			Data: map[string]interface{}{
-				"fromUser": fromUser.Id(),
-				"toUser":   toUser.Id(),
+				"FromUser": fromUser,
+				"ToUser":   toUser,
 			},
 		}
 
@@ -293,8 +296,8 @@ func (m *FriendManager) ConfirmFriendRequest(fromUser *UserAccount, toUser *User
 		signal := &Signal{
 			Type: SignalFriendRequestCancelled,
 			Data: map[string]interface{}{
-				"fromUser": fromUser.Id(),
-				"toUser":   toUser.Id(),
+				"FromUser": fromUser,
+				"ToUser":   toUser,
 			},
 		}
 

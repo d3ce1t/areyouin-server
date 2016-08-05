@@ -200,6 +200,7 @@ func (self *EventManager) PublishEvent(event *Event, users map[int64]*UserAccoun
 		Type: SignalNewEvent,
 		Data: map[string]interface{}{
 			"EventID": event.Id(),
+			"Event":   event,
 		},
 	}
 
@@ -219,7 +220,7 @@ func (self *EventManager) PublishEvent(event *Event, users map[int64]*UserAccoun
 //
 // Preconditions:
 // - (1) Event must have not started
-func (self *EventManager) CancelEvent(event *Event) error {
+func (self *EventManager) CancelEvent(event *Event, userID int64) error {
 
 	// Check precondition (1)
 	if event.Status() != api.EventState_NOT_STARTED {
@@ -252,7 +253,9 @@ func (self *EventManager) CancelEvent(event *Event) error {
 	signal := &Signal{
 		Type: SignalEventCancelled,
 		Data: map[string]interface{}{
-			"EventID": event.Id(),
+			"EventID":     event.Id(),
+			"CancelledBy": userID,
+			"Event":       event,
 		},
 	}
 
@@ -284,8 +287,8 @@ func (self *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount
 	}
 
 	// Check precondition (2) and invite participants at the same time
+	oldParticipants := event.ParticipantIds()
 	newParticipants := 0
-	addedParticipants := 0
 	usersInvited := make(map[int64]*UserAccount)
 
 	for _, user := range users {
@@ -300,15 +303,14 @@ func (self *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount
 			if err := self.eventDAO.AddParticipantToEvent(participant.AsDTO(), event.AsDTO()); err == nil {
 				event.addParticipant(participant)
 				usersInvited[user.id] = user
-				addedParticipants++
 			} else {
 				log.Printf("* INVITE USERS WARNING: %v\n", err)
 			}
 		}
 	}
 
-	if newParticipants == 0 || addedParticipants == 0 {
-		log.Printf("* INVITE USERS WARNING: %v/%v participants added\n", addedParticipants, newParticipants)
+	if newParticipants == 0 || len(usersInvited) == 0 {
+		log.Printf("* INVITE USERS WARNING: %v/%v participants added\n", len(usersInvited), newParticipants)
 		return nil, ErrParticipantsRequired
 	}
 
@@ -324,8 +326,10 @@ func (self *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount
 	signal := &Signal{
 		Type: SignalEventParticipantsInvited,
 		Data: map[string]interface{}{
-			"EventID":      event.Id(),
-			"Participants": GetUserMapKeys(usersInvited),
+			"EventID":         event.Id(),
+			"NewParticipants": GetUserMapKeys(usersInvited),
+			"OldParticipants": oldParticipants,
+			"Event":           event,
 		},
 	}
 
@@ -384,6 +388,7 @@ func (self *EventManager) ChangeEventPicture(event *Event, picture []byte) error
 		Type: SignalEventInfoChanged,
 		Data: map[string]interface{}{
 			"EventID": event.Id(),
+			"Event":   event,
 		},
 	}
 
@@ -428,18 +433,22 @@ func (self *EventManager) ChangeParticipantResponse(userId int64,
 			return false, err
 		}
 
+		oldResponse := participant.response
 		participant.response = response
 
 		// Emit signal
 		signal := &Signal{
 			Type: SignalParticipantChanged,
 			Data: map[string]interface{}{
-				"EventID":  event.Id(),
-				"UserID":   participant.Id(),
-				"Response": participant.Response(),
-				//"InvitationStatus": participant.InvitationStatus(),
+				"EventID":     event.Id(),
+				"UserID":      participant.Id(),
+				"Event":       event,
+				"Participant": participant,
+				"OldResponse": oldResponse,
 			},
 		}
+
+		participant.response = response
 
 		self.eventSignal.Update(signal)
 
@@ -475,10 +484,11 @@ func (self *EventManager) ChangeDeliveryState(event *Event, userId int64, state 
 		signal := &Signal{
 			Type: SignalParticipantChanged,
 			Data: map[string]interface{}{
-				"EventID": event.Id(),
-				"UserID":  participant.Id(),
-				//"Response":         participant.Response(),
-				"InvitationStatus": participant.InvitationStatus(),
+				"EventID":     event.Id(),
+				"UserID":      participant.Id(),
+				"Event":       event,
+				"Participant": participant,
+				"OldResponse": participant.response,
 			},
 		}
 
@@ -535,7 +545,7 @@ func (self *EventManager) GetEventsHistory(userId int64, start int64, end int64)
 	return events, nil
 }
 
-func (self *EventManager) FilterEvents(events []*Event, targetParticipant int64) []*Event {
+/*func (self *EventManager) FilterEvents(events []*Event, targetParticipant int64) []*Event {
 
 	filteredEvents := make([]*Event, 0, len(events))
 
@@ -544,9 +554,9 @@ func (self *EventManager) FilterEvents(events []*Event, targetParticipant int64)
 	}
 
 	return filteredEvents
-}
+}*/
 
-func (self *EventManager) filterParticipants(participants map[int64]*Participant, targetParticipant int64) map[int64]*Participant {
+/*func (self *EventManager) filterParticipants(participants map[int64]*Participant, targetParticipant int64) map[int64]*Participant {
 
 	result := make(map[int64]*Participant)
 
@@ -559,9 +569,9 @@ func (self *EventManager) filterParticipants(participants map[int64]*Participant
 	}
 
 	return result
-}
+}*/
 
-func (self *EventManager) FilterParticipantsSlice(participants []*Participant, targetParticipant int64) map[int64]*Participant {
+/*func (self *EventManager) FilterParticipantsSlice(participants []*Participant, targetParticipant int64) map[int64]*Participant {
 
 	result := make(map[int64]*Participant)
 
@@ -574,9 +584,9 @@ func (self *EventManager) FilterParticipantsSlice(participants []*Participant, t
 	}
 
 	return result
-}
+}*/
 
-func (self *EventManager) GetFilteredEvent(event *Event, targetParticipant int64) *Event {
+/*func (self *EventManager) GetFilteredEvent(event *Event, targetParticipant int64) *Event {
 
 	// Clone event with empty participant list (num.attendees and num.guest are preserved)
 	eventCopy := event.CloneEmptyParticipants()
@@ -584,9 +594,9 @@ func (self *EventManager) GetFilteredEvent(event *Event, targetParticipant int64
 	// Copy filtered participants list to the new event
 	eventCopy.participants = self.GetFilteredParticipants(event, targetParticipant)
 	return eventCopy
-}
+}*/
 
-func (self *EventManager) GetFilteredParticipants(event *Event, targetParticipant int64) map[int64]*Participant {
+/*func (self *EventManager) GetFilteredParticipants(event *Event, targetParticipant int64) map[int64]*Participant {
 
 	if len(event.participants) == 0 {
 		log.Printf("FILTER PARTICIPANTS WARNING: Event %v has zero participants\n", event.id)
@@ -594,7 +604,7 @@ func (self *EventManager) GetFilteredParticipants(event *Event, targetParticipan
 	}
 
 	return self.filterParticipants(event.participants, targetParticipant)
-}
+}*/
 
 // Insert an event into database, add participants to it and send it to users' inbox.
 func (self *EventManager) persistEvent(event *Event, author *Participant) error {
@@ -610,10 +620,8 @@ func (self *EventManager) persistEvent(event *Event, author *Participant) error 
 	// Add author first in order to let author receive the event and add other
 	// participants if something fails
 	author.response = api.AttendanceResponse_ASSIST
-	authorCopy := *author
-	authorCopy.invitationStatus = api.InvitationStatus_CLIENT_DELIVERED
 
-	if err := self.eventDAO.AddParticipantToEvent(authorCopy.AsDTO(), event.AsDTO()); err != nil {
+	if err := self.eventDAO.AddParticipantToEvent(author.AsDTO(), event.AsDTO()); err != nil {
 		return ErrAuthorDeliveryError
 	}
 

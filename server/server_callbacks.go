@@ -288,15 +288,18 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 			}
 		}
 
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventCreated(convEvent2Net(event)))
+		// Send event with InvitationStatus_CLIENT_DELIVERED
+		coreEvent := convEvent2Net(event)
+		coreEvent.Participants[session.UserId].Delivered = core.InvitationStatus_CLIENT_DELIVERED
+		session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventCreated(coreEvent))
 		log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v, Remaining.Participants: %v)\n",
-			session, event.Id(), event.NumGuests(), len(msg.Participants)-event.NumGuests())
+			session, event.Id(), event.NumGuests(), 1+len(msg.Participants)-event.NumGuests())
 
-		notification := &NotifyEventInvitation{
-			Event:  event,
-			Target: userParticipants,
+		// Change invitation status
+		_, err := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
+		if err != nil {
+			log.Printf("* (%v) CREATE EVENT WARNING Changing delivery state: %err", err)
 		}
-		server.task_executor.Submit(notification)
 
 	} else if err == model.ErrParticipantsRequired {
 
@@ -338,11 +341,10 @@ func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, sessi
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) EVENT PICTURE CHANGED\n", session)
 
-	// Notify change to participants
-	server.task_executor.Submit(&NotifyEventChange{
-		Event:  event,
-		Target: event.ParticipantIds(),
-	})
+	// Send event changed
+	liteEvent := event.CloneEmptyParticipants()
+	session.Write(session.NewMessage().EventModified(convEvent2Net(liteEvent)))
+	log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, event.Id())
 }
 
 func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -361,19 +363,13 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkEventAuthorOrPanic(authorID, event)
 
 	// Cancel event
-	err = server.Model.Events.CancelEvent(event)
+	err = server.Model.Events.CancelEvent(event, session.UserId)
 	checkNoErrorOrPanic(err)
 
 	// FIXME: Could send directly the event canceled message, and ignore author from
 	// NotifyEventCancelled task
 	log.Printf("< (%v) CANCEL EVENT OK\n", session)
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
-
-	// Notify participants
-	server.task_executor.Submit(&NotifyEventCancelled{
-		CancelledBy: session.UserId,
-		Event:       event,
-	})
 }
 
 func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -405,9 +401,6 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	newParticipants, err := server.Model.Events.CreateParticipantsList(authorID, msg.Participants)
 	checkNoErrorOrPanic(err)
 
-	// Get current participants for later use
-	oldParticipants := event.ParticipantIds()
-
 	// Invite participants
 	usersInvited, err := server.Model.Events.InviteUsers(event, newParticipants)
 	checkNoErrorOrPanic(err)
@@ -417,18 +410,15 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	log.Printf("< (%v) INVITE USERS OK (event_id: %v, invitations: %v/%v, total: %v)\n",
 		session, event.Id(), len(usersInvited), len(newParticipants), len(msg.Participants))
 
-	// Notify previous participants of the new ones added
-	server.task_executor.Submit(&NotifyParticipantChange{
-		Event:               event,
-		ParticipantsChanged: model.GetUserMapKeys(usersInvited),
-		Target:              oldParticipants,
-		NumGuests:           int32(event.NumGuests()), // Include also total NumGuests because it's changed
-	})
-
-	server.task_executor.Submit(&NotifyEventInvitation{
-		Event:  event,
-		Target: usersInvited,
-	})
+	// Send notification
+	participantList := make(map[int64]*model.Participant)
+	for _, user := range newParticipants {
+		participantList[user.Id()] = event.GetParticipant(user.Id())
+	}
+	netParticipants := convParticipantList2Net(participantList)
+	packet := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, int32(event.NumGuests()))
+	session.Write(packet)
+	log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
 }
 
 // When a ConfirmAttendance message is received, the attendance response of the participant
@@ -447,21 +437,20 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 	checkNoErrorOrPanic(err)
 
 	// Change response
-	changed, err := server.Model.Events.ChangeParticipantResponse(session.UserId, api.AttendanceResponse(msg.ActionCode), event)
+	_, err = server.Model.Events.ChangeParticipantResponse(session.UserId, api.AttendanceResponse(msg.ActionCode), event)
 	checkNoErrorOrPanic(err)
 
 	// Send OK Response
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) CONFIRM ATTENDANCE %v OK\n", session, msg.EventId)
 
-	if changed {
-		// Notify participants
-		server.task_executor.Submit(&NotifyParticipantChange{
-			Event:               event,
-			ParticipantsChanged: []int64{session.UserId},
-			Target:              event.ParticipantIds(),
-		})
-	}
+	// Send new AttendanceStatus
+	participant := event.GetParticipant(session.UserId)
+	participantList := make(map[int64]*model.Participant)
+	participantList[participant.Id()] = participant
+	netParticipants := convParticipantList2Net(participantList)
+	session.Write(session.NewMessage().AttendanceStatus(event.Id(), netParticipants))
+	log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
 }
 
 func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -481,33 +470,16 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 	}
 
 	// Send event list to user
-	filteredEvents := server.Model.Events.FilterEvents(events, session.UserId)
-	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, len(filteredEvents))
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(convEventList2Net(filteredEvents)))
+	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, len(events))
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(convEventList2Net(events)))
 
 	// Update delivery status
 	for _, event := range events {
-
 		// TODO: I should receive an ACK before try to change state.
-		// Moreover, err is ignored. What should server do in that case?
-
-		changed, _ := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
-
-		if changed {
-
-			// Notify change in participant status to the other participants
-			task := &NotifyParticipantChange{
-				Event:               event,
-				ParticipantsChanged: []int64{session.UserId},
-				Target:              event.ParticipantIds(),
-			}
-
-			// I'm also sending notification to the author. Could avoid this
-			// because author already knows that the event has been send
-			// to him
-			server.task_executor.Submit(task)
+		_, err := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
+		if err != nil {
+			log.Printf("< (%v) SEND PRIVATE EVENTS ERROR: %v)", session, err)
 		}
-
 	}
 }
 
@@ -536,11 +508,10 @@ func onListEventsHistory(request *proto.AyiPacket, message proto.Message, sessio
 		endWindow = events[0].StartDate()
 	}
 
-	filteredEvents := server.Model.Events.FilterEvents(events, session.UserId)
-
 	// Send event list to user
 	log.Printf("< (%v) SEND EVENTS HISTORY (num.events: %v)", session, len(events))
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsHistoryList(convEventList2Net(filteredEvents), startWindow, endWindow))
+	session.WriteResponse(request.Header.GetToken(),
+		session.NewMessage().EventsHistoryList(convEventList2Net(events), startWindow, endWindow))
 }
 
 func onGetUserFriends(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -580,13 +551,8 @@ func onFriendRequest(request *proto.AyiPacket, message proto.Message, session *A
 	}
 
 	// Send friend request
-	friendRequest, err := server.Model.Friends.SendFriendRequest(userAccount, friendAccount)
+	_, err = server.Model.Friends.CreateFriendRequest(userAccount, friendAccount)
 	checkNoErrorOrPanic(err)
-
-	server.task_executor.Submit(&NotifyFriendRequest{
-		UserId:        friendAccount.Id(),
-		FriendRequest: friendRequest,
-	})
 
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) CREATE FRIEND REQUEST OK\n", session)
@@ -630,13 +596,6 @@ func onConfirmFriendRequest(request *proto.AyiPacket, message proto.Message, ses
 		// Send OK to user
 		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 		log.Printf("< (%v) CONFIRM FRIEND REQUEST OK (accepted)\n", session)
-
-		// Send Friend List to both users if connected
-		// TODO: In this case, FRIENDS_LIST is sent as a notification. Because of this,
-		// it should be only a subset of all friends in server.
-		server.task_executor.Submit(&SendUserFriends{UserId: currentUser.Id()})
-		server.task_executor.Submit(&SendUserFriends{UserId: friend.Id()})
-		//task.sendGcmNotification(friendUser.Id, friendUser.IIDtoken, task.TargetUser)
 
 	} else if msg.Response == proto.ConfirmFriendRequest_CANCEL {
 

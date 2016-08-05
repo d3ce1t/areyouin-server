@@ -4,6 +4,7 @@ import (
 	"peeple/areyouin/api"
 	"peeple/areyouin/idgen"
 	"peeple/areyouin/utils"
+	"strings"
 	"time"
 )
 
@@ -107,6 +108,33 @@ func (e *Event) StartDate() int64 {
 
 func (e *Event) EndDate() int64 {
 	return e.endDate
+}
+
+func (e *Event) Title() string {
+
+	var str string
+
+	pos := strings.Index(e.description, "\n")
+	if pos != -1 {
+		str = e.description[0:pos]
+	} else {
+		str = e.description
+	}
+
+	fields := strings.Fields(str)
+	title := fields[0]
+
+	i := 1
+	for i < utils.MinInt(5, len(fields)) {
+		title += " " + fields[i]
+		i++
+	}
+
+	if i < len(fields) {
+		title += "..."
+	}
+
+	return title
 }
 
 func (e *Event) Description() string {

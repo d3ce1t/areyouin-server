@@ -149,7 +149,14 @@ func HashPasswordWithSalt(password string, salt [32]byte) [32]byte {
 	return sha256.Sum256(data)
 }
 
-func MinUint32(a, b uint32) uint32 {
+func MinInt(a, b int) int {
+	if a <= b {
+		return a
+	}
+	return b
+}
+
+func MinUint(a, b uint) uint {
 	if a <= b {
 		return a
 	}

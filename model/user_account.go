@@ -166,7 +166,7 @@ func (u *UserAccount) HasFacebook() bool {
 
 func (u *UserAccount) AsParticipant() *Participant {
 	return NewParticipant(u.id, u.name, api.AttendanceResponse_NO_RESPONSE,
-		api.InvitationStatus_NO_DELIVERED)
+		api.InvitationStatus_SERVER_DELIVERED)
 }
 
 func (u *UserAccount) AsFriend() *Friend {
@@ -257,7 +257,9 @@ type FBCredential struct {
 type IIDToken struct {
 	token string
 	// Protocol Version stored when IIDtoken was received
-	version int
+	version  int
+	lang     int
+	platform string
 }
 
 func NewIIDToken(token string, version int) *IIDToken {
@@ -277,6 +279,14 @@ func (t *IIDToken) Token() string {
 
 func (t *IIDToken) Version() int {
 	return t.version
+}
+
+func (t *IIDToken) Platform() string {
+	return t.platform
+}
+
+func (t *IIDToken) Lang() int {
+	return t.lang
 }
 
 func (t IIDToken) AsDTO() *api.IIDTokenDTO {

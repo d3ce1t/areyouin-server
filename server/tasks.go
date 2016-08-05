@@ -6,14 +6,6 @@ import (
 	"peeple/areyouin/model"
 )
 
-type NotifyDatasetChanged struct {
-	Users []int64
-}
-
-func (t *NotifyDatasetChanged) Run(ex *TaskExecutor) {
-
-}
-
 type ImportFacebookFriends struct {
 	TargetUser *model.UserAccount
 	Fbtoken    string // Facebook User Access token
@@ -33,13 +25,8 @@ func (task *ImportFacebookFriends) Run(ex *TaskExecutor) {
 
 	// Loop through added friends in order to notify them
 	for _, newFriend := range addedFriends {
-
 		// Send friends to existing user
 		ex.Submit(&SendUserFriends{UserId: newFriend.Id()})
-
-		// Send new friends notification
-		token := newFriend.PushToken()
-		sendGcmDataAvailableNotification(newFriend.Id(), &token, GCM_MAX_TTL)
 	}
 
 	if len(addedFriends) > 0 {
