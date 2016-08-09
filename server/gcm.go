@@ -118,7 +118,7 @@ func sendNewFriendNotification(friendName string, userID int64) {
 	}
 }
 
-func sendNotification(userID int64, token string, notification gcm.Notification) {
+func sendNotification(userID int64, token string, notification *gcm.Notification) {
 
 	message := gcm.HttpMessage{
 		To:           token,
@@ -129,13 +129,13 @@ func sendNotification(userID int64, token string, notification gcm.Notification)
 	sendGcmMessage(userID, message)
 }
 
-func sendNotificationWithTTL(userID int64, token string, notification gcm.Notification, ttl uint) {
+func sendNotificationWithTTL(userID int64, token string, notification *gcm.Notification, ttl uint) {
 
 	gcmTTL := utils.MinUint(ttl, GcmMaxTTL) // Seconds
 
 	message := gcm.HttpMessage{
 		To:           token,
-		TimeToLive:   gcmTTL,
+		TimeToLive:   &gcmTTL,
 		Priority:     "high",
 		Notification: notification,
 	}
@@ -154,7 +154,7 @@ func sendToSync(userID int64, token string, ttl uint) {
 
 	message := gcm.HttpMessage{
 		To:               token,
-		TimeToLive:       gcmTTL,
+		TimeToLive:       &gcmTTL,
 		Priority:         "high",
 		CollapseKey:      "send-to-sync",
 		ContentAvailable: true, // For iOS

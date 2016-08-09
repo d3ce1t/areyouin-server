@@ -8,11 +8,11 @@ import (
 	gcm "github.com/google/go-gcm"
 )
 
-func createNewEventNotification(event *model.Event) gcm.Notification {
+func createNewEventNotification(event *model.Event) *gcm.Notification {
 
 	bodyArgs, _ := json.Marshal([]string{event.AuthorName()})
 
-	notification := gcm.Notification{
+	notification := &gcm.Notification{
 		TitleLocKey: "notification.event.new.title",
 		BodyLocKey:  "notification.event.new.body",
 		BodyLocArgs: string(bodyArgs),
@@ -24,12 +24,12 @@ func createNewEventNotification(event *model.Event) gcm.Notification {
 	return notification
 }
 
-func createEventCancelledNotification(event *model.Event) gcm.Notification {
+func createEventCancelledNotification(event *model.Event) *gcm.Notification {
 
 	titleArgs, _ := json.Marshal([]string{event.Title()})
 	bodyArgs, _ := json.Marshal([]string{event.AuthorName()})
 
-	notification := gcm.Notification{
+	notification := &gcm.Notification{
 		TitleLocKey:  "notification.event.cancelled.title",
 		TitleLocArgs: string(titleArgs),
 		BodyLocKey:   "notification.event.cancelled.body",
@@ -42,7 +42,7 @@ func createEventCancelledNotification(event *model.Event) gcm.Notification {
 	return notification
 }
 
-func createEventResponseNotification(event *model.Event, participantID int64) gcm.Notification {
+func createEventResponseNotification(event *model.Event, participantID int64) *gcm.Notification {
 
 	participant := event.GetParticipant(participantID)
 	titleArgs, _ := json.Marshal([]string{event.Title()})
@@ -62,7 +62,7 @@ func createEventResponseNotification(event *model.Event, participantID int64) gc
 		bodyKey = "notification.event.response.no_assist.body"
 	}
 
-	notification := gcm.Notification{
+	notification := &gcm.Notification{
 		TitleLocKey:  titleKey,
 		TitleLocArgs: string(titleArgs),
 		BodyLocKey:   bodyKey,
@@ -75,11 +75,11 @@ func createEventResponseNotification(event *model.Event, participantID int64) gc
 	return notification
 }
 
-func createFriendRequestdNotification(friendName string) gcm.Notification {
+func createFriendRequestdNotification(friendName string) *gcm.Notification {
 
 	bodyArgs, _ := json.Marshal([]string{friendName})
 
-	notification := gcm.Notification{
+	notification := &gcm.Notification{
 		TitleLocKey: "notification.friend_request.new.title",
 		BodyLocKey:  "notification.friend_request.new.body",
 		BodyLocArgs: string(bodyArgs),
@@ -91,11 +91,11 @@ func createFriendRequestdNotification(friendName string) gcm.Notification {
 	return notification
 }
 
-func createNewFriendNotification(friendName string) gcm.Notification {
+func createNewFriendNotification(friendName string) *gcm.Notification {
 
 	bodyArgs, _ := json.Marshal([]string{friendName})
 
-	notification := gcm.Notification{
+	notification := &gcm.Notification{
 		TitleLocKey: "notification.friend.new.title",
 		BodyLocKey:  "notification.friend.new.body",
 		BodyLocArgs: string(bodyArgs),
