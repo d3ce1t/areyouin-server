@@ -533,7 +533,9 @@ func (self *EventManager) GetEventsHistory(userId int64, start int64, end int64)
 	}
 
 	eventsDto, err := self.eventDAO.LoadEventsHistoryFromUser(userId, start, end)
-	if err != nil {
+	if err == api.ErrNoResults {
+		return nil, ErrEmptyInbox
+	} else if err != nil {
 		return nil, err
 	}
 

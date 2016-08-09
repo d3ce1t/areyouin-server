@@ -166,7 +166,7 @@ func onIIDTokenReceived(request *proto.AyiPacket, message proto.Message, session
 
 	checkAuthenticated(session)
 
-	iidToken := model.NewIIDToken(msg.Token, int(session.ProtocolVersion))
+	iidToken := model.NewIIDToken(msg.Token, int(session.ProtocolVersion), session.Platform)
 	if err := server.Model.Accounts.SetPushToken(session.UserId, iidToken); err != nil {
 		reply := session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
 		log.Printf("< (%v) IID TOKEN ERROR: %v\n", session, err)
@@ -476,10 +476,15 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 	// Update delivery status
 	for _, event := range events {
 		// TODO: I should receive an ACK before try to change state.
-		_, err := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
-		if err != nil {
-			log.Printf("< (%v) SEND PRIVATE EVENTS ERROR: %v)", session, err)
+		if participant := event.GetParticipant(session.UserId); participant != nil {
+			if participant.InvitationStatus() != api.InvitationStatus_CLIENT_DELIVERED {
+				_, err := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
+				if err != nil {
+					log.Printf("< (%v) SEND PRIVATE EVENTS ERROR (eventID: %v): %v)", session, event.Id(), err)
+				}
+			}
 		}
+
 	}
 }
 

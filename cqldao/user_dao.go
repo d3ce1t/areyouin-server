@@ -160,12 +160,12 @@ func (d *UserDAO) LoadIIDToken(userId int64) (*api.IIDTokenDTO, error) {
 		return nil, api.ErrNotFound
 	}
 
-	stmt := `SELECT iid_token, network_version FROM user_account WHERE user_id = ?`
+	stmt := `SELECT iid_token, network_version, platform FROM user_account WHERE user_id = ?`
 	q := d.session.Query(stmt, userId)
 
 	iidToken := new(api.IIDTokenDTO)
 
-	if err := q.Scan(&iidToken.Token, &iidToken.Version); err != nil {
+	if err := q.Scan(&iidToken.Token, &iidToken.Version, &iidToken.Platform); err != nil {
 		return nil, convErr(err)
 	}
 
@@ -345,9 +345,9 @@ func (d *UserDAO) SetIIDToken(userID int64, iidToken *api.IIDTokenDTO) error {
 		return api.ErrInvalidArg
 	}
 
-	stmt := `UPDATE user_account SET iid_token = ?, network_version = ?
+	stmt := `UPDATE user_account SET iid_token = ?, network_version = ?, platform = ?
 						WHERE user_id = ?`
-	err := d.session.Query(stmt, iidToken.Token, iidToken.Version, userID).Exec()
+	err := d.session.Query(stmt, iidToken.Token, iidToken.Version, iidToken.Platform, userID).Exec()
 	return convErr(err)
 }
 

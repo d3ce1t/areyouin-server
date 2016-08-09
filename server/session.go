@@ -17,6 +17,10 @@ const (
 	PING_INTERVAL_MS       = 19 * time.Minute
 	PING_RETRY_INTERVAL_MS = 1 * time.Minute
 	TICKER_INTERVAL        = 10 * time.Minute
+
+	// Platforms
+	PLATFORM_IOS     = "iOS"
+	PLATFORM_ANDROID = "Android"
 )
 
 type WriteMsg struct {

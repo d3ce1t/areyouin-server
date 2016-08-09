@@ -15,7 +15,7 @@ func listUsers(shell *Shell, args []string) {
 	manageShellError(err)
 
 	fmt.Fprintln(shell, rp("-", 105))
-	fmt.Fprintf(shell, "| S | %-17s | %-15s | %-40s | %-16s |\n", "Id", "Name", "Email", "Last connection")
+	fmt.Fprintf(shell, "| S | %-20s | %-15s | %-40s | %-16s |\n", "Id", "Name", "Email", "Last connection")
 	fmt.Fprintln(shell, rp("-", 105))
 
 	for _, user := range users {
@@ -26,7 +26,7 @@ func listUsers(shell *Shell, args []string) {
 			status_info = "E"
 		}
 
-		fmt.Fprintf(shell, "| %v | %-17v | %-15v | %-40v | %-16v |\n",
+		fmt.Fprintf(shell, "| %v | %-20v | %-15v | %-40v | %-16v |\n",
 			status_info, ff(user.Id, 17), ff(user.Name, 15), ff(user.Email, 40), ff(utils.UnixMillisToTime(user.LastConn), 16))
 	}
 	fmt.Fprintln(shell, rp("-", 105))

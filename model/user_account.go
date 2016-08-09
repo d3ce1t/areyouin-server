@@ -258,18 +258,21 @@ type IIDToken struct {
 	token string
 	// Protocol Version stored when IIDtoken was received
 	version  int
-	lang     int
 	platform string
 }
 
-func NewIIDToken(token string, version int) *IIDToken {
-	return &IIDToken{token: token, version: version}
+func NewIIDToken(token string, version int, platform string) *IIDToken {
+	return &IIDToken{
+		token:    token,
+		version:  version,
+		platform: platform}
 }
 
 func newIIDTokenFromDTO(dto *api.IIDTokenDTO) *IIDToken {
 	return &IIDToken{
-		token:   dto.Token,
-		version: dto.Version,
+		token:    dto.Token,
+		version:  dto.Version,
+		platform: dto.Platform,
 	}
 }
 
@@ -285,13 +288,10 @@ func (t *IIDToken) Platform() string {
 	return t.platform
 }
 
-func (t *IIDToken) Lang() int {
-	return t.lang
-}
-
 func (t IIDToken) AsDTO() *api.IIDTokenDTO {
 	return &api.IIDTokenDTO{
-		Token:   t.token,
-		Version: t.version,
+		Token:    t.token,
+		Version:  t.version,
+		Platform: t.platform,
 	}
 }

@@ -19,7 +19,7 @@ func (d *UserDAO) Int_LoadAllUserAccount() ([]*api.UserDTO, error) {
 	checkSession(d.session)
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, network_version, last_connection, created_date, picture_digest
+						iid_token, network_version, platform, last_connection, created_date, picture_digest
 						FROM user_account LIMIT 2000`
 
 	iter := d.session.Query(stmt).Iter()
@@ -32,8 +32,8 @@ func (d *UserDAO) Int_LoadAllUserAccount() ([]*api.UserDTO, error) {
 	var dto api.UserDTO
 
 	for iter.Scan(&dto.Id, &dto.AuthToken, &dto.Email, &dto.EmailVerified, &dto.Name,
-		&dto.FbId, &dto.FbToken, &dto.IidToken.Token, &dto.IidToken.Version, &dto.LastConn,
-		&dto.CreatedDate, &dto.PictureDigest) {
+		&dto.FbId, &dto.FbToken, &dto.IidToken.Token, &dto.IidToken.Version, &dto.IidToken.Platform,
+		&dto.LastConn, &dto.CreatedDate, &dto.PictureDigest) {
 
 		userDTO := new(api.UserDTO)
 		*userDTO = dto
@@ -104,7 +104,7 @@ func (d *UserDAO) Int_LoadUserAccount(userId int64) (*api.UserDTO, error) {
 	}
 
 	stmt := `SELECT user_id, auth_token, email, email_verified, name, fb_id, fb_token,
-						iid_token, network_version, last_connection, created_date, picture_digest
+						iid_token, network_version, platform, last_connection, created_date, picture_digest
 						FROM user_account
 						WHERE user_id = ? LIMIT 1`
 
@@ -113,7 +113,7 @@ func (d *UserDAO) Int_LoadUserAccount(userId int64) (*api.UserDTO, error) {
 	dto := new(api.UserDTO)
 
 	err := q.Scan(&dto.Id, &dto.AuthToken, &dto.Email, &dto.EmailVerified, &dto.Name,
-		&dto.FbId, &dto.FbToken, &dto.IidToken.Token, &dto.IidToken.Version, &dto.LastConn,
+		&dto.FbId, &dto.FbToken, &dto.IidToken.Token, &dto.IidToken.Version, &dto.IidToken.Platform, &dto.LastConn,
 		&dto.CreatedDate, &dto.PictureDigest)
 
 	if err != nil {

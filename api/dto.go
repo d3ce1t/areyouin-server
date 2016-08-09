@@ -68,8 +68,9 @@ type FriendRequestDTO struct {
 }
 
 type IIDTokenDTO struct {
-	Token   string
-	Version int
+	Token    string
+	Version  int
+	Platform string
 }
 
 type PictureDTO struct {

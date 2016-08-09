@@ -6,7 +6,7 @@ import (
 
 var (
 	ErrNotFound              = errors.New("not found")
-	ErrNoResults             = errors.New("user inbox is empty")
+	ErrNoResults             = errors.New("no results found")
 	ErrInvalidArg            = errors.New("invalid arguments")
 	ErrInvalidEmail          = errors.New("invalid e-mail")
 	ErrEmailAlreadyExists    = errors.New("e-mail already exists")

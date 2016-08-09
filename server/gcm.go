@@ -31,12 +31,14 @@ func sendNewEventNotification(event *model.Event, userID int64) {
 
 	ttlSeconds := uint((event.StartDate() - utils.GetCurrentTimeMillis()) / 1000)
 
-	if token.Platform() == "Android" {
-		sendToSync(userID, token, ttlSeconds)
+	if token.Version() <= 2 {
+		sendToSync(userID, token.Token(), ttlSeconds)
 	} else {
-		notification := createNewEventNotification(event, i18nLang(token.Lang()))
-		notification.ttl = ttlSeconds
-		sendNotification(userID, token.Token(), notification)
+		notification := createNewEventNotification(event)
+		sendNotificationWithTTL(userID, token.Token(), notification, ttlSeconds)
+		if token.Platform() == PLATFORM_ANDROID {
+			sendToSync(userID, token.Token(), ttlSeconds)
+		}
 	}
 }
 
@@ -52,12 +54,11 @@ func sendEventCancelledNotification(event *model.Event, userID int64) {
 
 	ttlSeconds := uint((event.EndDate() - utils.GetCurrentTimeMillis()) / 1000)
 
-	if token.Platform() == "Android" {
-		sendToSync(userID, token, ttlSeconds)
+	if token.Version() <= 2 {
+		sendToSync(userID, token.Token(), ttlSeconds)
 	} else {
-		notification := createEventCancelledNotification(event, i18nLang(token.Lang()))
-		notification.ttl = ttlSeconds
-		sendNotification(userID, token.Token(), notification)
+		notification := createEventCancelledNotification(event)
+		sendNotificationWithTTL(userID, token.Token(), notification, ttlSeconds)
 	}
 }
 
@@ -73,12 +74,11 @@ func sendEventResponseNotification(event *model.Event, participantID int64, user
 
 	ttlSeconds := uint((event.EndDate() - utils.GetCurrentTimeMillis()) / 1000)
 
-	if token.Platform() == "Android" {
-		sendToSync(userID, token, ttlSeconds)
+	if token.Version() <= 2 {
+		sendToSync(userID, token.Token(), ttlSeconds)
 	} else {
-		notification := createEventResponseNotification(event, participantID, i18nLang(token.Lang()))
-		notification.ttl = ttlSeconds
-		sendNotification(userID, token.Token(), notification)
+		notification := createEventResponseNotification(event, participantID)
+		sendNotificationWithTTL(userID, token.Token(), notification, ttlSeconds)
 	}
 }
 
@@ -92,11 +92,10 @@ func sendFriendRequestNotification(friendName string, userID int64) {
 		return
 	}
 
-	if token.Platform() == "Android" {
-		sendToSync(userID, token, GcmMaxTTL)
+	if token.Version() <= 2 {
+		sendToSync(userID, token.Token(), GcmMaxTTL)
 	} else {
-		notification := createFriendRequestdNotification(friendName, i18nLang(token.Lang()))
-		notification.ttl = GcmMaxTTL
+		notification := createFriendRequestdNotification(friendName)
 		sendNotification(userID, token.Token(), notification)
 	}
 }
@@ -111,44 +110,50 @@ func sendNewFriendNotification(friendName string, userID int64) {
 		return
 	}
 
-	if token.Platform() == "Android" {
-		sendToSync(userID, token, GcmMaxTTL)
+	if token.Version() <= 2 {
+		sendToSync(userID, token.Token(), GcmMaxTTL)
 	} else {
-		notification := createNewFriendNotification(friendName, i18nLang(token.Lang()))
-		notification.ttl = GcmMaxTTL
+		notification := createNewFriendNotification(friendName)
 		sendNotification(userID, token.Token(), notification)
 	}
 }
 
-func sendNotification(userID int64, token string, notification *Notification) {
+func sendNotification(userID int64, token string, notification gcm.Notification) {
 
 	message := gcm.HttpMessage{
-		To:         token,
-		TimeToLive: notification.ttl,
-		Priority:   "high",
-		Notification: gcm.Notification{
-			Title: notification.title,
-			Body:  notification.body,
-			Icon:  "icon_notification_25dp", // Android only (drawable name)
-			Sound: "default",
-			Color: "#009688", // Android only
-		},
+		To:           token,
+		Priority:     "high",
+		Notification: notification,
+	}
+
+	sendGcmMessage(userID, message)
+}
+
+func sendNotificationWithTTL(userID int64, token string, notification gcm.Notification, ttl uint) {
+
+	gcmTTL := utils.MinUint(ttl, GcmMaxTTL) // Seconds
+
+	message := gcm.HttpMessage{
+		To:           token,
+		TimeToLive:   gcmTTL,
+		Priority:     "high",
+		Notification: notification,
 	}
 
 	sendGcmMessage(userID, message)
 }
 
 // Send-to-Sync PUSH Message
-func sendToSync(userID int64, token *model.IIDToken, ttl uint) {
+func sendToSync(userID int64, token string, ttl uint) {
 
-	if token == nil || token.Token() == "" {
+	if token == "" {
 		return
 	}
 
 	gcmTTL := utils.MinUint(ttl, GcmMaxTTL) // Seconds
 
 	message := gcm.HttpMessage{
-		To:               token.Token(),
+		To:               token,
 		TimeToLive:       gcmTTL,
 		Priority:         "high",
 		CollapseKey:      "send-to-sync",

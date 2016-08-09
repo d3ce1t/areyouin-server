@@ -1,6 +1,6 @@
 package main
 
-type i18nKey int
+/*type i18nKey int
 
 // i18n string keys
 const (
@@ -82,3 +82,4 @@ var (
 func T(lang i18nLang, key i18nKey) string {
 	return language[lang][key]
 }
+*/

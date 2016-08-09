@@ -1,75 +1,108 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"peeple/areyouin/api"
 	"peeple/areyouin/model"
+
+	gcm "github.com/google/go-gcm"
 )
 
-type Notification struct {
-	title string
-	body  string
-	ttl   uint
-}
+func createNewEventNotification(event *model.Event) gcm.Notification {
 
-func createNewEventNotification(event *model.Event, lang i18nLang) *Notification {
+	bodyArgs, _ := json.Marshal([]string{event.AuthorName()})
 
-	notification := &Notification{
-		title: T(lang, NotificationNewEventTitle),
-		body:  fmt.Sprintf(T(lang, NotificationNewEventBody), event.AuthorName()),
+	notification := gcm.Notification{
+		TitleLocKey: "notification.event.new.title",
+		BodyLocKey:  "notification.event.new.body",
+		BodyLocArgs: string(bodyArgs),
+		Icon:        "icon_notification_25dp", // Android only (drawable name)
+		Sound:       "default",
+		Color:       "#009688", // Android only
 	}
 
 	return notification
 }
 
-func createEventCancelledNotification(event *model.Event, lang i18nLang) *Notification {
+func createEventCancelledNotification(event *model.Event) gcm.Notification {
 
-	notification := &Notification{
-		title: fmt.Sprintf(T(lang, NotificationEventCancelledTitle), event.Title()),
-		body:  fmt.Sprintf(T(lang, NotificationEventCancelledBody), event.AuthorName()),
+	titleArgs, _ := json.Marshal([]string{event.Title()})
+	bodyArgs, _ := json.Marshal([]string{event.AuthorName()})
+
+	notification := gcm.Notification{
+		TitleLocKey:  "notification.event.cancelled.title",
+		TitleLocArgs: string(titleArgs),
+		BodyLocKey:   "notification.event.cancelled.body",
+		BodyLocArgs:  string(bodyArgs),
+		Icon:         "icon_notification_25dp", // Android only (drawable name)
+		Sound:        "default",
+		Color:        "#009688", // Android only
 	}
 
 	return notification
 }
 
-func createEventResponseNotification(event *model.Event, participantID int64, lang i18nLang) *Notification {
+func createEventResponseNotification(event *model.Event, participantID int64) gcm.Notification {
 
 	participant := event.GetParticipant(participantID)
+	titleArgs, _ := json.Marshal([]string{event.Title()})
+	bodyArgs, _ := json.Marshal([]string{participant.Name()})
 
-	var title, body string
+	var titleKey, bodyKey string
 
 	switch participant.Response() {
 	case api.AttendanceResponse_ASSIST:
-		title = T(lang, NotificationEventResponseAssistTitle)
-		body = T(lang, NotificationEventResponseAssistBody)
+		titleKey = "notification.event.response.assist.title"
+		bodyKey = "notification.event.response.assist.body"
 	case api.AttendanceResponse_MAYBE:
-		title = T(lang, NotificationEventResponseMaybeTitle)
-		body = T(lang, NotificationEventResponseMaybeBody)
+		titleKey = "notification.event.response.maybe.title"
+		bodyKey = "notification.event.response.maybe.body"
 	case api.AttendanceResponse_NO_ASSIST:
-		title = T(lang, NotificationEventResponseNoAssistTitle)
-		body = T(lang, NotificationEventResponseNoAssistBody)
+		titleKey = "notification.event.response.no_assist.title"
+		bodyKey = "notification.event.response.no_assist.body"
 	}
 
-	notification := &Notification{
-		title: fmt.Sprintf(title, event.Title()),
-		body:  fmt.Sprintf(body, participant.Name()),
+	notification := gcm.Notification{
+		TitleLocKey:  titleKey,
+		TitleLocArgs: string(titleArgs),
+		BodyLocKey:   bodyKey,
+		BodyLocArgs:  string(bodyArgs),
+		Icon:         "icon_notification_25dp", // Android only (drawable name)
+		Sound:        "default",
+		Color:        "#009688", // Android only
 	}
 
 	return notification
 }
 
-func createFriendRequestdNotification(friendName string, lang i18nLang) *Notification {
-	notification := &Notification{
-		title: T(lang, NotificationNewFriendRequestTitle),
-		body:  fmt.Sprintf(T(lang, NotificationNewFriendRequestBody), friendName),
+func createFriendRequestdNotification(friendName string) gcm.Notification {
+
+	bodyArgs, _ := json.Marshal([]string{friendName})
+
+	notification := gcm.Notification{
+		TitleLocKey: "notification.friend_request.new.title",
+		BodyLocKey:  "notification.friend_request.new.body",
+		BodyLocArgs: string(bodyArgs),
+		Icon:        "icon_notification_25dp", // Android only (drawable name)
+		Sound:       "default",
+		Color:       "#009688", // Android only
 	}
+
 	return notification
 }
 
-func createNewFriendNotification(friendName string, lang i18nLang) *Notification {
-	notification := &Notification{
-		title: T(lang, NotificationNewFriendTitle),
-		body:  fmt.Sprintf(T(lang, NotificationNewFriendBody), friendName),
+func createNewFriendNotification(friendName string) gcm.Notification {
+
+	bodyArgs, _ := json.Marshal([]string{friendName})
+
+	notification := gcm.Notification{
+		TitleLocKey: "notification.friend.new.title",
+		BodyLocKey:  "notification.friend.new.body",
+		BodyLocArgs: string(bodyArgs),
+		Icon:        "icon_notification_25dp", // Android only (drawable name)
+		Sound:       "default",
+		Color:       "#009688", // Android only
 	}
+
 	return notification
 }

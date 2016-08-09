@@ -45,6 +45,7 @@ CREATE TABLE user_account (
 	fb_token text,
 	iid_token text,
 	network_version int,
+	platform text,
 	last_connection timestamp,
 	created_date timestamp,
 	profile_picture blob,
