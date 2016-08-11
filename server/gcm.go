@@ -34,9 +34,21 @@ func sendNewEventNotification(event *model.Event, userID int64) {
 	if token.Version() <= 2 {
 		sendToSync(userID, token.Token(), ttlSeconds)
 	} else {
-		notification := createNewEventNotification(event)
-		sendNotificationWithTTL(userID, token.Token(), notification, ttlSeconds)
+
+		// Send notification
+		gcmTTL := utils.MinUint(ttlSeconds, GcmMaxTTL) // ttlSeconds
+
+		sendGcmMessage(userID, gcm.HttpMessage{
+			To:               token.Token(),
+			TimeToLive:       &gcmTTL,
+			Priority:         "high",
+			Notification:     createNewEventNotification(event),
+			ContentAvailable: true, // For iOS
+		})
+
 		if token.Platform() == PLATFORM_ANDROID {
+			// Android push composed of notification + data isn't received directly by
+			// app. So send a second push with send-to-sync data.
 			sendToSync(userID, token.Token(), ttlSeconds)
 		}
 	}
