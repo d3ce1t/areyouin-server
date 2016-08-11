@@ -5,7 +5,6 @@ import (
 	"log"
 	"peeple/areyouin/api"
 	"peeple/areyouin/model"
-	"peeple/areyouin/protocol/core"
 	"peeple/areyouin/utils"
 	"time"
 
@@ -142,20 +141,24 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 	// Send invitation to new participants
 	for _, pID := range newParticipants {
 
+		if pID == event.AuthorId() {
+			continue
+		}
+
 		go func(participantID int64) {
 
 			// NOTE: May panic (call m.model.Events.ChangeDeliveryState)
 
-			session := m.server.getSession(participantID)
-			if session == nil {
-				// Notification
-				if participantID != event.AuthorId() {
-					sendNewEventNotification(event, participantID)
-				}
-				return
-			}
+			//session := m.server.getSession(participantID)
+			//if session == nil {
+			// Notification
+			//if participantID != event.AuthorId() {
+			sendNewEventNotification(event, participantID)
+			//}
+			//return
+			//}
 
-			coreEvent := convEvent2Net(event)
+			/*coreEvent := convEvent2Net(event)
 			coreEvent.Participants[session.UserId].Delivered = core.InvitationStatus_CLIENT_DELIVERED
 			message := session.NewMessage().InvitationReceived(coreEvent)
 			future := NewFuture(true)
@@ -173,7 +176,7 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 			} else if participantID != event.AuthorId() {
 				// Notification
 				sendNewEventNotification(event, participantID)
-			}
+			}*/
 		}(pID)
 	}
 
