@@ -311,8 +311,8 @@ func (m *FriendManager) ConfirmFriendRequest(fromUser *UserAccount, toUser *User
 	return m.friendRequestDAO.Exist(fromUser, toUser)
 }*/
 
-// Adds friends groups to user 'userId'
-func (m *FriendManager) SyncGroups(userID int64, groups []*Group) error {
+// Adds friends groups to user 'userId'. If a group already exists it is updated.
+func (m *FriendManager) AddGroups(userID int64, groups []*Group) error {
 
 	// Load server groups
 	// TODO: All groups are always loaded. However, a subset could be loaded when sync
@@ -325,25 +325,24 @@ func (m *FriendManager) SyncGroups(userID int64, groups []*Group) error {
 	// Slice of GroupDTO to Slice of Group
 	serverGroups := newGroupListFromDTO(serverGroupsDTO)
 
-	// Sync
-	m.syncFriendGroups(userID, serverGroups, groups)
+	// Add
+	m.addFriendGroups(userID, serverGroups, groups)
 
 	return nil
 }
 
-// Sync server-side groups with client-side groups. If groups provided by the client
-// contains all of the groups, then a full sync is required, i.e. server-side groups
-// that does not exist client side are removed. Otherwise, if provided groups are only
-// a subset, a merge of client and server data is performed. Conversely to full sync,
-// merging process does not remove existing groups from the server but add new groups
-// and modify existing ones. Regarding full sync, it is assumed that clientGroups
-// contains all of the groups in client. Hence, if a group doesn't exist in client,
-// it will be removed from server. Like a regular sync, new groups in client will be
-// added to server. In whatever case, if a group already exists server-side, it will
-// be updated with members from client-side group, removing those members that does not
-// exist in client's group (client is master). In other words, groups at server will be
-// equal to groups at client at the end of the synchronisation process.
-func (m *FriendManager) syncFriendGroups(userID int64, serverGroups []*Group,
+// Remove group
+func (m *FriendManager) DeleteGroup(userID int64, groupID int32) error {
+	return m.friendDAO.DeleteGroup(userID, groupID)
+}
+
+// Rename group
+func (m *FriendManager) RenameGroup(userID int64, groupID int32, newName string) error {
+	return m.friendDAO.SetGroupName(userID, groupID, newName)
+}
+
+// Add groups. If a client group already exists in server it is updated.
+func (m *FriendManager) addFriendGroups(userID int64, serverGroups []*Group,
 	clientGroups []*Group) error {
 
 	// Index groups
@@ -358,44 +357,16 @@ func (m *FriendManager) syncFriendGroups(userID int64, serverGroups []*Group,
 
 		if clientGroup, ok := clientGroupsIndex[group.id]; ok {
 
-			// Group exists.
+			// Group exists. Update.
 
-			if clientGroup.size == -1 && len(clientGroup.members) == 0 {
-
-				// Special case
-
-				if clientGroup.name == "" {
-
-					// Group is marked for removal. So remove it from server
-
-					err := m.friendDAO.DeleteGroup(userID, group.id)
-					if err != nil {
-						return err
-					}
-
-				} else if group.name != clientGroup.name {
-
-					// Only Rename group
-
-					err := m.friendDAO.SetGroupName(userID, group.id, clientGroup.name)
-					if err != nil {
-						return err
-					}
+			if group.name != clientGroup.name {
+				err := m.friendDAO.SetGroupName(userID, group.id, clientGroup.name)
+				if err != nil {
+					return err
 				}
-
-			} else {
-
-				// Update case
-
-				if group.name != clientGroup.name {
-					err := m.friendDAO.SetGroupName(userID, group.id, clientGroup.name)
-					if err != nil {
-						return err
-					}
-				}
-
-				m.syncGroupMembers(userID, group.id, group.members, clientGroup.members)
 			}
+
+			m.syncGroupMembers(userID, group.id, group.members, clientGroup.members)
 
 			// Delete also from copy because it has been processed
 			delete(clientGroupsIndex, group.id)

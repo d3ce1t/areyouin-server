@@ -228,17 +228,31 @@ func onSyncGroups(request *proto.AyiPacket, message proto.Message, session *AyiS
 	builder := model.NewGroupBuilder()
 
 	for _, g := range msg.Groups {
-		builder.SetId(g.Id)
-		builder.SetName(g.Name)
-		for _, friendID := range g.Members {
-			builder.AddMember(friendID)
+		if g.Size == -1 && len(g.Members) == 0 {
+			// Special case
+			if g.Name == "" {
+				// Group is marked for removal. So remove it from server
+				server.Model.Friends.DeleteGroup(session.UserId, g.Id)
+			} else {
+				// Only Rename group
+				server.Model.Friends.RenameGroup(session.UserId, g.Id, g.Name)
+			}
+		} else {
+			// Update case
+			builder.SetId(g.Id)
+			builder.SetName(g.Name)
+			for _, friendID := range g.Members {
+				builder.AddMember(friendID)
+			}
+			clientGroups = append(clientGroups, builder.Build())
 		}
-		clientGroups = append(clientGroups, builder.Build())
 	}
 
 	// Add groups
-	err := server.Model.Friends.SyncGroups(session.UserId, clientGroups)
-	checkNoErrorOrPanic(err)
+	if len(clientGroups) > 0 {
+		err := server.Model.Friends.AddGroups(session.UserId, clientGroups)
+		checkNoErrorOrPanic(err)
+	}
 
 	// Write response back
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
@@ -370,6 +384,11 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	// NotifyEventCancelled task
 	log.Printf("< (%v) CANCEL EVENT OK\n", session)
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
+
+	// Send event changed
+	liteEvent := event.CloneEmptyParticipants()
+	session.Write(session.NewMessage().EventCancelled(session.UserId, convEvent2Net(liteEvent)))
+	log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, event.Id())
 }
 
 func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -471,7 +490,16 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 
 	// Send event list to user
 	log.Printf("< (%v) SEND PRIVATE EVENTS (num.events: %v)", session, len(events))
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(convEventList2Net(events)))
+
+	// Delivered to own participant
+	eventList := convEventList2Net(events)
+	for _, event := range eventList {
+		if participant, ok := event.Participants[session.UserId]; ok {
+			participant.Delivered = core.InvitationStatus_CLIENT_DELIVERED
+		}
+	}
+
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventsList(eventList))
 
 	// Update delivery status
 	for _, event := range events {
@@ -484,7 +512,6 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 				}
 			}
 		}
-
 	}
 }
 
