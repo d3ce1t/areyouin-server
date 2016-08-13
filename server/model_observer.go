@@ -147,36 +147,26 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 
 		go func(participantID int64) {
 
-			// NOTE: May panic (call m.model.Events.ChangeDeliveryState)
-
-			//session := m.server.getSession(participantID)
-			//if session == nil {
-			// Notification
-			//if participantID != event.AuthorId() {
 			sendNewEventNotification(event, participantID)
-			//}
-			//return
-			//}
 
-			/*coreEvent := convEvent2Net(event)
-			coreEvent.Participants[session.UserId].Delivered = core.InvitationStatus_CLIENT_DELIVERED
-			message := session.NewMessage().InvitationReceived(coreEvent)
-			future := NewFuture(true)
-			if ok := session.WriteAsync(future, message); ok {
-				// Blocks until ACK (true) or timeout (false)
-				if sent := <-future.C; sent {
-					_, err := m.model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
-					if err != nil {
-						log.Println("processNewEventSignal Err:", err)
+			/*if session := m.server.getSession(participantID); session != nil {
+				// NOTE: May panic (call m.model.Events.ChangeDeliveryState)
+				coreEvent := convEvent2Net(event)
+				coreEvent.Participants[session.UserId].Delivered = core.InvitationStatus_CLIENT_DELIVERED
+				message := session.NewMessage().InvitationReceived(coreEvent)
+				future := NewFuture(true)
+				if ok := session.WriteAsync(future, message); ok {
+					log.Printf("< (%v) EVENT INVITATION %v\n", session.UserId, event.Id())
+					// Blocks until ACK (true) or timeout (false)
+					if sent := <-future.C; sent {
+						_, err := m.model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
+						if err != nil {
+							log.Println("processNewEventSignal Err:", err)
+						}
 					}
-				} else if participantID != event.AuthorId() {
-					// Notification
-					sendNewEventNotification(event, participantID)
 				}
-			} else if participantID != event.AuthorId() {
-				// Notification
-				sendNewEventNotification(event, participantID)
 			}*/
+
 		}(pID)
 	}
 
@@ -208,6 +198,47 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 				}
 			}(session)
 		}
+	}
+}
+
+func (m *ModelObserver) processEventCancelledSignal(signal *model.Signal) {
+
+	event := signal.Data["Event"].(*model.Event)
+	cancelledBy := signal.Data["CancelledBy"].(int64)
+	//liteEvent := convEvent2Net(event.CloneEmptyParticipants())
+
+	for _, pID := range event.ParticipantIds() {
+
+		if pID == cancelledBy {
+			continue
+		}
+
+		go func(participantID int64) {
+
+			//session := m.server.getSession(participantID)
+			//if session == nil {
+			// Notification
+			sendEventCancelledNotification(event, participantID)
+			// return
+			//}
+
+			/*packet := session.NewMessage().EventCancelled(cancelledBy, liteEvent)
+			future := NewFuture(true)
+
+			if ok := session.WriteAsync(future, packet); ok {
+				// Blocks until ACK (true) or timeout (false)
+				if sent := <-future.C; sent {
+					log.Printf("< (%v) EVENT CANCELLED (event_id=%v)\n", session.UserId, event.Id())
+				} else if session.UserId != cancelledBy {
+					// Notification
+					sendEventCancelledNotification(event, participantID)
+				}
+			} else if session.UserId != cancelledBy {
+				// Notification
+				sendEventCancelledNotification(event, participantID)
+			}*/
+
+		}(pID)
 	}
 }
 
@@ -247,45 +278,6 @@ func (m *ModelObserver) processParticipantChangeSignal(signal *model.Signal) {
 	}
 }
 
-func (m *ModelObserver) processEventCancelledSignal(signal *model.Signal) {
-
-	event := signal.Data["Event"].(*model.Event)
-	cancelledBy := signal.Data["CancelledBy"].(int64)
-	liteEvent := convEvent2Net(event.CloneEmptyParticipants())
-
-	for _, pID := range event.ParticipantIds() {
-
-		go func(participantID int64) {
-
-			session := m.server.getSession(participantID)
-			if session == nil {
-				if participantID != cancelledBy {
-					// Notification
-					sendEventCancelledNotification(event, participantID)
-				}
-				return
-			}
-
-			packet := session.NewMessage().EventCancelled(cancelledBy, liteEvent)
-			future := NewFuture(true)
-
-			if ok := session.WriteAsync(future, packet); ok {
-				// Blocks until ACK (true) or timeout (false)
-				if sent := <-future.C; sent {
-					log.Printf("< (%v) EVENT CANCELLED (event_id=%v)\n", session.UserId, event.Id())
-				} else if session.UserId != cancelledBy {
-					// Notification
-					sendEventCancelledNotification(event, participantID)
-				}
-			} else if session.UserId != cancelledBy {
-				// Notification
-				sendEventCancelledNotification(event, participantID)
-			}
-
-		}(pID)
-	}
-}
-
 func (m *ModelObserver) processEventChangedSignal(signal *model.Signal) {
 
 	event := signal.Data["Event"].(*model.Event)
@@ -315,11 +307,11 @@ func (m *ModelObserver) processNewFriendRequestSignal(signal *model.Signal) {
 	toUser := signal.Data["ToUser"].(*model.UserAccount)
 	friendRequest := signal.Data["FriendRequest"].(*model.FriendRequest)
 
+	sendFriendRequestNotification(fromUser.Name(), toUser.Id())
+
 	if session := m.server.getSession(toUser.Id()); session != nil {
 		session.Write(session.NewMessage().FriendRequestReceived(convFriendRequest2Net(friendRequest)))
 		log.Printf("< (%v) SEND FRIEND REQUEST: %v\n", session, friendRequest)
-	} else {
-		sendFriendRequestNotification(fromUser.Name(), toUser.Id())
 	}
 }
 
@@ -331,10 +323,11 @@ func (m *ModelObserver) processFriendRequestAcceptedSignal(signal *model.Signal)
 	// Send Friend List to both users if connected
 	sendFriends := func(userID int64, friendName string) {
 
-		// TODO: May panic
+		sendNewFriendNotification(friendName, userID)
 
 		if session := m.server.getSession(userID); session != nil {
 
+			// TODO: May panic
 			friends, err := m.model.Friends.GetAllFriends(userID)
 			if err != nil {
 				log.Println("SendUserFriends Error:", err)
@@ -346,8 +339,6 @@ func (m *ModelObserver) processFriendRequestAcceptedSignal(signal *model.Signal)
 				log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", userID, len(friends))
 			}
 
-		} else {
-			sendNewFriendNotification(friendName, userID)
 		}
 	}
 
