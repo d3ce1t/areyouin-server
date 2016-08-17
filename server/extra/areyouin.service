@@ -5,11 +5,11 @@ Wants=cassandra.service
 
 [Service]
 Type=simple
-ExecStart=/home/jpadilla/go-workspace/src/peeple/areyouin/server/server
-#WorkingDirectory
+ExecStart=/opt/areyouin/areyouind
+WorkingDirectory=/opt/areyouin
 User=areyouin
 PrivateTmp=yes
-#InaccessibleDirectories=/home
+InaccessibleDirectories=/home
 #ReadOnlyDirectories=/var
 Restart=on-failure
 

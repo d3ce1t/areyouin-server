@@ -15,8 +15,8 @@ server="peeple/areyouin/server"
 function build_and_install {
   echo "Build $1"
   go build $1
-  echo "Install $1"
-  go install $1
+  #echo "Install $1"
+  #go install $1
 }
 
 build_and_install $idgen_pkg
