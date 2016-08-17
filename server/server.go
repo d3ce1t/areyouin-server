@@ -66,8 +66,8 @@ func (s *Server) init() {
 func (s *Server) run() {
 
 	// Start webhook
-	if !s.Config.MaintenanceMode() {
-		s.webhook = wh.New(fb.FB_APP_SECRET)
+	if !s.Config.MaintenanceMode() && s.Config.FBWebHookEnabled() {
+		s.webhook = wh.New(fb.FB_APP_SECRET, s.Config)
 		s.webhook.RegisterCallback(s.onFacebookUpdate)
 		s.webhook.Run()
 	} else {

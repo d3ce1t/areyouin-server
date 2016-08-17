@@ -66,6 +66,14 @@ func (c *Config) SSHListenPort() int {
 	return c.data.SSHListenPort
 }
 
+func (c *Config) FBWebHookEnabled() bool {
+	return c.data.FBWebHookEnabled
+}
+
+func (c *Config) FBWebHookListenPort() int {
+	return c.data.FBWebHookListenPort
+}
+
 type ConfigDTO struct {
 	MaintenanceMode     bool     `yaml:"maintenance_mode,omitempty"`
 	ShowTestModeWarning bool     `yaml:"test_mode_warning,omitempty"`
@@ -81,6 +89,8 @@ type ConfigDTO struct {
 	ImageEnableHTTPS    bool     `yaml:"image_enable_https,omitempty"`
 	SSHListenAddress    string   `yaml:"ssh_listen_address,omitempty"`
 	SSHListenPort       int      `yaml:"ssh_listen_port,omitempty"`
+	FBWebHookEnabled    bool     `yaml:"fb_webhoook_enable"`
+	FBWebHookListenPort int      `yaml:"fb_webhook_listen_port,omitempty"`
 }
 
 func loadConfigFromFile(file string) (*Config, error) {
@@ -113,6 +123,10 @@ func loadConfigFromFile(file string) (*Config, error) {
 
 	if config.data.SSHListenPort == 0 {
 		config.data.SSHListenPort = 2022
+	}
+
+	if config.data.FBWebHookListenPort == 0 {
+		config.data.FBWebHookListenPort = 40186
 	}
 
 	return config, nil

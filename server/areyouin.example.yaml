@@ -28,3 +28,7 @@ cert_key: cert/privkey.pem
 # Remote shell Settings
 ssh_listen_address: 127.0.0.1
 ssh_listen_port: 2022
+
+# Facebook Webhook
+fb_webhoook_enable: true
+fb_webhook_listen_port: 40186

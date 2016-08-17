@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"peeple/areyouin/api"
 )
 
 const VERIFY_TOKEN = "HK377WB7LPBWN87HMZ7X"
@@ -26,10 +27,11 @@ type FacebookUpdate struct {
 type WebHookServer struct {
 	callback   func(*FacebookUpdate)
 	app_secret string
+	config     api.Config
 }
 
-func New(secret string) *WebHookServer {
-	return &WebHookServer{app_secret: secret}
+func New(secret string, config api.Config) *WebHookServer {
+	return &WebHookServer{app_secret: secret, config: config}
 }
 
 func computeSignature(payload []byte, key string) string {
@@ -141,8 +143,8 @@ func (wh *WebHookServer) Run() {
 		http.HandleFunc("/fbwebhook/", wh.handler)
 
 		//err := http.ListenAndServeTLS(":443", "cert.pem", "key.pem", nil)
-		err := http.ListenAndServe(":40186", nil)
-
+		addr := fmt.Sprintf("%v:%v", wh.config.ListenAddress(), wh.config.FBWebHookListenPort())
+		err := http.ListenAndServe(addr, nil)
 		if err != nil {
 			log.Fatal("ListenAndServe: ", err)
 		}

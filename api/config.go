@@ -15,4 +15,6 @@ type Config interface {
 	ImageEnableHTTPS() bool
 	SSHListenAddress() string
 	SSHListenPort() int
+	FBWebHookEnabled() bool
+	FBWebHookListenPort() int
 }
