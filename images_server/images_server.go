@@ -17,20 +17,20 @@ var (
 	ErrInvalidRequest = errors.New("invalid request")
 )
 
-func NewServer(session api.DbSession, model *model.AyiModel) *ImageServer {
+func NewServer(session api.DbSession, model *model.AyiModel, config api.Config) *ImageServer {
 	server := &ImageServer{
-		listen_port: 40187,
-		DbSession:   session,
-		Model:       model,
+		DbSession: session,
+		Model:     model,
+		Config:    config,
 	}
 	server.init()
 	return server
 }
 
 type ImageServer struct {
-	listen_port int
-	DbSession   api.DbSession
-	Model       *model.AyiModel
+	DbSession api.DbSession
+	Model     *model.AyiModel
+	Config    api.Config
 }
 
 func (s *ImageServer) init() {
@@ -296,7 +296,9 @@ func (s *ImageServer) Run() {
 	http.HandleFunc("/api/img/original/event/", s.handleEventImageRequest)
 	http.HandleFunc("/api/img/original/user/", s.handleUserImageRequest)
 
-	err := http.ListenAndServe(fmt.Sprintf(":%v", s.listen_port), nil)
+	addr := fmt.Sprintf("%v:%v", s.Config.ListenAddress(), s.Config.ImageListenPort())
+
+	err := http.ListenAndServe(addr, nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}

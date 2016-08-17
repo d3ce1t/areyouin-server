@@ -1,0 +1,30 @@
+# AreYouIN server config.example
+# Please, copy this file to areyouin.yaml and modify it
+# in order configure AreYouIN Server.
+# Note that if changes are made to this file while server
+# is running, it will be needed to reboot server in order
+# to changes take effect.
+
+# General Settings
+maintenance_mode: false
+test_mode_warning: false
+
+# Database Settings
+db_address: [192.168.1.2, 192.168.1.3]
+db_keyspace: areyouin
+db_cql_version: 2
+
+# Network Settings
+listen_address: 192.168.1.2
+listen_port: 1822
+image_listen_port: 40187
+image_enable_https: true
+
+# Secure Settings
+domain_name: service.peeple.es
+cert_file: cert/fullchain.pem
+cert_key: cert/privkey.pem
+
+# Remote shell Settings
+ssh_listen_address: 127.0.0.1
+ssh_listen_port: 2022

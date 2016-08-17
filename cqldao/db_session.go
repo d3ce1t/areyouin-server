@@ -1,16 +1,18 @@
 package cqldao
 
 import (
-	"github.com/gocql/gocql"
 	"time"
+
+	"github.com/gocql/gocql"
 )
 
-func NewSession(keyspace string, hosts ...string) *GocqlSession {
+func NewSession(keyspace string, cqlVersion int, hosts ...string) *GocqlSession {
 	session := &GocqlSession{}
 	session.cluster = gocql.NewCluster(hosts...)
 	session.cluster.Keyspace = keyspace
 	session.cluster.Consistency = gocql.LocalQuorum
 	session.cluster.Timeout = 3 * time.Second
+	session.cluster.ProtoVersion = cqlVersion
 	return session
 }
 

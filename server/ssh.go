@@ -22,7 +22,8 @@ func (server *Server) startShell() {
 
 	// Once a ServerConfig has been configured, connections can be
 	// accepted.
-	listener, err := net.Listen("tcp", "0.0.0.0:2022")
+	addr := fmt.Sprintf("%v:%v", server.Config.SSHListenAddress(), server.Config.SSHListenPort())
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		panic("failed to listen for connection")
 	}
@@ -104,7 +105,7 @@ func (server *Server) manageSSHSession(nConn net.Conn, config *ssh.ServerConfig)
 	}(requests)
 
 	sh := shell.NewShell(server.Model, channel)
-	if server.Testing {
+	if server.Config.ShowTestModeWarning() {
 		sh.OnStart = func(shell *shell.Shell) {
 			fmt.Fprint(shell, "------------------------------------------\n")
 			fmt.Fprint(shell, "! WARNING WARNING WARNING                !\n")

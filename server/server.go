@@ -15,10 +15,11 @@ import (
 	"time"
 )
 
-func NewServer(session api.DbSession, model *model.AyiModel) *Server {
+func NewServer(session api.DbSession, model *model.AyiModel, config api.Config) *Server {
 	server := &Server{
 		DbSession: session,
 		Model:     model,
+		Config:    config,
 	}
 	server.init()
 	return server
@@ -27,23 +28,22 @@ func NewServer(session api.DbSession, model *model.AyiModel) *Server {
 type Callback func(*proto.AyiPacket, proto.Message, *AyiSession)
 
 type Server struct {
-	TLSConfig       *tls.Config
-	sessions        *SessionsMap
-	task_executor   *TaskExecutor
-	callbacks       map[proto.PacketType]Callback
-	Model           *model.AyiModel
-	modelObserver   *ModelObserver
-	DbSession       api.DbSession
-	webhook         *wh.WebHookServer
-	Testing         bool
-	MaintenanceMode bool
+	TLSConfig     *tls.Config
+	sessions      *SessionsMap
+	task_executor *TaskExecutor
+	callbacks     map[proto.PacketType]Callback
+	Model         *model.AyiModel
+	modelObserver *ModelObserver
+	DbSession     api.DbSession
+	webhook       *wh.WebHookServer
+	Config        api.Config
 }
 
 // Setup server components
 func (s *Server) init() {
 
 	// Init TLS config
-	cert, err := tls.LoadX509KeyPair("cert/fullchain.pem", "cert/privkey.pem")
+	cert, err := tls.LoadX509KeyPair(s.Config.CertFile(), s.Config.CertKey())
 	if err != nil {
 		panic(err)
 	}
@@ -51,7 +51,7 @@ func (s *Server) init() {
 	s.TLSConfig = &tls.Config{
 		ClientAuth:   tls.NoClientCert,
 		Certificates: []tls.Certificate{cert},
-		ServerName:   "service.peeple.es",
+		ServerName:   s.Config.DomainName(),
 	}
 
 	// Init sessions holder
@@ -66,7 +66,7 @@ func (s *Server) init() {
 func (s *Server) run() {
 
 	// Start webhook
-	if !s.MaintenanceMode {
+	if !s.Config.MaintenanceMode() {
 		s.webhook = wh.New(fb.FB_APP_SECRET)
 		s.webhook.RegisterCallback(s.onFacebookUpdate)
 		s.webhook.Run()
@@ -75,7 +75,7 @@ func (s *Server) run() {
 	}
 
 	// Start up server listener
-	listener, err := net.Listen("tcp", ":1822")
+	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", s.Config.ListenAddress(), s.Config.ListenPort()))
 	if err != nil {
 		panic("Couldn't start listening: " + err.Error())
 	}
@@ -150,7 +150,7 @@ func (s *Server) handleSession(session *AyiSession) {
 	// Packet received
 	session.OnRead = func(s *AyiSession, packet *proto.AyiPacket) {
 
-		if !s.Server.MaintenanceMode {
+		if !s.Server.Config.MaintenanceMode() {
 
 			// Normal operation
 

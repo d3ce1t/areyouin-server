@@ -13,44 +13,36 @@ import (
 
 func main() {
 
-	// Flags
-
-	testingMode := true
-	maintenanceMode := false
+	// Load config from file
+	cfg, err := loadConfigFromFile("areyouin.yaml")
+	if err != nil {
+		log.Fatalf("Couldn't load areyouin.yaml config file: %v", err)
+	}
 
 	// Process args
 
 	args := os.Args[1:]
 	if len(args) > 0 && args[0] == "--enable-maintenance" {
-		maintenanceMode = true
+		// Overwrites whatever it is en areyouin.yaml
+		cfg.data.MaintenanceMode = true
 	}
 
 	// Initialisation
 
-	var db_keyspace string
-	var db_address string
-
-	if !testingMode {
-		db_keyspace = "areyouin"
-		db_address = "192.168.1.2"
-	} else {
-
+	if cfg.ShowTestModeWarning() {
 		fmt.Println("----------------------------------------")
 		fmt.Println("! WARNING WARNING WARNING              !")
 		fmt.Println("! You have started a testing server    !")
 		fmt.Println("! WARNING WARNING WARNING              !")
 		fmt.Println("----------------------------------------")
-
-		db_keyspace = "areyouin"
-		db_address = "192.168.1.10"
 	}
 
-	session := cqldao.NewSession(db_keyspace, db_address)
+	session := cqldao.NewSession(cfg.DbKeyspace(), cfg.DbCQLVersion(), cfg.DbAddress()...)
 	model := model.New(session, "default")
 
 	// Connect to database
 
-	err := session.Connect()
+	err = session.Connect()
 
 	for err != nil {
 		log.Println(err)
@@ -62,9 +54,7 @@ func main() {
 
 	// Create and init server
 
-	server := NewServer(session, model)
-	server.MaintenanceMode = maintenanceMode
-	server.Testing = testingMode
+	server := NewServer(session, model, cfg)
 
 	// Register callbacks
 
@@ -92,12 +82,12 @@ func main() {
 	server.registerCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
 
 	// Create images HTTP server and start
-	if !maintenanceMode {
-		images_server := imgserv.NewServer(session, model)
+	if !cfg.MaintenanceMode() {
+		images_server := imgserv.NewServer(session, model, cfg)
 		go images_server.Run()
 	}
 
-	// Create shell and start listening in 2022 tcp port
+	// Create shell and start listening
 	go server.startShell()
 
 	// start server loop
