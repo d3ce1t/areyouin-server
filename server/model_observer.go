@@ -146,27 +146,8 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 		}
 
 		go func(participantID int64) {
-
+			// Notification
 			sendNewEventNotification(event, participantID)
-
-			/*if session := m.server.getSession(participantID); session != nil {
-				// NOTE: May panic (call m.model.Events.ChangeDeliveryState)
-				coreEvent := convEvent2Net(event)
-				coreEvent.Participants[session.UserId].Delivered = core.InvitationStatus_CLIENT_DELIVERED
-				message := session.NewMessage().InvitationReceived(coreEvent)
-				future := NewFuture(true)
-				if ok := session.WriteAsync(future, message); ok {
-					log.Printf("< (%v) EVENT INVITATION %v\n", session.UserId, event.Id())
-					// Blocks until ACK (true) or timeout (false)
-					if sent := <-future.C; sent {
-						_, err := m.model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
-						if err != nil {
-							log.Println("processNewEventSignal Err:", err)
-						}
-					}
-				}
-			}*/
-
 		}(pID)
 	}
 
@@ -194,7 +175,7 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 				if ok := session.Write(message); ok {
 					log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
 				} else {
-					log.Println("processNewEventSignal: Coudn't send notification to", session.UserId)
+					log.Println("* processNewEventSignal: Coudn't send message to", session.UserId)
 				}
 			}(session)
 		}
@@ -214,30 +195,8 @@ func (m *ModelObserver) processEventCancelledSignal(signal *model.Signal) {
 		}
 
 		go func(participantID int64) {
-
-			//session := m.server.getSession(participantID)
-			//if session == nil {
 			// Notification
 			sendEventCancelledNotification(event, participantID)
-			// return
-			//}
-
-			/*packet := session.NewMessage().EventCancelled(cancelledBy, liteEvent)
-			future := NewFuture(true)
-
-			if ok := session.WriteAsync(future, packet); ok {
-				// Blocks until ACK (true) or timeout (false)
-				if sent := <-future.C; sent {
-					log.Printf("< (%v) EVENT CANCELLED (event_id=%v)\n", session.UserId, event.Id())
-				} else if session.UserId != cancelledBy {
-					// Notification
-					sendEventCancelledNotification(event, participantID)
-				}
-			} else if session.UserId != cancelledBy {
-				// Notification
-				sendEventCancelledNotification(event, participantID)
-			}*/
-
 		}(pID)
 	}
 }
@@ -258,20 +217,18 @@ func (m *ModelObserver) processParticipantChangeSignal(signal *model.Signal) {
 
 		go func(participantID int64) {
 
-			session := m.server.getSession(participantID)
-			if session == nil {
-				// Notification
-				if oldResponse != participant.Response() && participant.Id() != participantID {
-					sendEventResponseNotification(event, participant.Id(), participantID)
-				}
-				return
+			// Notification
+			if participant.Id() != participantID && oldResponse != participant.Response() {
+				sendEventResponseNotification(event, participant.Id(), participantID)
 			}
 
-			message := session.NewMessage().AttendanceStatus(event.Id(), netParticipants)
-			if ok := session.Write(message); ok {
-				log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
-			} else {
-				log.Println("processParticipantChangeSignal: Coudn't send notification to", session.UserId)
+			if session := m.server.getSession(participantID); session != nil {
+				message := session.NewMessage().AttendanceStatus(event.Id(), netParticipants)
+				if ok := session.Write(message); ok {
+					log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
+				} else {
+					log.Println("* processParticipantChangeSignal: Coudn't send message to", session.UserId)
+				}
 			}
 
 		}(pID)
@@ -295,7 +252,7 @@ func (m *ModelObserver) processEventChangedSignal(signal *model.Signal) {
 			if session.Write(msg) {
 				log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, event.Id())
 			} else {
-				log.Println("processEventChangedSignal: Coudn't send notification to", session.UserId)
+				log.Println("processEventChangedSignal: Coudn't send message to", session.UserId)
 			}
 		}(session)
 	}
@@ -307,6 +264,7 @@ func (m *ModelObserver) processNewFriendRequestSignal(signal *model.Signal) {
 	toUser := signal.Data["ToUser"].(*model.UserAccount)
 	friendRequest := signal.Data["FriendRequest"].(*model.FriendRequest)
 
+	// Notification
 	sendFriendRequestNotification(fromUser.Name(), toUser.Id())
 
 	if session := m.server.getSession(toUser.Id()); session != nil {
@@ -323,6 +281,7 @@ func (m *ModelObserver) processFriendRequestAcceptedSignal(signal *model.Signal)
 	// Send Friend List to both users if connected
 	sendFriends := func(userID int64, friendName string) {
 
+		// Notification
 		sendNewFriendNotification(friendName, userID)
 
 		if session := m.server.getSession(userID); session != nil {
