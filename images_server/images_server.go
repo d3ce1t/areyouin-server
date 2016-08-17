@@ -288,6 +288,7 @@ func manageError(err error) {
 	}
 }
 
+// Run an HTTP server and starts to server images from it
 func (s *ImageServer) Run() {
 
 	http.HandleFunc("/api/", s.handleThumbnailRequest)
@@ -298,8 +299,23 @@ func (s *ImageServer) Run() {
 
 	addr := fmt.Sprintf("%v:%v", s.Config.ListenAddress(), s.Config.ImageListenPort())
 
-	err := http.ListenAndServe(addr, nil)
-	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
+	if !s.Config.ImageEnableHTTPS() {
+
+		// HTTP Server
+
+		err := http.ListenAndServe(addr, nil)
+		if err != nil {
+			log.Fatal("ListenAndServe: ", err)
+		}
+
+	} else {
+
+		// HTTPS Server
+
+		err := http.ListenAndServeTLS(addr, s.Config.CertFile(), s.Config.CertKey(), nil)
+		if err != nil {
+			log.Fatal("ListenAndServe: ", err)
+		}
 	}
+
 }
