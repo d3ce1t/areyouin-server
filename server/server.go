@@ -66,10 +66,14 @@ func (s *Server) init() {
 func (s *Server) run() {
 
 	// Start webhook
-	if !s.Config.MaintenanceMode() && s.Config.FBWebHookEnabled() {
-		s.webhook = wh.New(fb.FB_APP_SECRET, s.Config)
-		s.webhook.RegisterCallback(s.onFacebookUpdate)
-		s.webhook.Run()
+	if !s.Config.MaintenanceMode() {
+
+		if s.Config.FBWebHookEnabled() {
+			s.webhook = wh.New(fb.FB_APP_SECRET, s.Config)
+			s.webhook.RegisterCallback(s.onFacebookUpdate)
+			s.webhook.Run()
+		}
+
 	} else {
 		log.Println("Server running in MAINTENANCE MODE")
 	}
