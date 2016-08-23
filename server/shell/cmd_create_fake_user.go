@@ -25,19 +25,16 @@ func createFakeUser(shell *Shell, args []string) {
 	manageShellError(err)
 
 	// Decode data
-	var f interface{}
+	var f map[string]interface{}
 	err = json.Unmarshal(json_data, &f)
 	manageShellError(err)
 
-	m := f.(map[string]interface{})["results"].([]interface{})[0].(map[string]interface{})
-	m = m["user"].(map[string]interface{})
-
+	m := f["results"].([]interface{})[0].(map[string]interface{})
 	firstName := []rune(m["name"].(map[string]interface{})["first"].(string))
 	lastName := []rune(m["name"].(map[string]interface{})["last"].(string))
 	firstName[0] = unicode.ToUpper(firstName[0])
 	lastName[0] = unicode.ToUpper(lastName[0])
 	name := string(firstName) + " " + string(lastName)
-
 	email := m["email"].(string)
 	password := "12345" //m["password"].(string)
 
