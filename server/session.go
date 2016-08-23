@@ -33,7 +33,7 @@ type Future struct {
 	RequireAck bool
 }
 
-func NewFuture(ack bool) *Future {
+func newFuture(ack bool) *Future {
 	return &Future{
 		C:          make(chan bool, 1),
 		RequireAck: ack,
@@ -118,11 +118,37 @@ func (s *AyiSession) Write(packet *proto.AyiPacket) (ok bool) {
 
 func (s *AyiSession) WriteSync(packet *proto.AyiPacket) bool {
 	var ok bool
-	future := NewFuture(false)
+	future := newFuture(false)
 	if ok = s.WriteAsync(future, packet); ok {
 		ok = <-future.C
 	}
 	return ok
+}
+
+func (s *AyiSession) WriteResponseSync(token uint16, packet *proto.AyiPacket) (ok bool) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			ok = false
+			log.Printf("Session %v Write Error: %v\n", s, r)
+		}
+	}()
+
+	// Set most significant byte to 1 in order to mark
+	// packet to be sent as a response to packet with given token
+	tokenResponse := token | (1 << 15)
+	packet.Header.SetToken(tokenResponse)
+
+	future := newFuture(false)
+
+	// may panic if writeChan is closed
+	s.writeChan <- &WriteMsg{
+		Packet: packet,
+		Future: future,
+	}
+
+	// Wait until message is really written to socket buffer
+	return <-future.C
 }
 
 func (s *AyiSession) WriteResponse(token uint16, packet *proto.AyiPacket) (ok bool) {

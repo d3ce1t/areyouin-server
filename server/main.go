@@ -37,11 +37,10 @@ func main() {
 		fmt.Println("----------------------------------------")
 	}
 
-	session := cqldao.NewSession(cfg.DbKeyspace(), cfg.DbCQLVersion(), cfg.DbAddress()...)
-	model := model.New(session, "default")
-
 	// Connect to database
 
+	session := cqldao.NewSession(cfg.DbKeyspace(), cfg.DbCQLVersion(), cfg.DbAddress()...)
+	model := model.New(session, "default")
 	err = session.Connect()
 
 	for err != nil {
@@ -56,35 +55,37 @@ func main() {
 
 	server := NewServer(session, model, cfg)
 
-	// Register callbacks
-
-	server.registerCallback(proto.M_PING, onPing)
-	server.registerCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
-	server.registerCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
-	server.registerCallback(proto.M_USER_AUTH, onUserAuthentication)
-	server.registerCallback(proto.M_GET_ACCESS_TOKEN, onNewAccessToken)
-	server.registerCallback(proto.M_CREATE_EVENT, onCreateEvent)
-	server.registerCallback(proto.M_CANCEL_EVENT, onCancelEvent)
-	server.registerCallback(proto.M_INVITE_USERS, onInviteUsers)
-	server.registerCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
-	server.registerCallback(proto.M_GET_USER_FRIENDS, onGetUserFriends)
-	server.registerCallback(proto.M_GET_USER_ACCOUNT, onGetUserAccount)
-	server.registerCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
-	server.registerCallback(proto.M_CLOCK_REQUEST, onClockRequest)
-	server.registerCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
-	server.registerCallback(proto.M_CHANGE_EVENT_PICTURE, onChangeEventPicture)
-	server.registerCallback(proto.M_SYNC_GROUPS, onSyncGroups)
-	server.registerCallback(proto.M_GET_GROUPS, onGetGroups)
-	server.registerCallback(proto.M_LIST_PRIVATE_EVENTS, onListPrivateEvents)
-	server.registerCallback(proto.M_HISTORY_PRIVATE_EVENTS, onListEventsHistory)
-	server.registerCallback(proto.M_CREATE_FRIEND_REQUEST, onFriendRequest)
-	server.registerCallback(proto.M_GET_FRIEND_REQUESTS, onListFriendRequests)
-	server.registerCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
-
-	// Create images HTTP server and start
 	if !cfg.MaintenanceMode() {
-		images_server := imgserv.NewServer(session, model, cfg)
-		go images_server.Run()
+
+		// Register callbacks
+
+		server.registerCallback(proto.M_PING, onPing)
+		server.registerCallback(proto.M_USER_CREATE_ACCOUNT, onCreateAccount)
+		server.registerCallback(proto.M_USER_NEW_AUTH_TOKEN, onUserNewAuthToken)
+		server.registerCallback(proto.M_USER_AUTH, onUserAuthentication)
+		server.registerCallback(proto.M_GET_ACCESS_TOKEN, onNewAccessToken)
+		server.registerCallback(proto.M_CREATE_EVENT, onCreateEvent)
+		server.registerCallback(proto.M_CANCEL_EVENT, onCancelEvent)
+		server.registerCallback(proto.M_INVITE_USERS, onInviteUsers)
+		server.registerCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)
+		server.registerCallback(proto.M_GET_USER_FRIENDS, onGetUserFriends)
+		server.registerCallback(proto.M_GET_USER_ACCOUNT, onGetUserAccount)
+		server.registerCallback(proto.M_CHANGE_PROFILE_PICTURE, onChangeProfilePicture)
+		server.registerCallback(proto.M_CLOCK_REQUEST, onClockRequest)
+		server.registerCallback(proto.M_IID_TOKEN, onIIDTokenReceived)
+		server.registerCallback(proto.M_CHANGE_EVENT_PICTURE, onChangeEventPicture)
+		server.registerCallback(proto.M_SYNC_GROUPS, onSyncGroups)
+		server.registerCallback(proto.M_GET_GROUPS, onGetGroups)
+		server.registerCallback(proto.M_LIST_PRIVATE_EVENTS, onListPrivateEvents)
+		server.registerCallback(proto.M_HISTORY_PRIVATE_EVENTS, onListEventsHistory)
+		server.registerCallback(proto.M_CREATE_FRIEND_REQUEST, onFriendRequest)
+		server.registerCallback(proto.M_GET_FRIEND_REQUESTS, onListFriendRequests)
+		server.registerCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
+
+		// Create images HTTP server and start
+		imagesServer := imgserv.NewServer(session, model, cfg)
+		go imagesServer.Run()
+
 	}
 
 	// Create shell and start listening

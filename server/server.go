@@ -65,8 +65,9 @@ func (s *Server) init() {
 
 func (s *Server) run() {
 
-	// Start webhook
 	if !s.Config.MaintenanceMode() {
+
+		// Start webhook
 
 		if s.Config.FBWebHookEnabled() {
 			s.webhook = wh.New(fb.FB_APP_SECRET, s.Config)
@@ -74,21 +75,23 @@ func (s *Server) run() {
 			s.webhook.Run()
 		}
 
+		// Start up model observer
+
+		s.modelObserver = newModelObserver(s)
+		go s.modelObserver.run()
+
 	} else {
 		log.Println("Server running in MAINTENANCE MODE")
 	}
 
 	// Start up server listener
+
 	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", s.Config.ListenAddress(), s.Config.ListenPort()))
 	if err != nil {
 		panic("Couldn't start listening: " + err.Error())
 	}
 
 	defer listener.Close()
-
-	// Start up model observer
-	s.modelObserver = newModelObserver(s)
-	go s.modelObserver.run()
 
 	// Main Loop
 	for {
@@ -152,26 +155,28 @@ func (s *Server) handleSession(session *AyiSession) {
 	log.Printf("* (%v) New connection\n", session)
 
 	// Packet received
-	session.OnRead = func(s *AyiSession, packet *proto.AyiPacket) {
+	session.OnRead = func(s *AyiSession, recvPacket *proto.AyiPacket) {
+
+		packetToken := recvPacket.Header.GetToken()
 
 		if !s.Server.Config.MaintenanceMode() {
 
 			// Normal operation
 
-			if err := s.Server.serveMessage(packet, s); err != nil { // may block until writes are performed
+			if err := s.Server.serveMessage(recvPacket, s); err != nil { // may block until writes are performed
 				errorCode := getNetErrorCode(err, proto.E_OPERATION_FAILED)
 				log.Printf("< (%v) ERROR %v: %v\n", session, errorCode, err)
-				s.WriteResponse(packet.Header.GetToken(), s.NewMessage().Error(packet.Type(), errorCode))
+				s.WriteResponse(packetToken, s.NewMessage().Error(recvPacket.Type(), errorCode))
 			}
 
 		} else {
 
 			// Maintenance Mode
-			log.Printf("> (%v) Packet %v received but ignored\n", session, packet.Type())
-			s.WriteSync(s.NewMessage().Error(packet.Type(), proto.E_SERVER_MAINTENANCE))
+
+			log.Printf("> (%v) Packet %v received but ignored\n", session, recvPacket.Type())
+			s.WriteResponseSync(packetToken, s.NewMessage().Error(recvPacket.Type(), proto.E_SERVER_MAINTENANCE))
 			log.Printf("< (%v) SERVER IS IN MAINTENANCE MODE\n", session)
 			s.Exit()
-
 		}
 
 	}
