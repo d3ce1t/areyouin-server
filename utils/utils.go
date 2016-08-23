@@ -150,7 +150,14 @@ func HashPasswordWithSalt(password string, salt [32]byte) [32]byte {
 }
 
 func MinInt(a, b int) int {
-	if a <= b {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func MaxInt(a, b int) int {
+	if a > b {
 		return a
 	}
 	return b
@@ -171,7 +178,21 @@ func MaxInt64(a, b int64) int64 {
 }
 
 func MinUint(a, b uint) uint {
-	if a <= b {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func MinDuration(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func MaxDuration(a, b time.Duration) time.Duration {
+	if a > b {
 		return a
 	}
 	return b

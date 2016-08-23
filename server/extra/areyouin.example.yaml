@@ -12,7 +12,7 @@ test_mode_warning: false
 # Database Settings
 db_address: [192.168.1.2, 192.168.1.3]
 db_keyspace: areyouin
-db_cql_version: 2
+db_cql_version: 3
 
 # Network Settings
 listen_address: 192.168.1.2
