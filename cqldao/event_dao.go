@@ -362,7 +362,7 @@ func (dao *EventDAO) SetEventStateAndInboxPosition(event_id int64,
 }
 
 // Compare-and-set (read-before) update operation
-func (dao *EventDAO) SetNumGuests(eventId int64, numGuests int) (ok bool, err error) {
+/*func (dao *EventDAO) SetNumGuests(eventId int64, numGuests int) (ok bool, err error) {
 
 	checkSession(dao.session)
 
@@ -381,16 +381,20 @@ func (dao *EventDAO) SetNumGuests(eventId int64, numGuests int) (ok bool, err er
 
 	q = dao.session.Query(write_stmt, numGuests, eventId, oldNumGuests)
 	return q.ScanCAS(nil)
-}
+}*/
 
-/*func (dao *EventDAO) SetNumGuests(event_id int64, num_guests int32) error {
+func (dao *EventDAO) SetNumGuests(eventId int64, numGuests int) (bool, error) {
 
-	checkSession(dao)
+	checkSession(dao.session)
 
 	stmt := `UPDATE event SET num_guests = ? WHERE event_id = ?`
-	q := dao.session.Query(stmt, num_guests, event_id)
-	return q.Exec()
-}*/
+	q := dao.session.Query(stmt, numGuests, eventId)
+	if err := q.Exec(); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
 
 // Compare-and-set (read-before) update operation
 /*func (dao *EventDAO) CompareAndSetNumAttendees(event_id int64, num_attendees int) (ok bool, err error) {
