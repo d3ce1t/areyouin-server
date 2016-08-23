@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"peeple/areyouin/api"
 	"peeple/areyouin/idgen"
 	"peeple/areyouin/utils"
@@ -8,7 +9,7 @@ import (
 )
 
 // Test write workload to create an event
-func testCreateEvent() (time.Duration, error) {
+func testCreateEvent(testNumber int) (time.Duration, error) {
 
 	participant := &api.ParticipantDTO{
 		UserId:           idgen.NewID(),
@@ -33,6 +34,7 @@ func testCreateEvent() (time.Duration, error) {
 	// Insert event
 	err := eventDAO.Insert(event)
 	if err != nil {
+		log.Printf("TestCreateEvent %v Error: %v", testNumber, err)
 		return 0, err
 	}
 
@@ -40,12 +42,14 @@ func testCreateEvent() (time.Duration, error) {
 	for i := 0; i < 10; i++ {
 		err = eventDAO.AddParticipantToEvent(participant, event)
 		if err != nil {
+			log.Printf("TestCreateEvent %v Error: %v", testNumber, err)
 			return 0, err
 		}
 	}
 
 	// Update num guests
 	if _, err := eventDAO.SetNumGuests(event.Id, 10); err != nil {
+		log.Printf("TestCreateEvent %v Error: %v", testNumber, err)
 		return 0, err
 	}
 
