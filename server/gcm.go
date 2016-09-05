@@ -10,7 +10,6 @@ import (
 
 // GCM Settings
 const (
-	GcmAPIKey = "AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ"
 	GcmMaxTTL = 2419200
 )
 
@@ -199,7 +198,7 @@ func sendToSync(userID int64, token string, ttl uint) {
 func sendGcmMessage(userID int64, message gcm.HttpMessage) {
 
 	log.Printf("< (%v) Send GCM notification\n", userID)
-	response, err := gcm.SendHttp(GcmAPIKey, message)
+	response, err := gcm.SendHttp(globalConfig.FirebaseAPIKey(), message)
 
 	if err != nil && response != nil {
 		log.Printf("* (%v) GCM Error: %v (resp.Error: %v)\n", userID, err, response.Error)

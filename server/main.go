@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"peeple/areyouin/api"
 	"peeple/areyouin/cqldao"
 	imgserv "peeple/areyouin/images_server"
 	"peeple/areyouin/model"
 	proto "peeple/areyouin/protocol"
 	"time"
 )
+
+// Server global configuration
+var globalConfig api.Config
 
 func main() {
 
@@ -18,6 +22,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Couldn't load areyouin.yaml config file: %v", err)
 	}
+
+	globalConfig = cfg
 
 	// Process args
 
@@ -81,6 +87,8 @@ func main() {
 		server.registerCallback(proto.M_CREATE_FRIEND_REQUEST, onFriendRequest)
 		server.registerCallback(proto.M_GET_FRIEND_REQUESTS, onListFriendRequests)
 		server.registerCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
+		//server.registerCallback(proto.M_GET_FACEBOOK_FRIENDS, onGetFacebookFriends)
+		//server.registerCallback(proto.M_USER_LINK_ACCOUNT, onLinkAccount)
 
 		// Create images HTTP server and start
 		imagesServer := imgserv.NewServer(session, model, cfg)

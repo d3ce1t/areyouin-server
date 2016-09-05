@@ -17,4 +17,5 @@ type Config interface {
 	SSHListenPort() int
 	FBWebHookEnabled() bool
 	FBWebHookListenPort() int
+	FirebaseAPIKey() string
 }

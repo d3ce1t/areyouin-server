@@ -74,6 +74,10 @@ func (c *Config) FBWebHookListenPort() int {
 	return c.data.FBWebHookListenPort
 }
 
+func (c *Config) FirebaseAPIKey() string {
+	return c.data.FirebaseAPIKey
+}
+
 type ConfigDTO struct {
 	MaintenanceMode     bool     `yaml:"maintenance_mode,omitempty"`
 	ShowTestModeWarning bool     `yaml:"test_mode_warning,omitempty"`
@@ -91,6 +95,7 @@ type ConfigDTO struct {
 	SSHListenPort       int      `yaml:"ssh_listen_port,omitempty"`
 	FBWebHookEnabled    bool     `yaml:"fb_webhoook_enable"`
 	FBWebHookListenPort int      `yaml:"fb_webhook_listen_port,omitempty"`
+	FirebaseAPIKey      string   `yaml:"firebase_api_key"`
 }
 
 func loadConfigFromFile(file string) (*Config, error) {
