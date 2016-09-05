@@ -34,6 +34,11 @@ enum InvitationStatus {
   CLIENT_DELIVERED = 2;
 }
 
+enum AccountProviderType {
+  UNKNOWN = 0;
+  FACEBOOK = 1;
+}
+
 message UserAccount {
   string name = 1;
   string email = 2;

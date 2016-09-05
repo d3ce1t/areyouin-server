@@ -102,6 +102,14 @@ message CreateUserAccount {
   bytes picture = 7;
 }
 
+// LINK ACCOUNT
+message LinkAccount {
+  int64 user_id = 1;
+  core.AccountProviderType provider = 2;
+  string account_id = 3;
+  string account_token = 4;
+}
+
 // NEW AUTH TOKEN
 enum AuthType {
   A_NATIVE = 0;

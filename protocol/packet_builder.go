@@ -124,6 +124,12 @@ func (mb *PacketBuilder) FriendsList(friends_list []*core.Friend) *AyiPacket {
 	return mb.message
 }
 
+func (mb *PacketBuilder) FacebookFriendsList(friends_list []*core.Friend) *AyiPacket {
+	mb.message.Header.SetType(M_FACEBOOK_FRIENDS_LIST)
+	mb.message.SetMessage(&FriendsList{Friends: friends_list})
+	return mb.message
+}
+
 func (mb *PacketBuilder) ClockResponse() *AyiPacket {
 	mb.message.Header.SetType(M_CLOCK_RESPONSE)
 	mb.message.SetMessage(&TimeInfo{utils.GetCurrentTimeMillis()})

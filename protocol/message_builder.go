@@ -23,6 +23,7 @@ type MessageBuilder interface {
 	EventsList(events_list []*core.Event) *AyiPacket
 	EventsHistoryList(events_list []*core.Event, startWindow int64, endWindow int64) *AyiPacket
 	FriendsList(friends_list []*core.Friend) *AyiPacket
+	FacebookFriendsList(friends_list []*core.Friend) *AyiPacket
 	ClockResponse() *AyiPacket
 	UserAccount(user *core.UserAccount) *AyiPacket
 	GroupsList(groups_list []*core.Group) *AyiPacket

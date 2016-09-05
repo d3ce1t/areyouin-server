@@ -163,6 +163,8 @@ func createEmptyMessage(packet_type PacketType) Message {
 		message = &CreateUserAccount{}
 	case M_USER_NEW_AUTH_TOKEN:
 		message = &NewAuthToken{}
+	case M_USER_LINK_ACCOUNT:
+		message = &LinkAccount{}
 	case M_USER_AUTH:
 		message = &AccessToken{}
 	case M_CHANGE_PROFILE_PICTURE:
