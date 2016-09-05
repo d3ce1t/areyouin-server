@@ -6,7 +6,10 @@ import (
 	"strconv"
 )
 
-func changeUserPassword(shell *Shell, args []string) {
+type changeUserPasswordCmd struct {
+}
+
+func (c *changeUserPasswordCmd) Exec(shell *Shell, args []string) {
 
 	userID, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)

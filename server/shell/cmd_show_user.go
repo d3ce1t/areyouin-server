@@ -8,7 +8,10 @@ import (
 )
 
 // show_user
-func showUser(shell *Shell, args []string) {
+type showUserCmd struct {
+}
+
+func (c *showUserCmd) Exec(shell *Shell, args []string) {
 
 	userID, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)

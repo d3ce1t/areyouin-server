@@ -5,8 +5,11 @@ import (
 	"sort"
 )
 
+type helpCmd struct {
+}
+
 // help
-func help(shell *Shell, args []string) {
+func (c *helpCmd) Exec(shell *Shell, args []string) {
 
 	keys := make([]string, 0, len(shell.commands))
 

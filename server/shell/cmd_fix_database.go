@@ -1,15 +1,18 @@
 package shell
 
 // fix_database
-func fixDatabase(shell *Shell, args []string) {
+type fixDatabaseCmd struct {
+}
+
+func (c *fixDatabaseCmd) Exec(shell *Shell, args []string) {
 	switch args[1] {
 	case "--event":
-		fixEvent()
+		c.fixEvent()
 	}
 }
 
 // Fill event.inbox_position with event.start_date if the first one is not set
-func fixEvent() {
+func (c *fixDatabaseCmd) fixEvent() {
 
 	/*server := shell.server
 	stmt_select := `SELECT event_id, start_date, inbox_position FROM event`

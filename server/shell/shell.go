@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"peeple/areyouin/api"
 	"peeple/areyouin/model"
 	"strings"
 )
 
-type Command func(*Shell, []string)
+type Command interface {
+	Exec(shell *Shell, args []string)
+}
 
 type Shell struct {
 	io.ReadWriter
@@ -18,14 +21,17 @@ type Shell struct {
 	commands map[string]Command
 	model    *model.AyiModel
 	OnStart  func(*Shell)
+	config   api.Config
 }
 
-func NewShell(model *model.AyiModel, io io.ReadWriter) *Shell {
+func NewShell(model *model.AyiModel, io io.ReadWriter, cfg api.Config) *Shell {
 	shell := &Shell{
 		welcome:    "Welcome to AreYouIN server shell\n",
 		prompt:     "areyouin$>",
 		model:      model,
+		config:     cfg,
 		ReadWriter: io}
+
 	shell.init()
 	return shell
 }
@@ -50,20 +56,20 @@ func (s *Shell) Run() {
 
 func (s *Shell) init() {
 	s.commands = map[string]Command{
-		"help":          help,
-		"list_sessions": listSessions,
-		"list_users":    listUsers,
-		"delete_user":   deleteUser,
+		"help":          new(helpCmd),
+		"list_sessions": new(listSessionsCmd),
+		"list_users":    new(listUsersCmd),
+		"delete_user":   new(deleteUserCmd),
 		//"send_auth_error":      sendAuthError,
-		//"send_msg":             sendMsg,
+		"notify": new(sendNotificationCmd),
 		//"close_session":        closeSession,
-		"show_user": showUser,
+		"show_user": new(showUserCmd),
 		//"ping":                 pingClient,
-		"reset_picture":    resetPicture,
-		"create_fake_user": createFakeUser,
+		"reset_picture":    new(resetPictureCmd),
+		"create_fake_user": new(createFakeUserCmd),
 		//"make_friends":     makeFriends,
 		//"fix_database":         fixDatabase,
-		"change_user_password": changeUserPassword,
+		"change_user_password": new(changeUserPasswordCmd),
 	}
 }
 
@@ -109,7 +115,7 @@ func (s *Shell) executeShell() (exit bool) {
 		}
 
 		if command, ok := s.commands[args[0]]; ok {
-			command(s, args)
+			command.Exec(s, args)
 		} else {
 			fmt.Fprintf(s, "Command %s does not exist\r\n", args[0])
 		}

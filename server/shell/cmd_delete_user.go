@@ -6,8 +6,11 @@ import (
 	"strconv"
 )
 
+type deleteUserCmd struct {
+}
+
 // delete_user $user_id --force
-func deleteUser(shell *Shell, args []string) {
+func (c *deleteUserCmd) Exec(shell *Shell, args []string) {
 
 	userID, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)

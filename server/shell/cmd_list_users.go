@@ -7,7 +7,10 @@ import (
 )
 
 // list_users
-func listUsers(shell *Shell, args []string) {
+type listUsersCmd struct {
+}
+
+func (c *listUsersCmd) Exec(shell *Shell, args []string) {
 
 	userDAO := cqldao.NewUserDAO(shell.model.DbSession()).(*cqldao.UserDAO)
 

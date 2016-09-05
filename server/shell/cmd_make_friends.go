@@ -1,7 +1,10 @@
 package shell
 
 // make_friends user1 user2
-func makeFriends(shell *Shell, args []string) {
+type makeFriendsCmd struct {
+}
+
+func (c *makeFriendsCmd) Exec(shell *Shell, args []string) {
 
 	/*friend_one_id, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)

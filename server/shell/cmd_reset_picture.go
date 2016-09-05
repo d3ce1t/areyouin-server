@@ -11,7 +11,10 @@ import (
 )
 
 // reset_picture
-func resetPicture(shell *Shell, args []string) {
+type resetPictureCmd struct {
+}
+
+func (c *resetPictureCmd) Exec(shell *Shell, args []string) {
 
 	userID, err := strconv.ParseInt(args[1], 10, 64)
 	manageShellError(err)

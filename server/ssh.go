@@ -104,7 +104,7 @@ func (server *Server) manageSSHSession(nConn net.Conn, config *ssh.ServerConfig)
 		}
 	}(requests)
 
-	sh := shell.NewShell(server.Model, channel)
+	sh := shell.NewShell(server.Model, channel, globalConfig)
 	if server.Config.ShowTestModeWarning() {
 		sh.OnStart = func(shell *shell.Shell) {
 			fmt.Fprint(shell, "------------------------------------------\n")

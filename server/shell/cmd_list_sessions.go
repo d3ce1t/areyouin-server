@@ -7,7 +7,10 @@ import (
 )
 
 // list_sessions
-func listSessions(shell *Shell, args []string) {
+type listSessionsCmd struct {
+}
+
+func (c *listSessionsCmd) Exec(shell *Shell, args []string) {
 
 	activeSessions, err := shell.model.Accounts.GetActiveSessions(time.Now())
 	manageShellError(err)
