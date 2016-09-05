@@ -86,6 +86,43 @@ func (self *AccountManager) CreateUserAccount(name string, email string, passwor
 	return user, nil
 }
 
+func (self *AccountManager) LinkToFacebook(account *UserAccount, fbId string, fbToken string) error {
+
+	// Check facebook access token
+
+	fbsession := fb.NewSession(fbToken)
+	if _, err := fb.CheckAccess(fbId, fbsession); err != nil {
+		return err
+	}
+
+	// Check if user exists also in AreYouIN
+
+	if _, err := self.userDAO.LoadByFB(fbId); err == nil {
+		return api.ErrFacebookAlreadyExists
+	} else if err != api.ErrNotFound && err != cqldao.ErrInconsistency {
+		return err
+	}
+
+	// Insert Facebook Credentials (if fails, then another account may exist in a valid state or grace period)
+
+	if _, err := self.userDAO.InsertFacebookCredentials(account.Id(), fbId, fbToken); err != nil {
+		return err
+	}
+
+	// Update Facebook token
+
+	if err := self.userDAO.SetFacebook(account.Id(), fbId, fbToken); err != nil {
+		return err
+	}
+
+	account.fbCred = &FBCredential{
+		FbId:  fbId,
+		Token: fbToken,
+	}
+
+	return nil
+}
+
 // Prominent Errors:
 // - ErrInvalidUserOrPassword
 // - Others (except dao.ErrNotFound)
@@ -141,6 +178,11 @@ func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken str
 
 	if err = self.userDAO.SetAuthToken(userDTO.Id, newAuthToken); err != nil {
 		return nil, err
+	}
+
+	if err = self.userDAO.SetFacebookCredential(userDTO.Id, fbId, fbToken); err != nil {
+		// Log error but ignore it because it's not important to set the credential
+		log.Printf("* (%v) New Auth Credential by Facebook Err: %v\n", userDTO.Id, err)
 	}
 
 	return newAccesToken(userDTO.Id, newAuthToken), nil

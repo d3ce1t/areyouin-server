@@ -33,4 +33,6 @@ var (
 	ErrEmptyInbox                = errors.New("user inbox is empty")
 	ErrAlreadyFriends            = errors.New("already friends")
 	ErrFriendRequestAlreadyExist = errors.New("friend request already exists")
+
+	ErrAccountNotLinkedToFacebook = errors.New("account isn't linked to facebook")
 )

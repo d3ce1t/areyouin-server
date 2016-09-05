@@ -37,7 +37,7 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 
 	if userAccount.HasFacebook() {
 
-		// Import Facebook friends that uses AreYouIN if needed
+		// Import Facebook friends that already have AreYouIN
 
 		server.task_executor.Submit(&ImportFacebookFriends{
 			TargetUser: userAccount,
@@ -47,6 +47,27 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccessGranted(userAccount.Id(), userAccount.AuthToken()))
 	log.Printf("< (%v) CREATE ACCOUNT OK\n", session)
+}
+
+func onLinkAccount(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.LinkAccount)
+	log.Printf("> (%v) LINK ACCOUNT: %v\n", session, msg)
+
+	checkAuthenticated(session)
+
+	user, err := server.Model.Accounts.GetUserAccount(session.UserId)
+	checkNoErrorOrPanic(err)
+
+	err = server.Model.Accounts.LinkToFacebook(user, msg.AccountId, msg.AccountToken)
+	checkNoErrorOrPanic(err)
+
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
+	log.Printf("< (%v) LINK ACCOUNT OK\n", session)
+
+	session.Write(session.NewMessage().UserAccount(convUser2Net(user)))
+	log.Printf("< (%v) SEND USER ACCOUNT INFO\n", session)
 }
 
 func onUserNewAuthToken(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -558,6 +579,47 @@ func onGetUserFriends(request *proto.AyiPacket, message proto.Message, session *
 
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().FriendsList(convFriendList2Net(friends)))
 	log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", session, len(friends))
+}
+
+// Returns Facebook Friends that are AreYouIN registered users but they aren't in user's friends list
+func onGetFacebookFriends(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+
+	log.Printf("> (%v) GET FACEBOOK FRIENDS\n", session) // Message does not has payload
+	checkAuthenticated(session)
+
+	// Get account
+	account, err := server.Model.Accounts.GetUserAccount(session.UserId)
+	checkNoErrorOrPanic(err)
+
+	// Get Facebook Friends that already have AreYouIN
+	fbFriends, err := server.Model.Friends.GetFacebookFriends(account)
+	checkNoErrorOrPanic(err)
+
+	// Get all friends
+	allFriends, err := server.Model.Friends.GetAllFriends(account.Id())
+	checkNoErrorOrPanic(err)
+
+	// Index friends
+	friendsIndex := make(map[int64]*model.Friend)
+	for _, friend := range allFriends {
+		friendsIndex[friend.Id()] = friend
+	}
+
+	// Filter fbFriends to get only new friends
+	newFBFriends := make([]*model.Friend, 0, len(fbFriends))
+
+	for _, fbFriend := range fbFriends {
+		// Assume that if fbFriend isn't in allFriends, then user wouldn't be either
+		// in the fbFriend friends list
+		if _, ok := friendsIndex[fbFriend.Id()]; !ok {
+			newFBFriends = append(newFBFriends, fbFriend.AsFriend())
+		}
+	}
+
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().FacebookFriendsList(convFriendList2Net(newFBFriends)))
+	log.Printf("< (%v) SEND FACEBOOK FRIENDS (num.friends: %v)\n", session, len(newFBFriends))
 }
 
 func onFriendRequest(request *proto.AyiPacket, message proto.Message, session *AyiSession) {

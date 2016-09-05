@@ -2,7 +2,6 @@ package cqldao
 
 import (
 	"peeple/areyouin/api"
-	"peeple/areyouin/utils"
 
 	"github.com/gocql/gocql"
 )
@@ -298,74 +297,6 @@ func (d *UserDAO) insertEmail(user_id int64, email string) (bool, error) {
 	ok, err := d.session.Query(insertUserEmail, email, user_id).ScanCAS(nil)
 
 	return ok, convErr(err)
-}
-
-// Try to insert Facebook credentials. If it fails because of a collision, retrieve
-// the row causing that collision, compare created_date with grace_period and check if
-// that row belongs to a valid account. If grace_period seconds have elapsed since
-// created_date and account isn't valid, then remove row causing conflict and retry.
-// Otherwise, if account is valid, returns ErrFacebookAlreadyExists. If grace_period
-// seconds haven't elapsed yet since created_date then return ErrGracePeriod .
-func (d *UserDAO) insertFacebookCredentials(userId int64, fbId string, fbToken string) (ok bool, err error) {
-
-	checkSession(d.session)
-
-	if fbId == "" || fbToken == "" || userId == 0 {
-		return false, api.ErrInvalidArg
-	}
-
-	insert_stmt := `INSERT INTO user_facebook_credentials (fb_id, fb_token, user_id, created_date)
-		VALUES (?, ?, ?, ?) IF NOT EXISTS`
-
-	currentDate := utils.GetCurrentTimeMillis()
-	query_insert := d.session.Query(insert_stmt, fbId, fbToken, userId, currentDate)
-
-	var old_fbid string
-	var old_token string
-	var old_uid int64
-	var created_date int64
-
-	// TODO: Test order!
-	applied, err := query_insert.ScanCAS(&old_fbid, &created_date, &old_token, &old_uid)
-	if err != nil {
-		return false, convErr(err)
-	}
-
-	if !applied {
-
-		// Retry logic
-
-		if (created_date + GRACE_PERIOD_MS) < currentDate {
-
-			// Grace period expired. Check if account is valid. If it isn't, overwrite row
-
-			if _, err := d.LoadByFB(old_fbid); err == ErrInconsistency || err == api.ErrNotFound {
-
-				// Account doesn't exist or is invalid (no e-mail credential)
-
-				update_stmt := `UPDATE user_facebook_credentials SET fb_token = ?, user_id = ?, created_date = ?
-					WHERE fb_id = ? IF created_date < ?`
-				currentDate = utils.GetCurrentTimeMillis()
-				query_update := d.session.Query(update_stmt, fbToken, userId, currentDate,
-					fbId, currentDate-GRACE_PERIOD_MS)
-				if applied, err = query_update.ScanCAS(nil); err != nil {
-					return false, convErr(err)
-				} else if !applied {
-					return false, ErrGracePeriod
-				}
-
-			} else if err != nil {
-				return false, err
-			} else {
-				return false, api.ErrFacebookAlreadyExists
-			}
-
-		} else {
-			return false, ErrGracePeriod
-		}
-	}
-
-	return applied, err // returns true, nil
 }
 
 func (d *UserDAO) deleteUserAccount(user_id int64) error {

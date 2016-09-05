@@ -3,12 +3,13 @@ package cqldao
 import (
 	"log"
 	"peeple/areyouin/api"
+	"peeple/areyouin/utils"
 
 	"github.com/gocql/gocql"
 )
 
 const (
-	GRACE_PERIOD_MS = 20 * 1000 // 20s
+	GRACE_PERIOD_MS = 15 * 1000 // 15s
 )
 
 type UserDAO struct {
@@ -112,7 +113,7 @@ func (d *UserDAO) LoadByFB(fbId string) (*api.UserDTO, error) {
 		log.Printf("* LOADBYFB WARNING: USER %v NOT FOUND: This means a FbId (%v) points to an AyiId (%v) that does not exist. Admin required.\n", userId, fbId, userId)
 		return nil, ErrInconsistency
 	} else if err == ErrInconsistency {
-		// Account exist but either it has no email cred or it email cred points to another user
+		// Account exist but either it has no email cred or email cred points to another user
 		return nil, api.ErrNotFound
 	} else if err != nil {
 		return nil, err
@@ -220,7 +221,7 @@ func (d *UserDAO) Insert(user *api.UserDTO) error {
 	insert_state = 1
 
 	if user.FbId != "" && user.FbToken != "" {
-		if _, err := d.insertFacebookCredentials(user.Id, user.FbId, user.FbToken); err != nil {
+		if _, err := d.InsertFacebookCredentials(user.Id, user.FbId, user.FbToken); err != nil {
 			return err
 		}
 	}
@@ -250,6 +251,75 @@ func (d *UserDAO) Insert(user *api.UserDTO) error {
 	}
 
 	return nil
+}
+
+// Try to insert Facebook credentials. If it fails because of a collision, retrieve
+// the row causing that collision, compare created_date with grace_period and check if
+// that row belongs to a valid account. If grace_period seconds have elapsed since
+// created_date and account isn't valid, then remove row causing conflict and retry.
+// Otherwise, if account is valid, returns ErrFacebookAlreadyExists. If grace_period
+// seconds haven't elapsed yet since created_date then return ErrGracePeriod .
+func (d *UserDAO) InsertFacebookCredentials(userId int64, fbId string, fbToken string) (ok bool, err error) {
+
+	checkSession(d.session)
+
+	if fbId == "" || fbToken == "" || userId == 0 {
+		return false, api.ErrInvalidArg
+	}
+
+	insert_stmt := `INSERT INTO user_facebook_credentials (fb_id, fb_token, user_id, created_date)
+		VALUES (?, ?, ?, ?) IF NOT EXISTS`
+
+	currentDate := utils.GetCurrentTimeMillis()
+	query_insert := d.session.Query(insert_stmt, fbId, fbToken, userId, currentDate)
+
+	var old_fbid string
+	var old_token string
+	var old_uid int64
+	var created_date int64
+
+	// TODO: Test order!
+	applied, err := query_insert.ScanCAS(&old_fbid, &created_date, &old_token, &old_uid)
+	if err != nil {
+		return false, convErr(err)
+	}
+
+	if !applied {
+
+		// Retry logic
+
+		if (created_date + GRACE_PERIOD_MS) < currentDate {
+
+			// Grace period expired. Check if account is valid. If it isn't, overwrite row
+
+			if _, err := d.LoadByFB(old_fbid); err == ErrInconsistency || err == api.ErrNotFound {
+
+				// Account doesn't exist or is invalid (no e-mail credential)
+
+				update_stmt := `UPDATE user_facebook_credentials SET fb_token = ?, user_id = ?, created_date = ?
+					WHERE fb_id = ? IF created_date < ?`
+				currentDate = utils.GetCurrentTimeMillis()
+				query_update := d.session.Query(update_stmt, fbToken, userId, currentDate,
+					fbId, currentDate-GRACE_PERIOD_MS)
+
+				if applied, err = query_update.ScanCAS(nil); err != nil {
+					return false, convErr(err)
+				} else if !applied {
+					return false, ErrGracePeriod
+				}
+
+			} else if err != nil {
+				return false, err
+			} else {
+				return false, api.ErrFacebookAlreadyExists
+			}
+
+		} else {
+			return false, ErrGracePeriod
+		}
+	}
+
+	return true, nil // returns true, nil
 }
 
 func (d *UserDAO) SetPassword(email string, newPassword [32]byte, newSalt [32]byte) (bool, error) {
@@ -318,23 +388,48 @@ func (d *UserDAO) SetAuthToken(user_id int64, auth_token string) error {
 	return convErr(err)
 }
 
-func (d *UserDAO) SetFacebookToken(user_id int64, fb_id string, fb_token string) error {
+// UpdateFacebookCredential sets facebook id and access token for the account user_id and also set facebook
+// as credential
+func (d *UserDAO) SetFacebookCredential(userID int64, fbID string, fbToken string) error {
 
 	checkSession(d.session)
 
-	if user_id == 0 {
+	if userID == 0 {
 		return api.ErrInvalidArg
 	}
 
 	batch := d.session.NewBatch(gocql.LoggedBatch) // the primary use case of a logged batch is when you need to keep tables in sync with one another, and NOT performance.
 
+	// Assume stored user_id is the same as userID. This way, this method will never
+	// change facebook credential from one account to another one. At most, it will change
+	// fb_token that can be easily managed by client in case of a mismatch.
 	batch.Query(`UPDATE user_facebook_credentials SET fb_token = ? WHERE fb_id = ?`,
-		fb_token, fb_id)
+		fbToken, fbID)
 
 	batch.Query(`UPDATE user_account SET fb_id = ?, fb_token = ? WHERE user_id = ?`,
-		fb_id, fb_token, user_id)
+		fbID, fbToken, userID)
 
 	return convErr(d.session.ExecuteBatch(batch))
+}
+
+// SetFacebook sets facebook id and access token for the account user_id regardless fbId exists also
+// as facebook credentials.
+func (d *UserDAO) SetFacebook(userID int64, fbID string, fbToken string) error {
+
+	checkSession(d.session)
+
+	if userID == 0 {
+		return api.ErrInvalidArg
+	}
+
+	stmt := `UPDATE user_account SET fb_id = ?, fb_token = ? WHERE user_id = ?`
+	err := d.session.Query(stmt, fbID, fbToken, userID).Exec()
+
+	if err != nil {
+		return convErr(err)
+	}
+
+	return nil
 }
 
 func (d *UserDAO) SetIIDToken(userID int64, iidToken *api.IIDTokenDTO) error {

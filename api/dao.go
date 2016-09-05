@@ -15,11 +15,13 @@ type UserDAO interface {
 	LoadProfilePicture(userId int64) (*PictureDTO, error)
 	LoadIIDToken(userId int64) (*IIDTokenDTO, error)
 	Insert(user *UserDTO) error
+	InsertFacebookCredentials(userId int64, fbId string, fbToken string) (ok bool, err error)
 	SetPassword(email string, newPassword [32]byte, newSalt [32]byte) (bool, error)
 	SaveProfilePicture(userId int64, picture *PictureDTO) error
 	SetLastConnection(userId int64, time int64) error
 	SetAuthToken(userId int64, auth_token string) error
-	SetFacebookToken(userId int64, fbId string, fb_token string) error
+	SetFacebookCredential(userId int64, fbId string, fbToken string) error
+	SetFacebook(userId int64, fbId string, fbToken string) error
 	SetIIDToken(userId int64, iidToken *IIDTokenDTO) error
 	Delete(user *UserDTO) error
 }

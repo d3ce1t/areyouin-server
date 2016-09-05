@@ -61,10 +61,14 @@ func (m *FriendManager) GetAllGroups(userID int64) ([]*Group, error) {
 	return groups, nil
 }
 
-// Gets AreYouIN users that are friends of user in Facebook
+// Gets AreYouIN users that are friends of given user in Facebook
 func (self *FriendManager) GetFacebookFriends(user *UserAccount) ([]*UserAccount, error) {
 
 	// Load Facebook friends that have AreYouIN in Facebook Apps
+
+	if user.FbId() == "" || user.FbToken() == "" {
+		return nil, ErrAccountNotLinkedToFacebook
+	}
 
 	fbsession := fb.NewSession(user.FbToken())
 	fbFriends, err := fb.GetFriends(fbsession)

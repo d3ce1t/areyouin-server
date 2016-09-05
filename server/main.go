@@ -87,8 +87,8 @@ func main() {
 		server.registerCallback(proto.M_CREATE_FRIEND_REQUEST, onFriendRequest)
 		server.registerCallback(proto.M_GET_FRIEND_REQUESTS, onListFriendRequests)
 		server.registerCallback(proto.M_CONFIRM_FRIEND_REQUEST, onConfirmFriendRequest)
-		//server.registerCallback(proto.M_GET_FACEBOOK_FRIENDS, onGetFacebookFriends)
-		//server.registerCallback(proto.M_USER_LINK_ACCOUNT, onLinkAccount)
+		server.registerCallback(proto.M_GET_FACEBOOK_FRIENDS, onGetFacebookFriends)
+		server.registerCallback(proto.M_USER_LINK_ACCOUNT, onLinkAccount)
 
 		// Create images HTTP server and start
 		imagesServer := imgserv.NewServer(session, model, cfg)
