@@ -618,8 +618,9 @@ func onImportFacebookFriends(request *proto.AyiPacket, message proto.Message, se
 	addedFriends, err := server.Model.Friends.ImportFacebookFriends(account, false)
 	checkNoErrorOrPanic(err)
 
-	// Send OK Response
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
+	// Send list of imported users
+	session.WriteResponse(request.Header.GetToken(),
+		session.NewMessage().FacebookFriendsList(convUserList2FriendNet(addedFriends)))
 	log.Printf("< (%v) IMPORT FACEBOOK FRIENDS OK (added: %v)\n", session, len(addedFriends))
 }
 

@@ -161,7 +161,7 @@ func (m *FriendManager) ImportFacebookFriends(user *UserAccount, initialImport b
 		signal := &Signal{
 			Type: SignalNewFriendsImported,
 			Data: map[string]interface{}{
-				"UserID":        user,
+				"User":          user,
 				"NewFriends":    addedFriends,
 				"InitialImport": initialImport,
 			},
