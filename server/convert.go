@@ -86,6 +86,14 @@ func convFriendList2Net(friendList []*model.Friend) []*core.Friend {
 	return result
 }
 
+func convUserList2FriendNet(userList []*model.UserAccount) []*core.Friend {
+	result := make([]*core.Friend, 0, len(userList))
+	for _, f := range userList {
+		result = append(result, convFriend2Net(f.AsFriend()))
+	}
+	return result
+}
+
 func convFriendRequest2Net(friendRequest *model.FriendRequest) *core.FriendRequest {
 	return &core.FriendRequest{
 		FriendId:    friendRequest.FromUser(),

@@ -39,10 +39,14 @@ func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *A
 
 		// Import Facebook friends that already have AreYouIN
 
-		server.task_executor.Submit(&ImportFacebookFriends{
-			TargetUser: userAccount,
-			Fbtoken:    userAccount.FbToken(),
-		})
+		go func() {
+			addedFriends, err := server.Model.Friends.ImportFacebookFriends(userAccount, true)
+			if err != nil {
+				log.Printf("* (%v) IMPORT FACEBOOK FRIENDS ERROR: %v", session, err)
+				return
+			}
+			log.Printf("* (%v) IMPORT FACEBOOK FRIENDS SUCCESS (added: %v)", session, len(addedFriends))
+		}()
 	}
 
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().UserAccessGranted(userAccount.Id(), userAccount.AuthToken()))
@@ -116,7 +120,7 @@ func onUserNewAuthToken(request *proto.AyiPacket, message proto.Message, session
 			reply = session.NewMessage().UserAccessGranted(authCred.UserID(), authCred.Token())
 			log.Printf("< (%v) USER NEW AUTH TOKEN ACCESS GRANTED\n", session)
 		} else if err == fb.ErrFacebookAccessForbidden {
-			reply = session.NewMessage().Error(request.Type(), proto.E_FB_INVALID_ACCESS)
+			reply = session.NewMessage().Error(request.Type(), proto.E_FB_INVALID_ACCESS_TOKEN)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID FB ACCESS %v\n", session, fb.GetErrorMessage(err))
 		} else if err == model.ErrInvalidUserOrPassword {
 			reply = session.NewMessage().Error(request.Type(), proto.E_INVALID_USER_OR_PASSWORD)
@@ -547,9 +551,6 @@ func onListEventsHistory(request *proto.AyiPacket, message proto.Message, sessio
 	events, err := server.Model.Events.GetEventsHistory(session.UserId, msg.StartWindow, msg.EndWindow)
 	checkNoErrorOrPanic(err)
 
-	// Check event exists
-	checkAtLeastOneEventOrPanic(events)
-
 	var startWindow int64
 	var endWindow int64
 
@@ -593,33 +594,33 @@ func onGetFacebookFriends(request *proto.AyiPacket, message proto.Message, sessi
 	account, err := server.Model.Accounts.GetUserAccount(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	// Get Facebook Friends that already have AreYouIN
-	fbFriends, err := server.Model.Friends.GetFacebookFriends(account)
+	// Get Facebook Friends that have AreYouIN but are not friends of session.UserID in AreYouIN
+	newFBFriends, err := server.Model.Friends.GetNewFacebookFriends(account)
 	checkNoErrorOrPanic(err)
 
-	// Get all friends
-	allFriends, err := server.Model.Friends.GetAllFriends(account.Id())
-	checkNoErrorOrPanic(err)
-
-	// Index friends
-	friendsIndex := make(map[int64]*model.Friend)
-	for _, friend := range allFriends {
-		friendsIndex[friend.Id()] = friend
-	}
-
-	// Filter fbFriends to get only new friends
-	newFBFriends := make([]*model.Friend, 0, len(fbFriends))
-
-	for _, fbFriend := range fbFriends {
-		// Assume that if fbFriend isn't in allFriends, then user wouldn't be either
-		// in the fbFriend friends list
-		if _, ok := friendsIndex[fbFriend.Id()]; !ok {
-			newFBFriends = append(newFBFriends, fbFriend.AsFriend())
-		}
-	}
-
-	session.WriteResponse(request.Header.GetToken(), session.NewMessage().FacebookFriendsList(convFriendList2Net(newFBFriends)))
+	session.WriteResponse(request.Header.GetToken(),
+		session.NewMessage().FacebookFriendsList(convUserList2FriendNet(newFBFriends)))
 	log.Printf("< (%v) SEND FACEBOOK FRIENDS (num.friends: %v)\n", session, len(newFBFriends))
+}
+
+func onImportFacebookFriends(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+
+	log.Printf("> (%v) IMPORT FACEBOOK FRIENDS\n", session) // Message does not has payload
+	checkAuthenticated(session)
+
+	// Get account
+	account, err := server.Model.Accounts.GetUserAccount(session.UserId)
+	checkNoErrorOrPanic(err)
+
+	// Import Facebook friends
+	addedFriends, err := server.Model.Friends.ImportFacebookFriends(account, false)
+	checkNoErrorOrPanic(err)
+
+	// Send OK Response
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
+	log.Printf("< (%v) IMPORT FACEBOOK FRIENDS OK (added: %v)\n", session, len(addedFriends))
 }
 
 func onFriendRequest(request *proto.AyiPacket, message proto.Message, session *AyiSession) {

@@ -106,3 +106,7 @@ func createNewFriendNotification(friendName string) *gcm.Notification {
 
 	return notification
 }
+
+/*func createFriendJoinedNotification(friendName string) *gcm.Notification {
+
+}*/

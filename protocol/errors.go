@@ -9,7 +9,7 @@ const (
 	E_INVALID_USER_OR_PASSWORD       // Auth, AuthNewToken
 	E_EMAIL_EXISTS                   // Create User Account
 	E_FB_EXISTS                      // Create User Account
-	E_FB_INVALID_ACCESS              // Create User Account
+	E_FB_INVALID_ACCESS_TOKEN        // Create User Account
 	E_INVALID_INPUT                  // Create User Account
 	E_MALFORMED_MESSAGE              // User Friend
 	E_EVENT_PARTICIPANTS_REQUIRED
@@ -31,6 +31,7 @@ const (
 	E_ALREADY_FRIENDS
 	E_FRIEND_REQUEST_ALREADY_SENT
 	E_SERVER_MAINTENANCE
+	E_ACCOUNT_NOT_LINKED_TO_FACEBOOK
 )
 
 var (

@@ -13,12 +13,9 @@ var (
 	ErrAuthRequired               = errors.New("auth required")
 	ErrNoAuthRequired             = errors.New("no auth required")
 	ErrUnregisteredMessage        = errors.New("unregistered message")
-	ErrNonFriendsIgnored          = errors.New("ignored non friends participants")
 	ErrUnregisteredFriendsIgnored = errors.New("ignored unregistered participants")
 	ErrAuthorMismatch             = errors.New("author mismatch")
 	ErrOperationFailed            = errors.New("operation failed")
-	ErrEventNotFound              = errors.New("event not found")
-	ErrImageOutOfBounds           = errors.New("image is out of bounds")
 	ErrFriendNotFound             = errors.New("Friend not found")
 )
 
@@ -30,6 +27,15 @@ func getNetErrorCode(err error, default_code int32) int32 {
 
 	case ErrAuthRequired:
 		err_code = proto.E_AUTH_REQUIRED
+
+	case ErrUnregisteredFriendsIgnored:
+		err_code = proto.E_INVALID_PARTICIPANT
+
+	case ErrAuthorMismatch:
+		err_code = proto.E_EVENT_AUTHOR_MISMATCH
+
+	case ErrFriendNotFound:
+		err_code = proto.E_FRIEND_NOT_FOUND
 
 	case model.ErrInvalidEmail:
 		err_code = proto.E_INPUT_INVALID_EMAIL_ADDRESS
@@ -43,11 +49,8 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case model.ErrInvalidEndDate:
 		err_code = proto.E_EVENT_INVALID_END_DATE
 
-	case api.ErrEmailAlreadyExists:
-		err_code = proto.E_EMAIL_EXISTS
-
-	case api.ErrFacebookAlreadyExists:
-		err_code = proto.E_FB_EXISTS
+	case model.ErrAccountNotLinkedToFacebook:
+		err_code = proto.E_ACCOUNT_NOT_LINKED_TO_FACEBOOK
 
 	case model.ErrEventOutOfCreationWindow:
 		err_code = proto.E_EVENT_OUT_OF_CREATE_WINDOW
@@ -58,29 +61,14 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case model.ErrEmptyInbox:
 		err_code = proto.E_EMPTY_LIST
 
-	case facebook.ErrFacebookAccessForbidden:
-		err_code = proto.E_FB_INVALID_ACCESS
-
 	case model.ErrInvalidUserOrPassword:
 		err_code = proto.E_INVALID_USER_OR_PASSWORD
 
 	case model.ErrParticipantsRequired:
 		err_code = proto.E_EVENT_PARTICIPANTS_REQUIRED
 
-	case ErrNonFriendsIgnored:
-		err_code = proto.E_INVALID_PARTICIPANT
-
-	case ErrUnregisteredFriendsIgnored:
-		err_code = proto.E_INVALID_PARTICIPANT
-
 	case model.ErrEventNotWritable:
 		err_code = proto.E_EVENT_CANNOT_BE_MODIFIED
-
-	case ErrAuthorMismatch:
-		err_code = proto.E_EVENT_AUTHOR_MISMATCH
-
-	case ErrEventNotFound:
-		err_code = proto.E_INVALID_EVENT
 
 	case model.ErrFriendRequestAlreadyExist:
 		err_code = proto.E_FRIEND_REQUEST_ALREADY_SENT
@@ -88,8 +76,14 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case model.ErrAlreadyFriends:
 		err_code = proto.E_ALREADY_FRIENDS
 
-	case ErrFriendNotFound:
-		err_code = proto.E_FRIEND_NOT_FOUND
+	case api.ErrEmailAlreadyExists:
+		err_code = proto.E_EMAIL_EXISTS
+
+	case api.ErrFacebookAlreadyExists:
+		err_code = proto.E_FB_EXISTS
+
+	case facebook.ErrFacebookAccessForbidden:
+		err_code = proto.E_FB_INVALID_ACCESS_TOKEN
 
 	default:
 		err_code = default_code

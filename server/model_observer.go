@@ -95,6 +95,9 @@ func (m *ModelObserver) processSignal(signal *model.Signal) {
 	case model.SignalFriendRequestAccepted:
 		m.processFriendRequestAcceptedSignal(signal)
 
+	case model.SignalNewFriendsImported:
+		m.processFriendsImported(signal)
+
 	default:
 		m.signalsQueue.Add(signal)
 	}
@@ -113,8 +116,8 @@ func (m *ModelObserver) processDelayedChanges() {
 		case model.SignalEventParticipantsInvited:
 			m.processNewEventSignal(signal)
 
-		/*case model.SignalEventCancelled:
-		m.processEventCancelledSignal(signal)*/
+			/*case model.SignalEventCancelled:
+			m.processEventCancelledSignal(signal)*/
 
 		case model.SignalEventInfoChanged:
 			m.processEventChangedSignal(signal)
@@ -278,29 +281,73 @@ func (m *ModelObserver) processFriendRequestAcceptedSignal(signal *model.Signal)
 	fromUser := signal.Data["FromUser"].(*model.UserAccount)
 	toUser := signal.Data["ToUser"].(*model.UserAccount)
 
-	// Send Friend List to both users if connected
-	sendFriends := func(userID int64, friendName string) {
-
-		// Notification
+	// Send Friend list to userID and notify with "you and friendName
+	// are now friends"
+	notifyFriend := func(userID int64, friendName string) {
 		sendNewFriendNotification(friendName, userID)
-
-		if session := m.server.getSession(userID); session != nil {
-
-			// TODO: May panic
-			friends, err := m.model.Friends.GetAllFriends(userID)
-			if err != nil {
-				log.Println("SendUserFriends Error:", err)
-				return
-			}
-
-			if len(friends) > 0 {
-				session.Write(session.NewMessage().FriendsList(convFriendList2Net(friends)))
-				log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", userID, len(friends))
-			}
-
-		}
+		m.sendFriends(userID)
 	}
 
-	go sendFriends(fromUser.Id(), toUser.Name())
-	go sendFriends(toUser.Id(), fromUser.Name())
+	go notifyFriend(fromUser.Id(), toUser.Name())
+	go notifyFriend(toUser.Id(), fromUser.Name())
+}
+
+func (m *ModelObserver) processFriendsImported(signal *model.Signal) {
+
+	// User who performed the import
+	user := signal.Data["User"].(*model.UserAccount)
+
+	// New friends added
+	addedFriends := signal.Data["NewFriends"].([]*model.UserAccount)
+
+	// Initial import is true if account was just created. Otherwise, is false.
+	initialImport := signal.Data["InitialImport"].(bool)
+
+	// Send Friend list to userID and notify with "you and friendName
+	// are now friends"
+	notifyFriend := func(userID int64, friendName string, initialImport bool) {
+
+		if initialImport {
+			// Do another notification
+		} else {
+			sendNewFriendNotification(friendName, userID)
+		}
+
+		m.sendFriends(userID)
+	}
+
+	// Loop through added friends in order to notify them
+	for _, newFriend := range addedFriends {
+		// Send friend list and notify newFriend that he is now friend of user
+		go notifyFriend(newFriend.Id(), user.Name(), initialImport)
+	}
+
+	if len(addedFriends) > 0 {
+		// Send friend list to user user
+		go m.sendFriends(user.Id())
+	}
+}
+
+func (m *ModelObserver) sendFriends(userID int64) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("* SendFriends Error: %v\n", r)
+		}
+	}()
+
+	if session := m.server.getSession(userID); session != nil {
+
+		// May panic so defer was added above
+		friends, err := m.model.Friends.GetAllFriends(userID)
+		if err != nil {
+			log.Println("SendUserFriends Error:", err)
+			return
+		}
+
+		if len(friends) > 0 {
+			session.Write(session.NewMessage().FriendsList(convFriendList2Net(friends)))
+			log.Printf("< (%v) SEND USER FRIENDS (num.friends: %v)\n", userID, len(friends))
+		}
+	}
 }

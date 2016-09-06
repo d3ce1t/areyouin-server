@@ -30,7 +30,6 @@ type Callback func(*proto.AyiPacket, proto.Message, *AyiSession)
 type Server struct {
 	TLSConfig     *tls.Config
 	sessions      *SessionsMap
-	task_executor *TaskExecutor
 	callbacks     map[proto.PacketType]Callback
 	Model         *model.AyiModel
 	modelObserver *ModelObserver
@@ -57,10 +56,6 @@ func (s *Server) init() {
 	// Init sessions holder
 	s.sessions = NewSessionsMap()
 	s.callbacks = make(map[proto.PacketType]Callback)
-
-	// Task Executor
-	s.task_executor = NewTaskExecutor(s)
-	s.task_executor.Start()
 }
 
 func (s *Server) run() {
@@ -331,10 +326,15 @@ func (s *Server) onFacebookUpdate(updateInfo *wh.FacebookUpdate) {
 
 		for _, changedField := range entry.ChangedFields {
 			if changedField == "friends" {
-				s.task_executor.Submit(&ImportFacebookFriends{
-					TargetUser: user,
-					Fbtoken:    user.FbToken(),
-				})
+
+				go func() {
+					addedFriends, err := s.Model.Friends.ImportFacebookFriends(user, false)
+					if err != nil {
+						log.Printf("* IMPORT FACEBOOK FRIENDS (userID: %v) ERROR: %v", user.Id(), err)
+						return
+					}
+					log.Printf("* IMPORT FACEBOOK FRIENDS SUCCESS (userID: %v, added: %v)", user.Id(), len(addedFriends))
+				}()
 			}
 		} // End inner loop
 	} // End outter loop
@@ -362,12 +362,6 @@ func checkUnauthenticated(session *AyiSession) {
 func checkNoErrorOrPanic(err error) {
 	if err != nil {
 		panic(err)
-	}
-}
-
-func checkAtLeastOneEventOrPanic(events []*model.Event) {
-	if len(events) == 0 {
-		panic(ErrEventNotFound)
 	}
 }
 

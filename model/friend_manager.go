@@ -61,16 +61,17 @@ func (m *FriendManager) GetAllGroups(userID int64) ([]*Group, error) {
 	return groups, nil
 }
 
-// Gets AreYouIN users that are friends of given user in Facebook
-func (self *FriendManager) GetFacebookFriends(user *UserAccount) ([]*UserAccount, error) {
-
-	// Load Facebook friends that have AreYouIN in Facebook Apps
+// GetFacebookFriends gets AreYouIN users that are friends of given user in Facebook
+func (m *FriendManager) GetFacebookFriends(user *UserAccount) ([]*UserAccount, error) {
 
 	if user.FbId() == "" || user.FbToken() == "" {
 		return nil, ErrAccountNotLinkedToFacebook
 	}
 
 	fbsession := fb.NewSession(user.FbToken())
+
+	// Load Facebook friends that have AreYouIN in Facebook Apps
+
 	fbFriends, err := fb.GetFriends(fbsession)
 	if err != nil {
 		return nil, errors.New(fb.GetErrorMessage(err))
@@ -78,11 +79,11 @@ func (self *FriendManager) GetFacebookFriends(user *UserAccount) ([]*UserAccount
 
 	// Match Facebook friends to AreYouIN users
 
-	friends := make([]*UserAccount, 0, len(fbFriends))
+	users := make([]*UserAccount, 0, len(fbFriends))
 
 	for _, fbFriend := range fbFriends {
 
-		friend, err := self.userDAO.LoadByFB(fbFriend.Id)
+		friend, err := m.userDAO.LoadByFB(fbFriend.Id)
 		if err == api.ErrNotFound {
 			// Skip: Facebook user has AreYouIN Facebook App but it's not registered (strangely)
 			continue
@@ -90,26 +91,25 @@ func (self *FriendManager) GetFacebookFriends(user *UserAccount) ([]*UserAccount
 			return nil, err
 		}
 
-		friends = append(friends, newUserFromDTO(friend))
+		users = append(users, newUserFromDTO(friend))
 	}
 
-	log.Printf("GetFacebookFriends: %v/%v friends found\n", len(friends), len(fbFriends))
+	log.Printf("GetFacebookFriends: %v/%v friends found\n", len(users), len(fbFriends))
 
-	return friends, nil
+	return users, nil
 }
 
-// Adds Facebook friends using AreYouIN to user's friends list
-// Returns the list of users that has been added by this operation
-func (self *FriendManager) ImportFacebookFriends(user *UserAccount) ([]*UserAccount, error) {
+// GetNewFacebookFriends gets AreYouIN users that are friends in Facebook but not in AreYouIN
+func (m *FriendManager) GetNewFacebookFriends(user *UserAccount) ([]*UserAccount, error) {
 
 	// Get areyouin accounts of Facebook friends
-	facebookFriends, err := self.GetFacebookFriends(user)
+	facebookFriends, err := m.GetFacebookFriends(user)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get existing friends
-	storedFriends, err := self.friendDAO.LoadFriends(user.id, ALL_CONTACTS_GROUP)
+	storedFriends, err := m.friendDAO.LoadFriends(user.id, ALL_CONTACTS_GROUP)
 	if err != nil {
 		return nil, err
 	}
@@ -121,38 +121,56 @@ func (self *FriendManager) ImportFacebookFriends(user *UserAccount) ([]*UserAcco
 	}
 
 	// Filter facebookFriends to get only new friends
-	newFriends := make([]*UserAccount, 0, len(facebookFriends))
+	newFBFriends := make([]*UserAccount, 0, len(facebookFriends))
 
 	for _, fbFriend := range facebookFriends {
-
 		// Assume that if fbFriend isn't in storedFriends, then user wouldn't be either
 		// in the fbFriend friends list
 		if _, ok := friendsIndex[fbFriend.Id()]; !ok {
-
-			if err := self.friendDAO.MakeFriends(user.AsFriend().AsDTO(), fbFriend.AsFriend().AsDTO()); err == nil {
-				log.Printf("ImportFacebookFriends: %v and %v are now friends\n", user.Id(), fbFriend.Id())
-				newFriends = append(newFriends, fbFriend)
-			} else {
-				// Log error but do not fail
-				log.Printf("ImportFacebookFriends Error (userId=%v, friendId=%v): %v\n", user.Id(), fbFriend.Id(), err)
-				continue
-			}
+			newFBFriends = append(newFBFriends, fbFriend)
 		}
 	}
 
-	if len(newFriends) > 0 {
+	return newFBFriends, nil
+}
+
+// ImportFacebookFriends adds to user's list those AreYouIN users that are friends in Facebook but not in AreYouIN
+// Returns the list of users that has been added by this operation
+func (m *FriendManager) ImportFacebookFriends(user *UserAccount, initialImport bool) ([]*UserAccount, error) {
+
+	newFacebookFriends, err := m.GetNewFacebookFriends(user)
+	if err != nil {
+		return nil, err
+	}
+
+	addedFriends := make([]*UserAccount, 0, len(newFacebookFriends))
+
+	for _, fbFriend := range newFacebookFriends {
+
+		if err := m.friendDAO.MakeFriends(user.AsFriend().AsDTO(), fbFriend.AsFriend().AsDTO()); err == nil {
+			log.Printf("ImportFacebookFriends: %v and %v are now friends\n", user.Id(), fbFriend.Id())
+			addedFriends = append(addedFriends, fbFriend)
+		} else {
+			// Log error but do not fail
+			log.Printf("ImportFacebookFriends Error (userId=%v, friendId=%v): %v\n", user.Id(), fbFriend.Id(), err)
+			continue
+		}
+	}
+
+	if len(addedFriends) > 0 {
 		signal := &Signal{
 			Type: SignalNewFriendsImported,
 			Data: map[string]interface{}{
-				"UserID":     user.Id(),
-				"NewFriends": GetUserSliceKeys(newFriends),
+				"UserID":        user,
+				"NewFriends":    addedFriends,
+				"InitialImport": initialImport,
 			},
 		}
 
-		self.friendSignal.Update(signal)
+		m.friendSignal.Update(signal)
 	}
 
-	return newFriends, nil
+	return addedFriends, nil
 }
 
 /*func (m *FriendManager) MakeFriends(user1 *UserAccount, user2 *UserAccount) error {

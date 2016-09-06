@@ -51,6 +51,8 @@ func (m *EventManager) GetEvent(eventID int64) (*Event, error) {
 	return nil, ErrNotFound
 }
 
+// CreateNewEvent creates an event with no participants
+//
 // Prominent errors:
 // - ErrInvalidAuthor
 // - ErrEventOutOfCreationWindow
@@ -64,7 +66,7 @@ func (m *EventManager) GetEvent(eventID int64) (*Event, error) {
 // Preconditions:
 // (1) event created date must be inside a valid window
 // (2) event start and end date must obey business rules
-func (self *EventManager) CreateNewEvent(author *UserAccount, createdDate int64,
+func (m *EventManager) CreateNewEvent(author *UserAccount, createdDate int64,
 	startDate int64, endDate int64, description string) (*Event, error) {
 
 	// Create event
@@ -87,10 +89,9 @@ func (self *EventManager) CreateNewEvent(author *UserAccount, createdDate int64,
 	return event, nil
 }
 
-// Create a participant list by means of the provided participants id.
+// CreateParticipantsList creates a participant list by means of the provided participants id.
 // Only friends of user 'authorId' are included in the resulting list.
-func (self *EventManager) CreateParticipantsList(authorId int64,
-	participants []int64) (map[int64]*UserAccount, error) {
+func (m *EventManager) CreateParticipantsList(authorID int64, participants []int64) (map[int64]*UserAccount, error) {
 
 	if len(participants) == 0 {
 		return nil, ErrParticipantsRequired
@@ -99,21 +100,21 @@ func (self *EventManager) CreateParticipantsList(authorId int64,
 	usersList := make(map[int64]*UserAccount)
 	friendsCounter := 0
 
-	for _, pId := range participants {
+	for _, pID := range participants {
 
-		if ok, err := self.parent.Friends.IsFriend(pId, authorId); ok {
+		if ok, err := m.parent.Friends.IsFriend(pID, authorID); ok {
 
 			friendsCounter++
 
 			// Participant has author as his friend
 
-			user, err := self.userDAO.Load(pId)
+			user, err := m.userDAO.Load(pID)
 			if err == api.ErrNotFound {
 
 				// Participant doesn't exist
 
 				// TODO: Send e-mail to Admin
-				log.Printf("* CREATE PARTICIPANT LIST WARNING: USER %v NOT FOUND: This means user (%v) has a friend list but its account doesn't exist. Admin required.\n", pId, pId)
+				log.Printf("* CREATE PARTICIPANT LIST WARNING: USER %v NOT FOUND: This means user (%v) has a friend list but its account doesn't exist. Admin required.\n", pID, pID)
 				continue
 
 			} else if err != nil {
@@ -125,7 +126,7 @@ func (self *EventManager) CreateParticipantsList(authorId int64,
 		} else if err != nil {
 			return nil, err
 		} else {
-			log.Printf("* CREATE PARTICIPANT LIST WARNING: USER %v TRIED TO ADD USER %v BUT THEY ARE NOT FRIENDS\n", authorId, pId)
+			log.Printf("* CREATE PARTICIPANT LIST WARNING: USER %v TRIED TO ADD USER %v BUT THEY ARE NOT FRIENDS\n", authorID, pID)
 		}
 
 	} // End for
@@ -153,7 +154,7 @@ func (self *EventManager) CreateParticipantsList(authorId int64,
 // (2) event created date must be inside a valid window
 // (3) event start and end date must obey business rules
 // (4) Should be at least 1 participant besides the author
-func (self *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) error {
+func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) error {
 
 	// Check precondition (3)
 
@@ -178,7 +179,7 @@ func (self *EventManager) PublishEvent(event *Event, users map[int64]*UserAccoun
 
 	// Check precondition (1)
 
-	authorDto, err := self.userDAO.Load(event.AuthorId())
+	authorDto, err := m.userDAO.Load(event.AuthorId())
 	if err == api.ErrNotFound {
 		return ErrInvalidAuthor
 	} else if err != nil {
@@ -190,7 +191,7 @@ func (self *EventManager) PublishEvent(event *Event, users map[int64]*UserAccoun
 	// Store event: If suceed, it's guaranteed that event exists, author is one of
 	// the participants, and author has the event in his events inbox.
 	// Otherwise, if it fails, an event with no participants may exist (orphaned event)
-	err = self.persistEvent(event, author.AsParticipant())
+	err = m.persistEvent(event, author.AsParticipant())
 	if err != nil {
 		return err
 	}
@@ -204,10 +205,10 @@ func (self *EventManager) PublishEvent(event *Event, users map[int64]*UserAccoun
 		},
 	}
 
-	self.eventSignal.Update(signal)
+	m.eventSignal.Update(signal)
 
 	// Invite users. If error do nothing.
-	self.InviteUsers(event, users)
+	m.InviteUsers(event, users)
 
 	return nil
 }
@@ -220,7 +221,7 @@ func (self *EventManager) PublishEvent(event *Event, users map[int64]*UserAccoun
 //
 // Preconditions:
 // - (1) Event must have not started
-func (self *EventManager) CancelEvent(event *Event, userID int64) error {
+func (m *EventManager) CancelEvent(event *Event, userID int64) error {
 
 	// Check precondition (1)
 	if event.Status() != api.EventState_NOT_STARTED {
@@ -229,7 +230,7 @@ func (self *EventManager) CancelEvent(event *Event, userID int64) error {
 
 	// Change event state and position in time line
 	new_inbox_position := utils.GetCurrentTimeMillis()
-	err := self.eventDAO.SetEventStateAndInboxPosition(event.id, api.EventState_CANCELLED,
+	err := m.eventDAO.SetEventStateAndInboxPosition(event.id, api.EventState_CANCELLED,
 		new_inbox_position)
 
 	if err != nil {
@@ -259,7 +260,7 @@ func (self *EventManager) CancelEvent(event *Event, userID int64) error {
 		},
 	}
 
-	self.eventSignal.Update(signal)
+	m.eventSignal.Update(signal)
 
 	return nil
 }
@@ -279,7 +280,7 @@ func (self *EventManager) CancelEvent(event *Event, userID int64) error {
 // Preconditions:
 // - (1) Event must have not started
 // - (2) There must to be at least one new participant to be invited
-func (self *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount) (map[int64]*UserAccount, error) {
+func (m *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount) (map[int64]*UserAccount, error) {
 
 	// Check precondition (1)
 	if event.Status() != api.EventState_NOT_STARTED {
@@ -300,7 +301,7 @@ func (self *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount
 			participant := user.AsParticipant()
 			participant.invitationStatus = api.InvitationStatus_SERVER_DELIVERED
 
-			if err := self.eventDAO.AddParticipantToEvent(participant.AsDTO(), event.AsDTO()); err == nil {
+			if err := m.eventDAO.AddParticipantToEvent(participant.AsDTO(), event.AsDTO()); err == nil {
 				event.addParticipant(participant)
 				usersInvited[user.id] = user
 			} else {
@@ -316,7 +317,7 @@ func (self *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount
 
 	// TODO: If two users invite participants at the same time, counter will be inconsistent.
 	// Remove this implementation when possible. Replace by another one where counters aren't needed
-	if _, err := self.eventDAO.SetNumGuests(event.id, len(event.participants)); err != nil {
+	if _, err := m.eventDAO.SetNumGuests(event.id, len(event.participants)); err != nil {
 		log.Printf("* INVITE USERS WARNING: Update Num. guestss Error %v\n", err)
 	}
 
@@ -333,7 +334,7 @@ func (self *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount
 		},
 	}
 
-	self.eventSignal.Update(signal)
+	m.eventSignal.Update(signal)
 
 	return usersInvited, nil
 }
@@ -346,7 +347,7 @@ func (self *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount
 //
 // Preconditions
 // - (1) Event must have not started
-func (self *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
+func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 
 	// Check precondition (1)
 	if event.Status() != api.EventState_NOT_STARTED {
@@ -366,7 +367,7 @@ func (self *EventManager) ChangeEventPicture(event *Event, picture []byte) error
 		}
 
 		// Save event picture
-		if err := self.saveEventPicture(event.id, corePicture); err != nil {
+		if err := m.saveEventPicture(event.id, corePicture); err != nil {
 			return err
 		}
 
@@ -376,7 +377,7 @@ func (self *EventManager) ChangeEventPicture(event *Event, picture []byte) error
 
 		// Remove event picture
 
-		if err := self.removeEventPicture(event.id); err != nil {
+		if err := m.removeEventPicture(event.id); err != nil {
 			return err
 		}
 
@@ -392,7 +393,7 @@ func (self *EventManager) ChangeEventPicture(event *Event, picture []byte) error
 		},
 	}
 
-	self.eventSignal.Update(signal)
+	m.eventSignal.Update(signal)
 
 	return nil
 }
@@ -409,7 +410,7 @@ func (self *EventManager) ChangeEventPicture(event *Event, picture []byte) error
 // - (1) Event must have not started
 // - (2) User must have received this invitation, i.e. user is in event participant
 //       list and event is in his inbox.
-func (self *EventManager) ChangeParticipantResponse(userId int64,
+func (m *EventManager) ChangeParticipantResponse(userId int64,
 	response api.AttendanceResponse, event *Event) (bool, error) {
 
 	// Check precondition (1)
@@ -429,7 +430,7 @@ func (self *EventManager) ChangeParticipantResponse(userId int64,
 
 		// Change response
 
-		if err := self.eventDAO.SetParticipantResponse(participant.id, response, event.AsDTO()); err != nil {
+		if err := m.eventDAO.SetParticipantResponse(participant.id, response, event.AsDTO()); err != nil {
 			return false, err
 		}
 
@@ -450,7 +451,7 @@ func (self *EventManager) ChangeParticipantResponse(userId int64,
 
 		participant.response = response
 
-		self.eventSignal.Update(signal)
+		m.eventSignal.Update(signal)
 
 		return true, nil
 	}
@@ -458,7 +459,7 @@ func (self *EventManager) ChangeParticipantResponse(userId int64,
 	return false, nil
 }
 
-func (self *EventManager) ChangeDeliveryState(event *Event, userId int64, state api.InvitationStatus) (bool, error) {
+func (m *EventManager) ChangeDeliveryState(event *Event, userId int64, state api.InvitationStatus) (bool, error) {
 
 	if event.Status() != api.EventState_NOT_STARTED {
 		return false, ErrEventNotWritable
@@ -472,7 +473,7 @@ func (self *EventManager) ChangeDeliveryState(event *Event, userId int64, state 
 	if participant.invitationStatus != state {
 		// TODO: Add business logic to avoid moving to a previous state
 
-		err := self.eventDAO.SetParticipantInvitationStatus(userId, event.id, state)
+		err := m.eventDAO.SetParticipantInvitationStatus(userId, event.id, state)
 
 		if err != nil {
 			return false, err
@@ -492,7 +493,7 @@ func (self *EventManager) ChangeDeliveryState(event *Event, userId int64, state 
 			},
 		}
 
-		self.eventSignal.Update(signal)
+		m.eventSignal.Update(signal)
 
 		return true, nil
 	}
@@ -501,10 +502,10 @@ func (self *EventManager) ChangeDeliveryState(event *Event, userId int64, state 
 }
 
 // FIXME: Do not get all of the private events, but limit to a fixed number.
-func (self *EventManager) GetRecentEvents(userId int64) ([]*Event, error) {
+func (m *EventManager) GetRecentEvents(userId int64) ([]*Event, error) {
 
 	currentTime := utils.GetCurrentTimeMillis()
-	eventsDto, err := self.eventDAO.LoadRecentEventsFromUser(userId, currentTime)
+	eventsDto, err := m.eventDAO.LoadRecentEventsFromUser(userId, currentTime)
 
 	if err == api.ErrNoResults {
 		return nil, ErrEmptyInbox
@@ -520,7 +521,7 @@ func (self *EventManager) GetRecentEvents(userId int64) ([]*Event, error) {
 	return events, nil
 }
 
-func (self *EventManager) GetEventsHistory(userId int64, start int64, end int64) ([]*Event, error) {
+func (m *EventManager) GetEventsHistory(userId int64, start int64, end int64) ([]*Event, error) {
 
 	currentTime := utils.GetCurrentTimeMillis()
 
@@ -532,7 +533,7 @@ func (self *EventManager) GetEventsHistory(userId int64, start int64, end int64)
 		end = currentTime
 	}
 
-	eventsDto, err := self.eventDAO.LoadEventsHistoryFromUser(userId, start, end)
+	eventsDto, err := m.eventDAO.LoadEventsHistoryFromUser(userId, start, end)
 	if err == api.ErrNoResults {
 		return nil, ErrEmptyInbox
 	} else if err != nil {
@@ -609,13 +610,13 @@ func (self *EventManager) GetEventsHistory(userId int64, start int64, end int64)
 }*/
 
 // Insert an event into database, add participants to it and send it to users' inbox.
-func (self *EventManager) persistEvent(event *Event, author *Participant) error {
+func (m *EventManager) persistEvent(event *Event, author *Participant) error {
 
 	if event.AuthorId() != author.Id() {
 		return ErrInvalidAuthor
 	}
 
-	if err := self.eventDAO.Insert(event.AsDTO()); err != nil {
+	if err := m.eventDAO.Insert(event.AsDTO()); err != nil {
 		return err
 	}
 
@@ -623,7 +624,7 @@ func (self *EventManager) persistEvent(event *Event, author *Participant) error 
 	// participants if something fails
 	author.response = api.AttendanceResponse_ASSIST
 
-	if err := self.eventDAO.AddParticipantToEvent(author.AsDTO(), event.AsDTO()); err != nil {
+	if err := m.eventDAO.AddParticipantToEvent(author.AsDTO(), event.AsDTO()); err != nil {
 		return ErrAuthorDeliveryError
 	}
 
@@ -634,7 +635,7 @@ func (self *EventManager) persistEvent(event *Event, author *Participant) error 
 	return nil
 }
 
-func (self *EventManager) saveEventPicture(event_id int64, picture *Picture) error {
+func (m *EventManager) saveEventPicture(event_id int64, picture *Picture) error {
 
 	// Decode image
 	srcImage, _, err := image.Decode(bytes.NewReader(picture.RawData))
@@ -648,19 +649,19 @@ func (self *EventManager) saveEventPicture(event_id int64, picture *Picture) err
 	}
 
 	// Create thumbnails
-	thumbnails, err := utils.CreateThumbnails(srcImage, EVENT_THUMBNAIL, self.parent.supportedDpi)
+	thumbnails, err := utils.CreateThumbnails(srcImage, EVENT_THUMBNAIL, m.parent.supportedDpi)
 	if err != nil {
 		return err
 	}
 
 	// Save thumbnails
-	err = self.thumbDAO.Insert(event_id, picture.Digest, thumbnails)
+	err = m.thumbDAO.Insert(event_id, picture.Digest, thumbnails)
 	if err != nil {
 		return err
 	}
 
 	// Save event picture (always does it after thumbnails)
-	err = self.eventDAO.SetEventPicture(event_id, picture.AsDTO())
+	err = m.eventDAO.SetEventPicture(event_id, picture.AsDTO())
 	if err != nil {
 		return err
 	}
@@ -668,17 +669,17 @@ func (self *EventManager) saveEventPicture(event_id int64, picture *Picture) err
 	return nil
 }
 
-func (self *EventManager) removeEventPicture(event_id int64) error {
+func (m *EventManager) removeEventPicture(event_id int64) error {
 
 	// Remove event picture
 	emptyPic := Picture{RawData: nil, Digest: nil}
-	err := self.eventDAO.SetEventPicture(event_id, emptyPic.AsDTO())
+	err := m.eventDAO.SetEventPicture(event_id, emptyPic.AsDTO())
 	if err != nil {
 		return err
 	}
 
 	// Remove thumbnails
-	err = self.thumbDAO.Remove(event_id)
+	err = m.thumbDAO.Remove(event_id)
 	if err != nil {
 		return err
 	}
@@ -687,10 +688,10 @@ func (self *EventManager) removeEventPicture(event_id int64) error {
 }
 
 // Tells if participant p1 can see event changes of participant p2
-func (self *EventManager) canSee(p1 int64, p2 *Participant) (bool, error) {
+func (m *EventManager) canSee(p1 int64, p2 *Participant) (bool, error) {
 	if p2.response == api.AttendanceResponse_ASSIST {
 		return true, nil
 	} else {
-		return self.parent.Friends.IsFriend(p2.id, p1)
+		return m.parent.Friends.IsFriend(p2.id, p1)
 	}
 }
