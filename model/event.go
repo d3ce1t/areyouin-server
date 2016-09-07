@@ -160,8 +160,8 @@ func (e *Event) NumGuests() int {
 func (e *Event) Status() api.EventState {
 
 	currentDate := time.Now()
-	startDate := utils.UnixMillisToTime(e.startDate)
-	endDate := utils.UnixMillisToTime(e.endDate)
+	startDate := utils.UnixMillisToTimeUTC(e.startDate)
+	endDate := utils.UnixMillisToTimeUTC(e.endDate)
 
 	if e.IsCancelled() {
 		return api.EventState_CANCELLED
@@ -203,8 +203,8 @@ func (e *Event) isValidStartDate() bool {
 
 	// I need only minute precision in order to emulate the same checking performed
 	// by the client.
-	createdDateMin := utils.UnixMillisToTime(e.createdDate - (e.createdDate % 60000))
-	startDate := utils.UnixMillisToTime(e.startDate)
+	createdDateMin := utils.UnixMillisToTimeUTC(e.createdDate - (e.createdDate % 60000))
+	startDate := utils.UnixMillisToTimeUTC(e.startDate)
 
 	if startDate.Before(createdDateMin.Add(MIN_DIF_IN_START_DATE)) ||
 		startDate.After(createdDateMin.Add(MAX_DIF_IN_START_DATE)) {
@@ -216,8 +216,8 @@ func (e *Event) isValidStartDate() bool {
 
 func (e *Event) isValidEndDate() bool {
 
-	startDate := utils.UnixMillisToTime(e.startDate)
-	endDate := utils.UnixMillisToTime(e.endDate)
+	startDate := utils.UnixMillisToTimeUTC(e.startDate)
+	endDate := utils.UnixMillisToTimeUTC(e.endDate)
 
 	if endDate.Before(startDate.Add(MIN_DIF_IN_END_DATE)) ||
 		endDate.After(startDate.Add(MAX_DIF_IN_END_DATE)) {

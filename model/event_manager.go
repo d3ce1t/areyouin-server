@@ -79,8 +79,8 @@ func (m *EventManager) CreateNewEvent(author *UserAccount, createdDate int64,
 	}
 
 	// Check precondition (2)
-	currentDateTime := utils.UnixMillisToTime(utils.GetCurrentTimeSeconds())
-	createdDateTime := utils.UnixMillisToTime(event.CreatedDate())
+	currentDateTime := utils.UnixMillisToTimeUTC(utils.GetCurrentTimeSeconds())
+	createdDateTime := utils.UnixMillisToTimeUTC(event.CreatedDate())
 
 	if createdDateTime.Before(currentDateTime.Add(-time.Minute)) || createdDateTime.After(currentDateTime.Add(time.Minute)) {
 		return nil, ErrEventOutOfCreationWindow
@@ -170,8 +170,8 @@ func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) 
 
 	// Check precondition (2)
 
-	currentDate := utils.UnixMillisToTime(utils.GetCurrentTimeSeconds())
-	createdDate := utils.UnixMillisToTime(event.CreatedDate())
+	currentDate := utils.UnixMillisToTimeUTC(utils.GetCurrentTimeSeconds())
+	createdDate := utils.UnixMillisToTimeUTC(event.CreatedDate())
 
 	if createdDate.Before(currentDate.Add(-time.Minute)) || createdDate.After(currentDate.Add(time.Minute)) {
 		return ErrEventOutOfCreationWindow

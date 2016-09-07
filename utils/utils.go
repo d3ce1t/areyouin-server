@@ -110,10 +110,10 @@ func TimeToSeconds(t time.Time) int64 {
 	return t.UnixNano() / int64(time.Second)
 }
 
-func UnixMillisToTime(timestamp int64) time.Time {
+func UnixMillisToTimeUTC(timestamp int64) time.Time {
 	seconds := timestamp / 1000
 	millis := timestamp % 1000
-	return time.Unix(seconds, millis*int64(time.Millisecond))
+	return time.Unix(seconds, millis*int64(time.Millisecond)).UTC()
 }
 
 func ClearUserAccounts(session *gocql.Session) {

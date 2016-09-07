@@ -16,6 +16,6 @@ func (c *listSessionsCmd) Exec(shell *Shell, args []string) {
 	manageShellError(err)
 
 	for _, activeSession := range activeSessions {
-		fmt.Fprintf(shell, "- %v %v\n", activeSession.UserID, utils.UnixMillisToTime(activeSession.LastTime))
+		fmt.Fprintf(shell, "- %v %v\n", activeSession.UserID, utils.UnixMillisToTimeUTC(activeSession.LastTime))
 	}
 }
