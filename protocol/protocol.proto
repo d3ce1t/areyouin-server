@@ -21,6 +21,7 @@ message Hello {
   string client_version = 2;
   string platform = 3; // Android, iOS, Web, ...
   string platform_version = 4;
+  string language = 5;
 }
 
 //
