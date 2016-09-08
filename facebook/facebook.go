@@ -2,10 +2,11 @@ package facebook
 
 import (
 	"fmt"
-	fb "github.com/huandu/facebook"
 	"io/ioutil"
 	"log"
 	"net/http"
+
+	fb "github.com/huandu/facebook"
 )
 
 const (
@@ -34,6 +35,7 @@ func CheckAccess(id string, session *fb.Session) (*FacebookAccount, error) {
 	})
 
 	if err != nil {
+		log.Printf("Facebook CheckAccess Error: %v\n", err)
 		return nil, ErrFacebookAccessForbidden
 	}
 

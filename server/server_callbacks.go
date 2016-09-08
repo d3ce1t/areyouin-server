@@ -121,13 +121,13 @@ func onUserNewAuthToken(request *proto.AyiPacket, message proto.Message, session
 			log.Printf("< (%v) USER NEW AUTH TOKEN ACCESS GRANTED\n", session)
 		} else if err == fb.ErrFacebookAccessForbidden {
 			reply = session.NewMessage().Error(request.Type(), proto.E_FB_INVALID_ACCESS_TOKEN)
-			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID FB ACCESS %v\n", session, fb.GetErrorMessage(err))
+			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID FB ACCESS: %v\n", session, fb.GetErrorMessage(err))
 		} else if err == model.ErrInvalidUserOrPassword {
 			reply = session.NewMessage().Error(request.Type(), proto.E_INVALID_USER_OR_PASSWORD)
 			log.Printf("< (%v) USER NEW AUTH TOKEN INVALID USER OR PASSWORD", session)
 		} else {
 			reply = session.NewMessage().Error(request.Type(), proto.E_OPERATION_FAILED)
-			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR %v\n", session, err)
+			log.Printf("< (%v) USER NEW AUTH TOKEN ERROR: %v\n", session, err)
 		}
 
 	}

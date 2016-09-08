@@ -68,7 +68,11 @@ func (m *FriendManager) GetFacebookFriends(user *UserAccount) ([]*UserAccount, e
 		return nil, ErrAccountNotLinkedToFacebook
 	}
 
+	// Check access, i.e. access token is for fbId
 	fbsession := fb.NewSession(user.FbToken())
+	if _, err := fb.CheckAccess(user.FbId(), fbsession); err != nil {
+		return nil, err
+	}
 
 	// Load Facebook friends that have AreYouIN in Facebook Apps
 
