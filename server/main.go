@@ -90,6 +90,7 @@ func main() {
 		server.registerCallback(proto.M_GET_FACEBOOK_FRIENDS, onGetFacebookFriends)
 		server.registerCallback(proto.M_USER_LINK_ACCOUNT, onLinkAccount)
 		server.registerCallback(proto.M_IMPORT_FACEBOOK_FRIENDS, onImportFacebookFriends)
+		server.registerCallback(proto.M_SET_FACEBOOK_ACCESS_TOKEN, onSetFacebookAccessToken)
 
 		// Create images HTTP server and start
 		imagesServer := imgserv.NewServer(session, model, cfg)

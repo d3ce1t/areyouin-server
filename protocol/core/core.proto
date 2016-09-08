@@ -96,3 +96,7 @@ message FriendRequest {
   string email = 3;
   int64 created_date = 4;
 }
+
+message FacebookAccessToken {
+  string access_token = 1;
+}

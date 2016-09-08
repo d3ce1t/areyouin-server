@@ -156,7 +156,7 @@ func (self *AccountManager) NewAuthCredentialByEmailAndPassword(email string, pa
 // - ErrInvalidUserOrPassword
 // - ErrModelInconsistency
 // - Others (except dao.ErrNotFound)
-func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken string) (*AccessToken, error) {
+func (m *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken string) (*AccessToken, error) {
 
 	// Use Facebook servers to check if the id and token are valid
 
@@ -167,7 +167,7 @@ func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken str
 
 	// Check if user exists also in AreYouIN
 
-	userDTO, err := self.userDAO.LoadByFB(fbId)
+	userDTO, err := m.userDAO.LoadByFB(fbId)
 	if err == api.ErrNotFound {
 		return nil, ErrInvalidUserOrPassword
 	} else if err != nil {
@@ -176,11 +176,11 @@ func (self *AccountManager) NewAuthCredentialByFacebook(fbId string, fbToken str
 
 	newAuthToken := uuid.NewV4().String()
 
-	if err = self.userDAO.SetAuthToken(userDTO.Id, newAuthToken); err != nil {
+	if err = m.userDAO.SetAuthToken(userDTO.Id, newAuthToken); err != nil {
 		return nil, err
 	}
 
-	if err = self.userDAO.SetFacebookCredential(userDTO.Id, fbId, fbToken); err != nil {
+	if err = m.userDAO.SetFacebookCredential(userDTO.Id, fbId, fbToken); err != nil {
 		// Log error but ignore it because it's not important to set the credential
 		log.Printf("* (%v) New Auth Credential by Facebook Err: %v\n", userDTO.Id, err)
 	}
@@ -265,6 +265,35 @@ func (m *AccountManager) SetPushToken(userID int64, pushToken *IIDToken) error {
 	}
 
 	//user.iidToken = pushToken
+	return nil
+}
+
+func (m *AccountManager) SetFacebookAccessToken(user *UserAccount, accessToken string) error {
+
+	// Check if user has Facebook. Otherwise, access token cannot be set before account is linked
+
+	if !user.HasFacebook() {
+		return ErrAccountNotLinkedToFacebook
+	}
+
+	// Check facebook access token (check access ensures access token is for fbId user)
+
+	fbsession := fb.NewSession(accessToken)
+	if _, err := fb.CheckAccess(user.FbId(), fbsession); err != nil {
+		return err
+	}
+
+	// Update Facebook token
+
+	if err := m.userDAO.SetFacebook(user.Id(), user.FbId(), accessToken); err != nil {
+		return err
+	}
+
+	user.fbCred = &FBCredential{
+		FbId:  user.FbId(),
+		Token: accessToken,
+	}
+
 	return nil
 }
 

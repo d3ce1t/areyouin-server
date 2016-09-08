@@ -624,6 +624,26 @@ func onImportFacebookFriends(request *proto.AyiPacket, message proto.Message, se
 	log.Printf("< (%v) IMPORT FACEBOOK FRIENDS OK (added: %v)\n", session, len(addedFriends))
 }
 
+func onSetFacebookAccessToken(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*core.FacebookAccessToken)
+
+	log.Printf("> (%v) SET FACEBOOK ACCESS TOKEN (%v)\n", session, msg)
+	checkAuthenticated(session)
+
+	// Get account
+	account, err := server.Model.Accounts.GetUserAccount(session.UserId)
+	checkNoErrorOrPanic(err)
+
+	// Update Facebook token
+	err = server.Model.Accounts.SetFacebookAccessToken(account, msg.AccessToken)
+	checkNoErrorOrPanic(err)
+
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
+	log.Printf("< (%v) SET FACEBOOK ACCESS TOKEN OK\n", session)
+}
+
 func onFriendRequest(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server

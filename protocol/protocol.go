@@ -181,6 +181,8 @@ func createEmptyMessage(packet_type PacketType) Message {
 		message = &Hello{}
 	case M_IID_TOKEN:
 		message = &InstanceIDToken{}
+	case M_SET_FACEBOOK_ACCESS_TOKEN:
+		message = &core.FacebookAccessToken{}
 
 	// Requests
 	case M_PING:
