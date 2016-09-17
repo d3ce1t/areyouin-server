@@ -12,11 +12,11 @@ import (
 
 const (
 	// Times
-	MAX_IDLE_TIME          = 20 * time.Minute
+	MAX_IDLE_TIME          = 13 * time.Minute // 13 minutes
 	MAX_LOGIN_TIME         = 30 * time.Second
-	PING_INTERVAL_MS       = 19 * time.Minute
+	PING_INTERVAL_MS       = 10 * time.Minute // 10 minutes (multiple of IDLE_INTERVAL)
 	PING_RETRY_INTERVAL_MS = 1 * time.Minute
-	TICKER_INTERVAL        = 10 * time.Minute
+	IDLE_INTERVAL          = 1 * time.Minute // 1 minutes
 
 	// Platforms
 	PLATFORM_IOS     = "iOS"
@@ -81,7 +81,6 @@ type AyiSession struct {
 	errorChan     chan error
 	exitChan      chan bool
 	writeChan     chan *WriteMsg
-	ticker        *time.Ticker
 	Server        *Server
 	IIDToken      *model.IIDToken
 	closed        bool
@@ -207,10 +206,9 @@ func (s *AyiSession) RunLoop() {
 
 	s.startRecv()
 	s.startWrite()
-	s.ticker = time.NewTicker(TICKER_INTERVAL)
+	s.pingTime = time.Now().Add(PING_INTERVAL_MS)
 
 	defer func() {
-		s.ticker.Stop()
 		close(s.writeChan)
 		close(s.readReadyChan)
 		close(s.errorChan)
@@ -219,7 +217,6 @@ func (s *AyiSession) RunLoop() {
 		s.UserId = 0
 	}()
 
-	s.pingTime = time.Now().Add(PING_INTERVAL_MS) // Move to session
 	exit := false
 
 	for !exit {
@@ -242,7 +239,7 @@ func (s *AyiSession) eventLoop() (exit bool) {
 			s.OnRead(s, packet)
 		case err := <-s.errorChan:
 			s.OnError(s, err)
-		case <-s.ticker.C:
+		case <-time.After(IDLE_INTERVAL):
 			if s.OnIdle != nil {
 				s.OnIdle(s)
 			}

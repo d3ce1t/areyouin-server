@@ -234,7 +234,7 @@ func (s *Server) handleSession(session *AyiSession) {
 		if !session.IsAuth {
 
 			if currentTime.After(session.lastRecvMsg.Add(MAX_LOGIN_TIME)) {
-				log.Println("Connection IDLE", s)
+				log.Printf("* (%v) Connection IDLE\n", session)
 				session.Exit()
 			}
 
@@ -242,7 +242,7 @@ func (s *Server) handleSession(session *AyiSession) {
 
 			if currentTime.After(session.lastRecvMsg.Add(MAX_IDLE_TIME)) {
 
-				log.Println("Connection IDLE", s)
+				log.Printf("* (%v) Connection IDLE\n", session)
 				session.Exit()
 
 			} else {
