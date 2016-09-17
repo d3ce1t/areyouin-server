@@ -19,7 +19,7 @@ type MessageBuilder interface {
 	Error(msg_type PacketType, error_code int32) *AyiPacket
 	Ping() *AyiPacket
 	Pong() *AyiPacket
-	EventInfo(event *core.Event) *AyiPacket
+	Event(event *core.Event) *AyiPacket
 	EventsList(events_list []*core.Event) *AyiPacket
 	EventsHistoryList(events_list []*core.Event, startWindow int64, endWindow int64) *AyiPacket
 	FriendsList(friends_list []*core.Friend) *AyiPacket

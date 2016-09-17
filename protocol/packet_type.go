@@ -77,7 +77,7 @@ const (
 // Responses
 const (
 	M_PONG PacketType = 0xC0 + iota
-	M_EVENT_INFO
+	M_EVENT
 	M_EVENTS_LIST
 	M_FRIENDS_LIST
 	M_CLOCK_RESPONSE

@@ -226,7 +226,7 @@ func (s *Server) handleSession(session *AyiSession) {
 		}
 	}
 
-	// Called periodically (each 10 minutes)
+	// Called after IDLE_INTERVAL time of inactivity
 	session.OnIdle = func(session *AyiSession) {
 
 		currentTime := time.Now()

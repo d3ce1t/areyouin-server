@@ -37,20 +37,6 @@ func (m *EventManager) Observe() observer.Stream {
 	return m.eventSignal.Observe()
 }
 
-func (m *EventManager) GetEvent(eventID int64) (*Event, error) {
-
-	events, err := m.eventDAO.LoadEvents(eventID)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(events) > 0 {
-		return newEventFromDTO(events[0]), nil
-	}
-
-	return nil, ErrNotFound
-}
-
 // CreateNewEvent creates an event with no participants
 //
 // Prominent errors:
@@ -499,6 +485,42 @@ func (m *EventManager) ChangeDeliveryState(event *Event, userId int64, state api
 	}
 
 	return false, nil
+}
+
+func (m *EventManager) GetEvent(eventID int64) (*Event, error) {
+
+	events, err := m.eventDAO.LoadEvents(eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(events) > 0 {
+		return newEventFromDTO(events[0]), nil
+	}
+
+	return nil, ErrNotFound
+}
+
+func (m *EventManager) GetEventForUser(userId int64, eventId int64) (*Event, error) {
+
+	// TODO: Make a more efficient implementation by adding DAO support to load a single event
+
+	events, err := m.eventDAO.LoadEvents(eventId)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(events) == 0 {
+		return nil, ErrNotFound
+	}
+
+	event := newEventFromDTO(events[0])
+
+	if participant := event.GetParticipant(userId); participant == nil {
+		return nil, ErrNotFound
+	}
+
+	return event, nil
 }
 
 // FIXME: Do not get all of the private events, but limit to a fixed number.

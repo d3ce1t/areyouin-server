@@ -82,6 +82,7 @@ func main() {
 		server.registerCallback(proto.M_CHANGE_EVENT_PICTURE, onChangeEventPicture)
 		server.registerCallback(proto.M_SYNC_GROUPS, onSyncGroups)
 		server.registerCallback(proto.M_GET_GROUPS, onGetGroups)
+		server.registerCallback(proto.M_READ_EVENT, onReadEvent)
 		server.registerCallback(proto.M_LIST_PRIVATE_EVENTS, onListPrivateEvents)
 		server.registerCallback(proto.M_HISTORY_PRIVATE_EVENTS, onListEventsHistory)
 		server.registerCallback(proto.M_CREATE_FRIEND_REQUEST, onFriendRequest)

@@ -99,8 +99,8 @@ func (mb *PacketBuilder) Pong() *AyiPacket {
 }
 
 /* Create an Event message with all its information, including participants information */
-func (mb *PacketBuilder) EventInfo(event *core.Event) *AyiPacket {
-	mb.message.Header.SetType(M_EVENT_INFO)
+func (mb *PacketBuilder) Event(event *core.Event) *AyiPacket {
+	mb.message.Header.SetType(M_EVENT)
 	mb.message.SetMessage(event)
 	return mb.message
 }

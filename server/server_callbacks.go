@@ -471,12 +471,12 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 // Clients are cool counting attendees :)
 func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
-	server := session.Server
 	msg := message.(*proto.ConfirmAttendance)
 	log.Printf("> (%v) CONFIRM ATTENDANCE %v\n", session, msg)
 
 	checkAuthenticated(session)
 
+	server := session.Server
 	event, err := server.Model.Events.GetEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
@@ -495,6 +495,46 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 	netParticipants := convParticipantList2Net(participantList)
 	session.Write(session.NewMessage().AttendanceStatus(event.Id(), netParticipants))
 	log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
+}
+
+func onReadEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
+
+	msg := message.(*proto.ReadEvent)
+	log.Printf("> (%v) READ EVENT %v\n", session, msg.EventId)
+
+	checkAuthenticated(session)
+
+	server := session.Server
+
+	// Load recent events
+	event, err := server.Model.Events.GetEventForUser(session.UserId, msg.EventId)
+	checkNoErrorOrPanic(err)
+
+	netEvent := convEvent2Net(event)
+
+	// Delivery status
+	if event.Status() == api.EventState_NOT_STARTED {
+
+		if participant, ok := netEvent.Participants[session.UserId]; ok {
+			participant.Delivered = core.InvitationStatus_CLIENT_DELIVERED
+		}
+	}
+
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Event(netEvent))
+	log.Printf("< (%v) SEND EVENT %v\n", session.UserId, event.Id())
+
+	if event.Status() == api.EventState_NOT_STARTED {
+		// Update delivery status
+		// TODO: I should receive an ACK before try to change state.
+		if participant := event.GetParticipant(session.UserId); participant != nil {
+			if participant.InvitationStatus() != api.InvitationStatus_CLIENT_DELIVERED {
+				_, err := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
+				if err != nil {
+					log.Printf("* (%v) READ EVENT UPDATE DELIVERY STATUS ERROR (eventID: %v): %v)", session, event.Id(), err)
+				}
+			}
+		}
+	}
 }
 
 func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -533,7 +573,7 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 			if participant.InvitationStatus() != api.InvitationStatus_CLIENT_DELIVERED {
 				_, err := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
 				if err != nil {
-					log.Printf("< (%v) SEND PRIVATE EVENTS ERROR (eventID: %v): %v)", session, event.Id(), err)
+					log.Printf("* (%v) SEND PRIVATE EVENTS UPDATE DELIVERY STATUS ERROR (eventID: %v): %v)", session, event.Id(), err)
 				}
 			}
 		}
