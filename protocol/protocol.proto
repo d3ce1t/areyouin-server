@@ -72,6 +72,9 @@ message ModifyEvent {
   int64 start_date = 3;
   int64 end_date = 4;
   bytes picture = 5;
+  bool remove_picture = 6;
+  int64 modify_date = 7;
+  repeated int64 participants = 8;
 }
 
 // VOTE CHANGE
