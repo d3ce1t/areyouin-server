@@ -136,7 +136,7 @@ func (c *createFakeUserCmd) getRandomFakeUser() (*FakeUser, error) {
 	}
 
 	// Resize image to 512xauto
-	pictureBytes, err = utils.ResizeImage(originalImage, model.PROFILE_PICTURE_MAX_WIDTH)
+	pictureBytes, err = utils.ResizeImage(originalImage, model.UserPictureMaxWidth)
 	if err != nil {
 		return nil, err
 	}

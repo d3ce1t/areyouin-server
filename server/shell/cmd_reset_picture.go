@@ -33,7 +33,7 @@ func (c *resetPictureCmd) Exec(shell *Shell, args []string) {
 	manageShellError(err)
 
 	// Resize image to 512x512
-	pictureBytes, err = utils.ResizeImage(originalImage, model.PROFILE_PICTURE_MAX_WIDTH)
+	pictureBytes, err = utils.ResizeImage(originalImage, model.UserPictureMaxWidth)
 	manageShellError(err)
 
 	// Change image

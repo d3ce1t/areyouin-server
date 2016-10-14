@@ -144,7 +144,7 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 	// Send invitation to new participants
 	for _, pID := range newParticipants {
 
-		if pID == event.AuthorId() {
+		if pID == event.AuthorID() {
 			continue
 		}
 

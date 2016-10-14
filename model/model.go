@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	ALL_CONTACTS_GROUP  = 0   // Id for the main friend group of a user
-	THUMBNAIL_MDPI_SIZE = 50  // 50 px
-	EVENT_THUMBNAIL     = 100 // 100 px
+	allContactsGroup   = 0   // Id for the main friend group of a user
+	userThumbnailSize  = 50  // 50 px
+	eventThumbnailSize = 100 // 100 px
 )
 
 var (
@@ -20,6 +20,14 @@ var (
 
 func init() {
 	registeredModels = newModelsMap()
+}
+
+type AyiModel struct {
+	supportedDpi []int32
+	dbsession    api.DbSession
+	Accounts     *AccountManager
+	Events       *EventManager
+	Friends      *FriendManager
 }
 
 // Creates a new model with the given key for later retrieval. If model exist panic
@@ -60,12 +68,12 @@ func Get(key string) *AyiModel {
 	}
 }
 
-type AyiModel struct {
-	supportedDpi []int32
-	dbsession    api.DbSession
-	Accounts     *AccountManager
-	Events       *EventManager
-	Friends      *FriendManager
+func getUserMapKeys(m map[int64]*UserAccount) []int64 {
+	keys := make([]int64, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func (m *AyiModel) DbSession() api.DbSession {
@@ -96,20 +104,4 @@ func (self *AyiModel) GetClosestDpi(reqDpi int32) int32 {
 	}
 
 	return self.supportedDpi[dpi_index]
-}
-
-func GetUserMapKeys(m map[int64]*UserAccount) []int64 {
-	keys := make([]int64, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func GetUserSliceKeys(m []*UserAccount) []int64 {
-	keys := make([]int64, 0, len(m))
-	for _, user := range m {
-		keys = append(keys, user.Id())
-	}
-	return keys
 }

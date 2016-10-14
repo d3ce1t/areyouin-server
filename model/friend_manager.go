@@ -36,7 +36,7 @@ func (m *FriendManager) Observe() observer.Stream {
 
 func (self *FriendManager) GetAllFriends(userID int64) ([]*Friend, error) {
 
-	friendsDTO, err := self.friendDAO.LoadFriends(userID, ALL_CONTACTS_GROUP)
+	friendsDTO, err := self.friendDAO.LoadFriends(userID, allContactsGroup)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (m *FriendManager) GetNewFacebookFriends(user *UserAccount) ([]*UserAccount
 	}
 
 	// Get existing friends
-	storedFriends, err := m.friendDAO.LoadFriends(user.id, ALL_CONTACTS_GROUP)
+	storedFriends, err := m.friendDAO.LoadFriends(user.id, allContactsGroup)
 	if err != nil {
 		return nil, err
 	}

@@ -18,7 +18,7 @@ func convEvent2Net(event *model.Event) *core.Event {
 
 	netEvent := &core.Event{
 		EventId:       event.Id(),
-		AuthorId:      event.AuthorId(),
+		AuthorId:      event.AuthorID(),
 		AuthorName:    event.AuthorName(),
 		StartDate:     event.StartDate(),
 		EndDate:       event.EndDate(),

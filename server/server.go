@@ -15,16 +15,6 @@ import (
 	"time"
 )
 
-func NewServer(session api.DbSession, model *model.AyiModel, config api.Config) *Server {
-	server := &Server{
-		DbSession: session,
-		Model:     model,
-		Config:    config,
-	}
-	server.init()
-	return server
-}
-
 type Callback func(*proto.AyiPacket, proto.Message, *AyiSession)
 
 type Server struct {
@@ -36,6 +26,16 @@ type Server struct {
 	DbSession     api.DbSession
 	webhook       *wh.WebHookServer
 	Config        api.Config
+}
+
+func NewServer(session api.DbSession, model *model.AyiModel, config api.Config) *Server {
+	server := &Server{
+		DbSession: session,
+		Model:     model,
+		Config:    config,
+	}
+	server.init()
+	return server
 }
 
 // Setup server components
@@ -372,7 +372,7 @@ func checkEventWritableOrPanic(event *model.Event) {
 }
 
 func checkEventAuthorOrPanic(authorID int64, event *model.Event) {
-	if event.AuthorId() != authorID {
+	if event.AuthorID() != authorID {
 		panic(ErrAuthorMismatch)
 	}
 }

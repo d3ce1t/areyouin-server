@@ -395,12 +395,12 @@ func (self *AccountManager) saveProfilePicture(user_id int64, picture *Picture) 
 	}
 
 	// Check image size is inside bounds
-	if srcImage.Bounds().Dx() > PROFILE_PICTURE_MAX_WIDTH || srcImage.Bounds().Dy() > PROFILE_PICTURE_MAX_HEIGHT {
+	if srcImage.Bounds().Dx() > UserPictureMaxWidth || srcImage.Bounds().Dy() > UserPictureMaxHeight {
 		return ErrImageOutOfBounds
 	}
 
 	// Create thumbnails
-	thumbnails, err := utils.CreateThumbnails(srcImage, THUMBNAIL_MDPI_SIZE, self.parent.supportedDpi)
+	thumbnails, err := utils.CreateThumbnails(srcImage, userThumbnailSize, self.parent.supportedDpi)
 	if err != nil {
 		return err
 	}
@@ -452,7 +452,7 @@ func (self *AccountManager) removeProfilePicture(user_id int64) error {
 // has been changed next time they retrieve user list
 func (self *AccountManager) updateFriendsDigests(userId int64, digest []byte) error {
 
-	friends, err := self.friendDAO.LoadFriends(userId, ALL_CONTACTS_GROUP)
+	friends, err := self.friendDAO.LoadFriends(userId, allContactsGroup)
 	if err != nil {
 		return err
 	}

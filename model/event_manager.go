@@ -60,7 +60,7 @@ func (m *EventManager) CreateNewEvent(author *UserAccount, createdDate int64,
 
 	// Check precondition (2)
 
-	if _, err := IsValidEvent(event, createdDate); err != nil {
+	if _, err := isValidEvent(event, createdDate); err != nil {
 		return nil, err
 	}
 
@@ -111,7 +111,7 @@ func (m *EventManager) UpdateEventInfo(event *Event, modifyDate int64,
 
 	// Check precondition (2) and (3)
 
-	if _, err := IsValidEvent(modifiedEvent, modifyDate); err != nil {
+	if _, err := isValidEvent(modifiedEvent, modifyDate); err != nil {
 		return nil, err
 	}
 
@@ -187,7 +187,7 @@ func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) 
 
 	// Check precondition (3)
 
-	if _, err := IsValidEvent(event, event.createdDate); err != nil {
+	if _, err := isValidEvent(event, event.createdDate); err != nil {
 		return err
 	}
 
@@ -206,7 +206,7 @@ func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) 
 	}
 
 	// Check precondition (1)
-	authorDto, err := m.userDAO.Load(event.AuthorId())
+	authorDto, err := m.userDAO.Load(event.AuthorID())
 	if err == api.ErrNotFound {
 		return ErrInvalidAuthor
 	} else if err != nil {
@@ -215,7 +215,7 @@ func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) 
 
 	author := newUserFromDTO(authorDto).AsParticipant()
 
-	if event.AuthorId() != author.Id() {
+	if event.AuthorID() != author.Id() {
 		return ErrInvalidAuthor
 	}
 
@@ -411,7 +411,7 @@ func (m *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount) (
 			Type: SignalEventParticipantsInvited,
 			Data: map[string]interface{}{
 				"EventID":         event.Id(),
-				"NewParticipants": GetUserMapKeys(usersInvited),
+				"NewParticipants": getUserMapKeys(usersInvited),
 				"OldParticipants": oldParticipants,
 				"Event":           event,
 			},
@@ -747,12 +747,12 @@ func (m *EventManager) saveEventPicture(event_id int64, picture *Picture) error 
 	}
 
 	// Check image size is inside bounds
-	if srcImage.Bounds().Dx() > EVENT_PICTURE_MAX_WIDTH || srcImage.Bounds().Dy() > EVENT_PICTURE_MAX_HEIGHT {
+	if srcImage.Bounds().Dx() > eventPictureMaxWidth || srcImage.Bounds().Dy() > eventPictureMaxHeight {
 		return ErrImageOutOfBounds
 	}
 
 	// Create thumbnails
-	thumbnails, err := utils.CreateThumbnails(srcImage, EVENT_THUMBNAIL, m.parent.supportedDpi)
+	thumbnails, err := utils.CreateThumbnails(srcImage, eventThumbnailSize, m.parent.supportedDpi)
 	if err != nil {
 		return err
 	}

@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	userPasswordMinLength      = 5
-	userPasswordMaxLength      = 50
-	userNameMinLength          = 3
-	userNameMaxLength          = 50
-	PROFILE_PICTURE_MAX_WIDTH  = 512
-	PROFILE_PICTURE_MAX_HEIGHT = 512
+	UserPasswordMinLength = 5
+	UserPasswordMaxLength = 50
+	UserNameMinLength     = 3
+	UserNameMaxLength     = 50
+	UserPictureMaxWidth   = 512
+	UserPictureMaxHeight  = 512
 )
 
 type UserAccount struct {
@@ -205,7 +205,7 @@ func validateUserData(name string, email string, password string, fbId string,
 	fbToken string) error {
 
 	// Name length
-	if len(name) < userNameMinLength || len(name) > userNameMaxLength {
+	if len(name) < UserNameMinLength || len(name) > UserNameMaxLength {
 		return ErrInvalidName
 	}
 
@@ -238,7 +238,7 @@ func validateUserData(name string, email string, password string, fbId string,
 }
 
 func isValidPassword(password string) bool {
-	if password == "" || len(password) < userPasswordMinLength || len(password) > userPasswordMaxLength {
+	if password == "" || len(password) < UserPasswordMinLength || len(password) > UserPasswordMaxLength {
 		return false
 	}
 	return true
