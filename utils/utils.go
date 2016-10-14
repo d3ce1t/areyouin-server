@@ -91,13 +91,12 @@ func GenValues(values []int64) []interface{} {
 }
 
 // Get current time in millis
-func GetCurrentTimeMillis() int64 {
-	return TimeToMillis(time.Now())
+func GetCurrentTimeUTC() time.Time {
+	return time.Now().UTC()
 }
 
-// Return current time in millis but truncated to seconds precision
-func GetCurrentTimeSeconds() int64 {
-	return TimeToSeconds(time.Now()) * 1000
+func GetCurrentTimeMillis() int64 {
+	return TimeToMillis(time.Now())
 }
 
 // Return time as millis
@@ -105,12 +104,7 @@ func TimeToMillis(t time.Time) int64 {
 	return t.UnixNano() / int64(time.Millisecond)
 }
 
-// Return time as seconds
-func TimeToSeconds(t time.Time) int64 {
-	return t.UnixNano() / int64(time.Second)
-}
-
-func UnixMillisToTimeUTC(timestamp int64) time.Time {
+func MillisToTimeUTC(timestamp int64) time.Time {
 	seconds := timestamp / 1000
 	millis := timestamp % 1000
 	return time.Unix(seconds, millis*int64(time.Millisecond)).UTC()

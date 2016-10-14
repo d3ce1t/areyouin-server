@@ -9,15 +9,92 @@ import (
 )
 
 const (
-	EVENT_DESCRIPTION_MIN_LENGHT = 15
-	EVENT_DESCRIPTION_MAX_LENGHT = 500
-	MIN_DIF_IN_START_DATE        = 30 * time.Minute     // 30 minutes
-	MAX_DIF_IN_START_DATE        = 365 * 24 * time.Hour // 1 year
-	MIN_DIF_IN_END_DATE          = 30 * time.Minute     // 30 minutes (from start date)
-	MAX_DIF_IN_END_DATE          = 7 * 24 * time.Hour   // 1 week (from start date)
-	EVENT_PICTURE_MAX_WIDTH      = 1280
-	EVENT_PICTURE_MAX_HEIGHT     = 720
+	descriptionMinLength     = 15
+	descriptionMaxLength     = 500
+	EVENT_PICTURE_MAX_WIDTH  = 1280
+	EVENT_PICTURE_MAX_HEIGHT = 720
 )
+
+const (
+	startDateMinDiff = 30 * time.Minute     // 30 minutes
+	startDateMaxDiff = 365 * 24 * time.Hour // 1 year
+	endDateMinDiff   = 30 * time.Minute     // 30 minutes (from start date)
+	endDateMaxDiff   = 7 * 24 * time.Hour   // 1 week (from start date)
+)
+
+// DateOption enum
+type DateOption int
+
+// DateOption values
+const (
+	MinimumStartDate = DateOption(0)
+	MaximumStartDate = DateOption(1)
+	MinimumEndDate   = DateOption(2)
+	MaximumEndDate   = DateOption(3)
+)
+
+func GetDateOption(option DateOption, fromDate time.Time) time.Time {
+
+	dateMinute := fromDate.Truncate(time.Minute)
+
+	switch option {
+	case MinimumStartDate:
+		return dateMinute.Add(startDateMinDiff)
+	case MaximumStartDate:
+		return dateMinute.Add(startDateMaxDiff)
+	case MinimumEndDate:
+		return dateMinute.Add(endDateMinDiff)
+	case MaximumEndDate:
+		return dateMinute.Add(endDateMaxDiff)
+	}
+
+	return time.Time{}
+}
+
+func IsValidEvent(event *Event, referenceDate int64) (bool, error) {
+
+	if event.id == 0 || event.authorId == 0 ||
+		len(event.authorName) < userNameMinLength || len(event.authorName) > userNameMaxLength ||
+		event.numAttendees < 0 || event.numGuests < 0 || event.numAttendees > event.numGuests {
+		return false, ErrInvalidEventData
+	}
+
+	return isValidInfo(event.description, referenceDate, event.startDate, event.endDate)
+}
+
+func IsValidStartDate(startDateMillis int64, referenceDateMillis int64) bool {
+
+	referenceDate := utils.MillisToTimeUTC(referenceDateMillis)
+	startDate := utils.MillisToTimeUTC(startDateMillis)
+
+	if startDate.Before(GetDateOption(MinimumStartDate, referenceDate)) ||
+		startDate.After(GetDateOption(MaximumStartDate, referenceDate)) {
+		return false
+	}
+
+	return true
+}
+
+func IsValidEndDate(endDateMillis int64, referenceDateMillis int64) bool {
+
+	referenceDate := utils.MillisToTimeUTC(referenceDateMillis)
+	endDate := utils.MillisToTimeUTC(endDateMillis)
+
+	if endDate.Before(GetDateOption(MinimumEndDate, referenceDate)) ||
+		endDate.After(GetDateOption(MaximumEndDate, referenceDate)) {
+		return false
+	}
+
+	return true
+}
+
+func IsValidDescription(description string) bool {
+	if description == "" || len(description) < descriptionMinLength ||
+		len(description) > descriptionMaxLength {
+		return false
+	}
+	return true
+}
 
 type Event struct {
 	id            int64
@@ -35,7 +112,7 @@ type Event struct {
 	participants  map[int64]*Participant
 }
 
-func NewEvent(authorId int64, authorName string, createdDate int64, startDate int64,
+func newEvent(authorId int64, authorName string, createdDate int64, startDate int64,
 	endDate int64, message string) *Event {
 	event := &Event{
 		id:            idgen.NewID(),
@@ -125,7 +202,7 @@ func (e *Event) Title() string {
 	title := fields[0]
 
 	i := 1
-	for i < utils.MinInt(5, len(fields)) {
+	for i < utils.MinInt(10, len(fields)) {
 		title += " " + fields[i]
 		i++
 	}
@@ -160,8 +237,8 @@ func (e *Event) NumGuests() int {
 func (e *Event) Status() api.EventState {
 
 	currentDate := time.Now()
-	startDate := utils.UnixMillisToTimeUTC(e.startDate)
-	endDate := utils.UnixMillisToTimeUTC(e.endDate)
+	startDate := utils.MillisToTimeUTC(e.startDate)
+	endDate := utils.MillisToTimeUTC(e.endDate)
 
 	if e.IsCancelled() {
 		return api.EventState_CANCELLED
@@ -178,53 +255,21 @@ func (e *Event) IsCancelled() bool {
 	return e.cancelled
 }
 
-func (e *Event) IsValid() (bool, error) {
+func isValidInfo(description string, createdDate int64, startDate int64, endDate int64) (bool, error) {
 
-	if e.id == 0 || e.authorId == 0 ||
-		len(e.authorName) < USER_NAME_MIN_LENGTH || len(e.authorName) > USER_NAME_MAX_LENGTH ||
-		e.description == "" || len(e.description) < EVENT_DESCRIPTION_MIN_LENGHT ||
-		len(e.description) > EVENT_DESCRIPTION_MAX_LENGHT || e.numAttendees < 0 ||
-		e.numGuests < 0 || e.numAttendees > e.numGuests {
+	if !IsValidDescription(description) {
 		return false, ErrInvalidEventData
 	}
 
-	if !e.isValidStartDate() {
+	if !IsValidStartDate(startDate, createdDate) {
 		return false, ErrInvalidStartDate
 	}
 
-	if !e.isValidEndDate() {
+	if !IsValidEndDate(endDate, startDate) {
 		return false, ErrInvalidEndDate
 	}
 
 	return true, nil
-}
-
-func (e *Event) isValidStartDate() bool {
-
-	// I need only minute precision in order to emulate the same checking performed
-	// by the client.
-	createdDateMin := utils.UnixMillisToTimeUTC(e.createdDate - (e.createdDate % 60000))
-	startDate := utils.UnixMillisToTimeUTC(e.startDate)
-
-	if startDate.Before(createdDateMin.Add(MIN_DIF_IN_START_DATE)) ||
-		startDate.After(createdDateMin.Add(MAX_DIF_IN_START_DATE)) {
-		return false
-	}
-
-	return true
-}
-
-func (e *Event) isValidEndDate() bool {
-
-	startDate := utils.UnixMillisToTimeUTC(e.startDate)
-	endDate := utils.UnixMillisToTimeUTC(e.endDate)
-
-	if endDate.Before(startDate.Add(MIN_DIF_IN_END_DATE)) ||
-		endDate.After(startDate.Add(MAX_DIF_IN_END_DATE)) {
-		return false
-	}
-
-	return true
 }
 
 func (e *Event) AsDTO() *api.EventDTO {
@@ -292,19 +337,23 @@ func (e *Event) addParticipant(p *Participant) {
 	return new_event
 }*/
 
-/*func (e *Event) CloneFull() *Event {
+func (e *Event) Clone() *Event {
 	eventCopy := new(Event)
-  *eventCopy = *e
-  eventCopy.Participants = make(map[int64]*Participant)
-  for k, v := range e.Participants {
-		eventCopy.Participants[k] = v
-  }
+	*eventCopy = *e
+	eventCopy.pictureDigest = make([]byte, len(e.pictureDigest))
+	copy(eventCopy.pictureDigest, e.pictureDigest)
+	eventCopy.participants = make(map[int64]*Participant)
+	for k, v := range e.participants {
+		eventCopy.participants[k] = v
+	}
 	return eventCopy
-}*/
+}
 
-func (event *Event) CloneEmptyParticipants() *Event {
+func (e *Event) CloneEmptyParticipants() *Event {
 	eventCopy := new(Event)
-	*eventCopy = *event
+	*eventCopy = *e
+	eventCopy.pictureDigest = make([]byte, len(e.pictureDigest))
+	copy(eventCopy.pictureDigest, e.pictureDigest)
 	eventCopy.participants = nil
 	//eventCopy.NumGuests = 0
 	//eventCopy.NumAttendees = 0

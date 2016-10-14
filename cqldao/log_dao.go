@@ -14,7 +14,7 @@ type LogDAO struct {
 
 func (d *LogDAO) LogRegisteredUser(user_id int64, created_date int64) error {
 	checkSession(d.session)
-	time := utils.UnixMillisToTimeUTC(created_date)
+	time := utils.MillisToTimeUTC(created_date)
 	day := d.formatDate(time.Year(), int(time.Month()), time.Day())
 	stmt := `INSERT INTO log_registered_users_by_day (day, user_id, created_date)
         VALUES (?, ?, ?)`
@@ -23,7 +23,7 @@ func (d *LogDAO) LogRegisteredUser(user_id int64, created_date int64) error {
 
 func (d *LogDAO) LogActiveSession(node int, user_id int64, last_time int64) error {
 	checkSession(d.session)
-	time := utils.UnixMillisToTimeUTC(last_time)
+	time := utils.MillisToTimeUTC(last_time)
 	day := d.formatDate(time.Year(), int(time.Month()), time.Day())
 	stmt := `INSERT INTO log_active_sessions_by_day (node, day, user_id, last_time)
         VALUES (?, ?, ?, ?)`

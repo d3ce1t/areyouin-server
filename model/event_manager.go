@@ -56,23 +56,66 @@ func (m *EventManager) CreateNewEvent(author *UserAccount, createdDate int64,
 	startDate int64, endDate int64, description string) (*Event, error) {
 
 	// Create event
-	event := NewEvent(author.id, author.name, createdDate, startDate, endDate, description)
+	event := newEvent(author.id, author.name, createdDate, startDate, endDate, description)
 
-	// Check precondition (3)
+	// Check precondition (2)
 
-	if _, err := event.IsValid(); err != nil {
+	if _, err := IsValidEvent(event, createdDate); err != nil {
 		return nil, err
 	}
 
-	// Check precondition (2)
-	currentDateTime := utils.UnixMillisToTimeUTC(utils.GetCurrentTimeSeconds())
-	createdDateTime := utils.UnixMillisToTimeUTC(event.CreatedDate())
+	// Check precondition (1)
+	currentDateTime := utils.GetCurrentTimeUTC().Truncate(time.Second)
+	createdDateTime := utils.MillisToTimeUTC(event.CreatedDate())
 
 	if createdDateTime.Before(currentDateTime.Add(-time.Minute)) || createdDateTime.After(currentDateTime.Add(time.Minute)) {
 		return nil, ErrEventOutOfCreationWindow
 	}
 
 	return event, nil
+}
+
+// Preconditions:
+// (1) event dates modification must be inside a valid window
+// (2) event start and end date must obey business rules
+// (3) event description must be valid
+func (m *EventManager) UpdateEventInfo(event *Event, modifyDate int64,
+	startDate int64, endDate int64, description string) (*Event, error) {
+
+	// Copy event and modify it
+	modifiedEvent := event.Clone()
+
+	if description != "" {
+		modifiedEvent.description = description
+	}
+
+	if startDate != 0 {
+		modifiedEvent.startDate = startDate
+	}
+
+	if endDate != 0 {
+		modifiedEvent.endDate = endDate
+	}
+
+	if startDate != 0 || endDate != 0 {
+
+		// Check precondition (1)
+
+		currentDateTime := utils.GetCurrentTimeUTC().Truncate(time.Second)
+		clientSideOpTime := utils.MillisToTimeUTC(modifyDate)
+
+		if clientSideOpTime.Before(currentDateTime.Add(-time.Minute)) || clientSideOpTime.After(currentDateTime.Add(time.Minute)) {
+			return nil, ErrEventOutOfCreationWindow
+		}
+	}
+
+	// Check precondition (2) and (3)
+
+	if _, err := IsValidEvent(modifiedEvent, modifyDate); err != nil {
+		return nil, err
+	}
+
+	return modifiedEvent, nil
 }
 
 // CreateParticipantsList creates a participant list by means of the provided participants id.
@@ -144,7 +187,7 @@ func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) 
 
 	// Check precondition (3)
 
-	if _, err := event.IsValid(); err != nil {
+	if _, err := IsValidEvent(event, event.createdDate); err != nil {
 		return err
 	}
 
@@ -155,16 +198,14 @@ func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) 
 	}
 
 	// Check precondition (2)
-
-	currentDate := utils.UnixMillisToTimeUTC(utils.GetCurrentTimeSeconds())
-	createdDate := utils.UnixMillisToTimeUTC(event.CreatedDate())
+	currentDate := utils.GetCurrentTimeUTC().Truncate(time.Second)
+	createdDate := utils.MillisToTimeUTC(event.CreatedDate())
 
 	if createdDate.Before(currentDate.Add(-time.Minute)) || createdDate.After(currentDate.Add(time.Minute)) {
 		return ErrEventOutOfCreationWindow
 	}
 
 	// Check precondition (1)
-
 	authorDto, err := m.userDAO.Load(event.AuthorId())
 	if err == api.ErrNotFound {
 		return ErrInvalidAuthor
@@ -172,15 +213,32 @@ func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) 
 		return err
 	}
 
-	author := newUserFromDTO(authorDto)
+	author := newUserFromDTO(authorDto).AsParticipant()
 
-	// Store event: If suceed, it's guaranteed that event exists, author is one of
-	// the participants, and author has the event in his events inbox.
-	// Otherwise, if it fails, an event with no participants may exist (orphaned event)
-	err = m.persistEvent(event, author.AsParticipant())
-	if err != nil {
+	if event.AuthorId() != author.Id() {
+		return ErrInvalidAuthor
+	}
+
+	// Persist event.
+	if err := m.eventDAO.Insert(event.AsDTO()); err != nil {
 		return err
 	}
+
+	// Add author first in order to let author receive the event and add other
+	// participants if something fails
+	author.response = api.AttendanceResponse_ASSIST
+	if err := m.eventDAO.AddParticipantToEvent(author.AsDTO(), event.AsDTO()); err != nil {
+		return ErrAuthorDeliveryError
+	}
+
+	event.addParticipant(author)
+
+	// At this point, it's guaranteed that event exists, author is one of
+	// the participants, and author has the event in his events inbox.
+	// If code failed before reaching this point, an event with no participants
+	// may exist (orphaned event)
+
+	// TODO: NumAttendees and NumGuests isn't updated
 
 	// Emit signal
 	signal := &Signal{
@@ -199,11 +257,47 @@ func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) 
 	return nil
 }
 
+// Assume event is valid because it's supposed that no one can build invalid event objects
+// outside model module.
+func (m *EventManager) SaveEvent(event *Event, newUsers map[int64]*UserAccount) error {
+
+	// Check precondition
+	if event.Status() != api.EventState_NOT_STARTED {
+		return ErrEventNotWritable
+	}
+
+	// Persist event.
+	liteEvent := event.CloneEmptyParticipants()
+	if err := m.eventDAO.Insert(liteEvent.AsDTO()); err != nil {
+		return err
+	}
+
+	// TODO: NumAttendees and NumGuests isn't updated
+
+	// Emit signal
+	signal := &Signal{
+		Type: SignalEventInfoChanged,
+		Data: map[string]interface{}{
+			"EventID": event.Id(),
+			"Event":   event,
+		},
+	}
+
+	m.eventSignal.Update(signal)
+
+	// Invite users. If error do nothing.
+	if len(newUsers) > 0 {
+		m.InviteUsers(event, newUsers)
+	}
+
+	return nil
+}
+
 // Cancel an existing event_ids
 //
 // Assumptions:
 // - (1) Event exist and is persisted in DB
-// - (2) User who performs this operation have permission
+// - (2) User who performs this operation has permission
 //
 // Preconditions:
 // - (1) Event must have not started
@@ -309,18 +403,22 @@ func (m *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount) (
 
 	event.numGuests = int32(len(event.participants))
 
-	// Emit signal
-	signal := &Signal{
-		Type: SignalEventParticipantsInvited,
-		Data: map[string]interface{}{
-			"EventID":         event.Id(),
-			"NewParticipants": GetUserMapKeys(usersInvited),
-			"OldParticipants": oldParticipants,
-			"Event":           event,
-		},
-	}
+	if len(usersInvited) > 0 {
 
-	m.eventSignal.Update(signal)
+		// Emit signal
+
+		signal := &Signal{
+			Type: SignalEventParticipantsInvited,
+			Data: map[string]interface{}{
+				"EventID":         event.Id(),
+				"NewParticipants": GetUserMapKeys(usersInvited),
+				"OldParticipants": oldParticipants,
+				"Event":           event,
+			},
+		}
+
+		m.eventSignal.Update(signal)
+	}
 
 	return usersInvited, nil
 }
@@ -340,6 +438,8 @@ func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 		return ErrEventNotWritable
 	}
 
+	modified := false
+
 	if picture != nil && len(picture) != 0 {
 
 		// Set event picture
@@ -352,12 +452,16 @@ func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 			Digest:  digest[:],
 		}
 
-		// Save event picture
-		if err := m.saveEventPicture(event.id, corePicture); err != nil {
-			return err
-		}
+		if !bytes.Equal(event.pictureDigest, corePicture.Digest) {
 
-		event.pictureDigest = corePicture.Digest
+			// Save event picture
+			if err := m.saveEventPicture(event.id, corePicture); err != nil {
+				return err
+			}
+
+			event.pictureDigest = corePicture.Digest
+			modified = true
+		}
 
 	} else {
 
@@ -368,18 +472,21 @@ func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 		}
 
 		event.pictureDigest = nil
+		modified = true
 	}
 
 	// Emit signal
-	signal := &Signal{
-		Type: SignalEventInfoChanged,
-		Data: map[string]interface{}{
-			"EventID": event.Id(),
-			"Event":   event,
-		},
-	}
+	if modified {
+		signal := &Signal{
+			Type: SignalEventInfoChanged,
+			Data: map[string]interface{}{
+				"EventID": event.Id(),
+				"Event":   event,
+			},
+		}
 
-	m.eventSignal.Update(signal)
+		m.eventSignal.Update(signal)
+	}
 
 	return nil
 }
@@ -630,32 +737,6 @@ func (m *EventManager) GetEventsHistory(userId int64, start int64, end int64) ([
 
 	return self.filterParticipants(event.participants, targetParticipant)
 }*/
-
-// Insert an event into database, add participants to it and send it to users' inbox.
-func (m *EventManager) persistEvent(event *Event, author *Participant) error {
-
-	if event.AuthorId() != author.Id() {
-		return ErrInvalidAuthor
-	}
-
-	if err := m.eventDAO.Insert(event.AsDTO()); err != nil {
-		return err
-	}
-
-	// Add author first in order to let author receive the event and add other
-	// participants if something fails
-	author.response = api.AttendanceResponse_ASSIST
-
-	if err := m.eventDAO.AddParticipantToEvent(author.AsDTO(), event.AsDTO()); err != nil {
-		return ErrAuthorDeliveryError
-	}
-
-	// TODO: NumAttendees and NumGuests isn't updated
-
-	event.addParticipant(author)
-
-	return nil
-}
 
 func (m *EventManager) saveEventPicture(event_id int64, picture *Picture) error {
 

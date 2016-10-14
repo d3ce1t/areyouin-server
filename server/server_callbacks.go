@@ -7,6 +7,7 @@ import (
 	"peeple/areyouin/model"
 	proto "peeple/areyouin/protocol"
 	"peeple/areyouin/protocol/core"
+	"peeple/areyouin/utils"
 )
 
 func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -356,6 +357,79 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	}
 }
 
+// Modify existing event. If a field isn't set that means it isn't modified.
+func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
+
+	server := session.Server
+	msg := message.(*proto.ModifyEvent)
+	log.Printf("> (%v) MODIFY EVENT %v (message: %v, start: %v, end: %v, invitations: %v, picture: %v, remove: %v)\n",
+		session, msg.EventId, msg.Message != "", msg.StartDate, msg.EndDate, len(msg.Participants), len(msg.Picture) > 0, msg.RemovePicture)
+
+	checkAuthenticated(session)
+
+	// Load event
+	event, err := server.Model.Events.GetEvent(msg.EventId)
+	checkNoErrorOrPanic(err)
+
+	// Check author
+	authorID := session.UserId
+	checkEventAuthorOrPanic(authorID, event)
+
+	// Update event object
+	modifiedEvent, err := server.Model.Events.UpdateEventInfo(event,
+		utils.MaxInt64(event.CreatedDate(), msg.ModifyDate),
+		msg.StartDate, msg.EndDate, msg.Message)
+	checkNoErrorOrPanic(err)
+
+	// Participant list
+	var newParticipants map[int64]*model.UserAccount
+	if len(msg.Participants) > 0 {
+		newParticipants, err = server.Model.Events.CreateParticipantsList(authorID, msg.Participants)
+		checkNoErrorOrPanic(err)
+	}
+
+	// Persist event
+	err = server.Model.Events.SaveEvent(modifiedEvent, newParticipants)
+	checkNoErrorOrPanic(err)
+
+	if len(msg.Picture) > 0 || msg.RemovePicture {
+
+		// Set Event Picture
+
+		if err := server.Model.Events.ChangeEventPicture(modifiedEvent, msg.Picture); err != nil {
+			log.Printf("* (%v) Error saving picture for event %v (%v)\n", session, modifiedEvent.Id(), err)
+		}
+	}
+
+	// Send ACK to caller
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
+	log.Printf("< (%v) MODIFY EVENT OK (eventId: %v)\n", session, event.Id())
+
+	// Send event changed
+	// NOTE: Send liteEvent because full event causes a crash in iOS version lower than 1.0.11
+	netEvent := convEvent2Net(modifiedEvent.CloneEmptyParticipants())
+	session.Write(session.NewMessage().EventModified(netEvent))
+	log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, modifiedEvent.Id())
+
+	// Send participants by other means
+	participantList := make(map[int64]*model.Participant)
+
+	for _, user := range modifiedEvent.Participants() {
+		if _, ok := newParticipants[user.Id()]; ok {
+			participantList[user.Id()] = user
+		}
+	}
+
+	if len(participantList) > 0 {
+		netParticipants := convParticipantList2Net(participantList)
+		packet := session.NewMessage().AttendanceStatus(event.Id(), netParticipants)
+		//packet := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, int32(event.NumGuests()))
+		session.Write(packet)
+		log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n",
+			session.UserId, event.Id(), len(participantList))
+	}
+}
+
 func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
@@ -462,7 +536,7 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	netParticipants := convParticipantList2Net(participantList)
 	packet := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, int32(event.NumGuests()))
 	session.Write(packet)
-	log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
+	log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
 }
 
 // When a ConfirmAttendance message is received, the attendance response of the participant
@@ -494,7 +568,7 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 	participantList[participant.Id()] = participant
 	netParticipants := convParticipantList2Net(participantList)
 	session.Write(session.NewMessage().AttendanceStatus(event.Id(), netParticipants))
-	log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
+	log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
 }
 
 func onReadEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {

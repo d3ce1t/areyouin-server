@@ -71,6 +71,7 @@ func main() {
 		server.registerCallback(proto.M_USER_AUTH, onUserAuthentication)
 		server.registerCallback(proto.M_GET_ACCESS_TOKEN, onNewAccessToken)
 		server.registerCallback(proto.M_CREATE_EVENT, onCreateEvent)
+		server.registerCallback(proto.M_MODIFY_EVENT, onModifyEvent)
 		server.registerCallback(proto.M_CANCEL_EVENT, onCancelEvent)
 		server.registerCallback(proto.M_INVITE_USERS, onInviteUsers)
 		server.registerCallback(proto.M_CONFIRM_ATTENDANCE, onConfirmAttendance)

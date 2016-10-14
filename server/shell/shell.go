@@ -129,17 +129,17 @@ func manageShellError(err error) {
 	}
 }
 
-func ff(text interface{}, lenght int) string {
+func ff(text interface{}, length int) string {
 	s := fmt.Sprintf("%v", text)
-	if len(s) > lenght {
-		s = s[:lenght]
+	if len(s) > length {
+		s = s[:length]
 	}
 	return s
 }
 
-func rp(str string, lenght int) string {
+func rp(str string, length int) string {
 	var repeat string
-	for i := 0; i < lenght; i++ {
+	for i := 0; i < length; i++ {
 		repeat += str
 	}
 	return repeat

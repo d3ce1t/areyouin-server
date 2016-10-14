@@ -176,7 +176,7 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 			go func(session *AyiSession) {
 				message := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, int32(event.NumGuests()))
 				if ok := session.Write(message); ok {
-					log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
+					log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
 				} else {
 					log.Println("* processNewEventSignal: Coudn't send message to", session.UserId)
 				}
@@ -228,7 +228,7 @@ func (m *ModelObserver) processParticipantChangeSignal(signal *model.Signal) {
 			if session := m.server.getSession(participantID); session != nil {
 				message := session.NewMessage().AttendanceStatus(event.Id(), netParticipants)
 				if ok := session.Write(message); ok {
-					log.Printf("< (%v) EVENT %v CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
+					log.Printf("< (%v) EVENT %v ATTENDANCE STATUS (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
 				} else {
 					log.Println("* processParticipantChangeSignal: Coudn't send message to", session.UserId)
 				}

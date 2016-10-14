@@ -30,7 +30,7 @@ func (c *listUsersCmd) Exec(shell *Shell, args []string) {
 		}
 
 		fmt.Fprintf(shell, "| %v | %-20v | %-15v | %-40v | %-16v |\n",
-			status_info, ff(user.Id, 20), ff(user.Name, 15), ff(user.Email, 40), ff(utils.UnixMillisToTimeUTC(user.LastConn), 16))
+			status_info, ff(user.Id, 20), ff(user.Name, 15), ff(user.Email, 40), ff(utils.MillisToTimeUTC(user.LastConn), 16))
 	}
 	fmt.Fprintln(shell, rp("-", 108))
 

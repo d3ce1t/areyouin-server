@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	USER_PASSWORD_MIN_LENGTH   = 5
-	USER_NAME_MIN_LENGTH       = 3
-	USER_NAME_MAX_LENGTH       = 50
+	userPasswordMinLength      = 5
+	userPasswordMaxLength      = 50
+	userNameMinLength          = 3
+	userNameMaxLength          = 50
 	PROFILE_PICTURE_MAX_WIDTH  = 512
 	PROFILE_PICTURE_MAX_HEIGHT = 512
 )
@@ -204,7 +205,7 @@ func validateUserData(name string, email string, password string, fbId string,
 	fbToken string) error {
 
 	// Name length
-	if len(name) < USER_NAME_MIN_LENGTH || len(name) > USER_NAME_MAX_LENGTH {
+	if len(name) < userNameMinLength || len(name) > userNameMaxLength {
 		return ErrInvalidName
 	}
 
@@ -237,7 +238,7 @@ func validateUserData(name string, email string, password string, fbId string,
 }
 
 func isValidPassword(password string) bool {
-	if password == "" || len(password) < USER_PASSWORD_MIN_LENGTH {
+	if password == "" || len(password) < userPasswordMinLength || len(password) > userPasswordMaxLength {
 		return false
 	}
 	return true
