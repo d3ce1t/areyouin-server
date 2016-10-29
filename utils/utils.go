@@ -105,9 +105,14 @@ func TimeToMillis(t time.Time) int64 {
 }
 
 func MillisToTimeUTC(timestamp int64) time.Time {
-	seconds := timestamp / 1000
-	millis := timestamp % 1000
-	return time.Unix(seconds, millis*int64(time.Millisecond)).UTC()
+
+	if timestamp > 0 {
+		seconds := timestamp / 1000
+		millis := timestamp % 1000
+		return time.Unix(seconds, millis*int64(time.Millisecond)).UTC()
+	}
+
+	return time.Time{}
 }
 
 func ClearUserAccounts(session *gocql.Session) {
@@ -173,6 +178,13 @@ func MaxInt64(a, b int64) int64 {
 
 func MinUint(a, b uint) uint {
 	if a < b {
+		return a
+	}
+	return b
+}
+
+func MaxTime(a, b time.Time) time.Time {
+	if a.After(b) {
 		return a
 	}
 	return b

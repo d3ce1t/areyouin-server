@@ -1,9 +1,10 @@
 package cqldao
 
 import (
-	"github.com/gocql/gocql"
 	"log"
 	"peeple/areyouin/api"
+
+	"github.com/gocql/gocql"
 )
 
 const (
@@ -43,12 +44,10 @@ func (dao *FriendDAO) ContainsFriend(user_id int64, other_user_id int64) (bool, 
 
 	err := dao.session.Query(stmt, user_id, other_user_id).Scan(nil)
 
-	if err != nil { // HACK: 0 group contains ALL_CONTACTS
-		if err == gocql.ErrNotFound {
-			return false, nil
-		} else {
-			return false, convErr(err)
-		}
+	if err == gocql.ErrNotFound {
+		return false, nil
+	} else if err != nil {
+		return false, convErr(err)
 	}
 
 	return true, nil

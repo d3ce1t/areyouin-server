@@ -1,9 +1,6 @@
 package model
 
-import (
-	"peeple/areyouin/utils"
-	"time"
-)
+import "time"
 
 const (
 	descriptionMinLength  = 15
@@ -46,10 +43,7 @@ func GetDateOption(option DateOption, fromDate time.Time) time.Time {
 	return time.Time{}
 }
 
-func IsValidStartDate(startDateMillis int64, referenceDateMillis int64) bool {
-
-	referenceDate := utils.MillisToTimeUTC(referenceDateMillis)
-	startDate := utils.MillisToTimeUTC(startDateMillis)
+func IsValidStartDate(startDate time.Time, referenceDate time.Time) bool {
 
 	if startDate.Before(GetDateOption(MinimumStartDate, referenceDate)) ||
 		startDate.After(GetDateOption(MaximumStartDate, referenceDate)) {
@@ -59,10 +53,7 @@ func IsValidStartDate(startDateMillis int64, referenceDateMillis int64) bool {
 	return true
 }
 
-func IsValidEndDate(endDateMillis int64, referenceDateMillis int64) bool {
-
-	referenceDate := utils.MillisToTimeUTC(referenceDateMillis)
-	endDate := utils.MillisToTimeUTC(endDateMillis)
+func IsValidEndDate(endDate time.Time, referenceDate time.Time) bool {
 
 	if endDate.Before(GetDateOption(MinimumEndDate, referenceDate)) ||
 		endDate.After(GetDateOption(MaximumEndDate, referenceDate)) {
@@ -80,30 +71,9 @@ func IsValidDescription(description string) bool {
 	return true
 }
 
-func isValidEvent(event *Event, referenceDate int64) (bool, error) {
-
-	if event.id == 0 || event.authorID == 0 ||
-		len(event.authorName) < UserNameMinLength || len(event.authorName) > UserNameMaxLength ||
-		event.numAttendees < 0 || event.numGuests < 0 || event.numAttendees > event.numGuests {
-		return false, ErrInvalidEventData
+func IsValidName(name string) bool {
+	if len(name) < UserNameMinLength || len(name) > UserNameMaxLength {
+		return false
 	}
-
-	return isValidInfo(event.description, referenceDate, event.startDate, event.endDate)
-}
-
-func isValidInfo(description string, createdDate int64, startDate int64, endDate int64) (bool, error) {
-
-	if !IsValidDescription(description) {
-		return false, ErrInvalidEventData
-	}
-
-	if !IsValidStartDate(startDate, createdDate) {
-		return false, ErrInvalidStartDate
-	}
-
-	if !IsValidEndDate(endDate, startDate) {
-		return false, ErrInvalidEndDate
-	}
-
-	return true, nil
+	return true
 }

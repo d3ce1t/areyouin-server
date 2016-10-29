@@ -5,7 +5,6 @@ CREATE KEYSPACE areyouin WITH REPLICATION = { 'class' : 'SimpleStrategy', 'repli
 // Create the schema
 USE areyouin;
 
-
 // Q1: Find a user with a known e-mail address
 // Used by: NewAuthToken
 DROP TABLE IF EXISTS user_email_credentials;
@@ -58,14 +57,14 @@ WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 DROP TABLE IF EXISTS friends_by_user;
 CREATE TABLE friends_by_user (
    user_id bigint,
-	 friend_id bigint,
+   friend_id bigint,
    friend_name text,
-	 picture_digest blob,
+   picture_digest blob,
    PRIMARY KEY (user_id, friend_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// Q5	: Get all groups of a given user_id
+// Q5: Get all groups of a given user_id
 DROP TABLE IF EXISTS groups_by_user;
 CREATE TABLE groups_by_user (
 	user_id bigint,
@@ -86,21 +85,16 @@ CREATE TABLE friends_by_group (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// Q7: Find events a user has been invited to and range by start_date (order by start_date ASC)
-DROP TABLE IF EXISTS events_by_user;
-CREATE TABLE events_by_user (
+// Q7: Find events a user was invited and that is finished (order by start_date DESC)
+DROP TABLE IF EXISTS events_history_by_user;
+CREATE TABLE events_history_by_user (
 	user_id bigint,
-	event_bucket int, // add another table to store info about where buckets starts and ends and which size they have
-	start_date timestamp,
+	position timestamp,
 	event_id bigint,
-	author_id bigint,
-	author_name text,
-	message text,
-	response int, // 0) no response, 1) no assist, 2) cannot assist, 3) assist
-	PRIMARY KEY ((user_id, event_bucket), start_date, event_id)
+	PRIMARY KEY (user_id, position, event_id)
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
-AND CLUSTERING ORDER BY (start_date DESC, event_id DESC);
+AND CLUSTERING ORDER BY (position DESC, event_id DESC);
 
 // Q8: Find a event with a specified event id
 DROP TABLE IF EXISTS event;
@@ -132,7 +126,20 @@ CREATE TABLE event (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// Q9: Find a user or event thumbnail by his or her id and dpi
+// Q9: Find events that are in progress or not started (ordered by position ASC)
+DROP TABLE IF EXISTS events_timeline;
+CREATE TABLE events_timeline (
+	// Partition key
+	bucket int,
+	//  Event Info	
+	event_id bigint,
+	position timestamp,
+	PRIMARY KEY (bucket, position, event_id)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
+AND CLUSTERING ORDER BY (position ASC, event_id ASC);
+
+// Q10: Find a user or event thumbnail by his or her id and dpi
 DROP TABLE IF EXISTS thumbnails;
 CREATE TABLE thumbnails (
 	id bigint,
@@ -144,7 +151,7 @@ CREATE TABLE thumbnails (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// Q10: Find user access token by user_id
+// Q11: Find user access token by user_id
 DROP TABLE IF EXISTS user_access_token;
 CREATE TABLE user_access_token (
 	user_id bigint,
@@ -155,7 +162,7 @@ CREATE TABLE user_access_token (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
-// Q11: Get all friend requests received by an user and ordered by date
+// Q12: Get all friend requests received by an user and ordered by date
 DROP TABLE IF EXISTS friend_requests_received;
 CREATE TABLE friend_requests_received (
 	user_id bigint,
@@ -168,7 +175,7 @@ CREATE TABLE friend_requests_received (
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
 AND CLUSTERING ORDER BY (created_date DESC, friend_id ASC);
 
-// Q12: Find a friend request sent by user_id and friend_id
+// Q13: Find a friend request sent by user_id and friend_id
 DROP TABLE IF EXISTS friend_requests_sent;
 CREATE TABLE friend_requests_sent (
 	user_id bigint,
@@ -182,7 +189,7 @@ WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 // Stats
 //
 
-// Q13: Find active sessions per node by day
+// Q14: Find active sessions per node by day
 CREATE TABLE log_active_sessions_by_day (
 	node int,
 	day int,  // yyyyMMdd format
@@ -193,7 +200,7 @@ CREATE TABLE log_active_sessions_by_day (
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
 AND CLUSTERING ORDER BY (user_id DESC);
  
-// Q14: Find registered users by day
+// Q15: Find registered users by day
 CREATE TABLE log_registered_users_by_day (
 	day int, // yyyyMMdd format
 	user_id bigint,

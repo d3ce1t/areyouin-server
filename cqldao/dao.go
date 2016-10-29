@@ -4,11 +4,6 @@ import (
 	"peeple/areyouin/api"
 )
 
-func NewEventDAO(session api.DbSession) api.EventDAO {
-	reconnectIfNeeded(session)
-	return &EventDAO{session: session.(*GocqlSession)}
-}
-
 func NewUserDAO(session api.DbSession) api.UserDAO {
 	reconnectIfNeeded(session)
 	return &UserDAO{session: session.(*GocqlSession)}

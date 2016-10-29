@@ -3,6 +3,7 @@ package main
 import (
 	"peeple/areyouin/model"
 	"peeple/areyouin/protocol/core"
+	"peeple/areyouin/utils"
 )
 
 func convUser2Net(user *model.UserAccount) *core.UserAccount {
@@ -20,13 +21,13 @@ func convEvent2Net(event *model.Event) *core.Event {
 		EventId:       event.Id(),
 		AuthorId:      event.AuthorID(),
 		AuthorName:    event.AuthorName(),
-		StartDate:     event.StartDate(),
-		EndDate:       event.EndDate(),
+		StartDate:     utils.TimeToMillis(event.StartDate()),
+		EndDate:       utils.TimeToMillis(event.EndDate()),
 		Message:       event.Description(),
 		NumAttendees:  int32(event.NumAttendees()),
 		NumGuests:     int32(event.NumGuests()),
-		CreatedDate:   event.CreatedDate(),
-		InboxPosition: event.InboxPosition(),
+		CreatedDate:   utils.TimeToMillis(event.CreatedDate()),
+		InboxPosition: utils.TimeToMillis(event.InboxPosition()),
 		PictureDigest: event.PictureDigest(),
 		State:         core.EventState(event.Status()),
 		Participants:  make(map[int64]*core.EventParticipant),

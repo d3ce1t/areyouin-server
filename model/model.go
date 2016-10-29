@@ -76,6 +76,14 @@ func getUserMapKeys(m map[int64]*UserAccount) []int64 {
 	return keys
 }
 
+func getParticipantMapKeys(m map[int64]*Participant) []int64 {
+	keys := make([]int64, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func (m *AyiModel) DbSession() api.DbSession {
 	return m.dbsession
 }

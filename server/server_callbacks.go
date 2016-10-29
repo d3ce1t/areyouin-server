@@ -8,6 +8,7 @@ import (
 	proto "peeple/areyouin/protocol"
 	"peeple/areyouin/protocol/core"
 	"peeple/areyouin/utils"
+	"time"
 )
 
 func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -303,21 +304,41 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	server := session.Server
 	msg := message.(*proto.CreateEvent)
-	log.Printf("> (%v) CREATE EVENT (message: %v, start: %v, end: %v, invitations: %v, picture: %v bytes)\n",
-		session, msg.Message, msg.StartDate, msg.EndDate, len(msg.Participants), len(msg.Picture))
+	createdDate := utils.MillisToTimeUTC(msg.CreatedDate)
+	startDate := utils.MillisToTimeUTC(msg.StartDate)
+	endDate := utils.MillisToTimeUTC(msg.EndDate)
+
+	log.Printf("> (%v) CREATE EVENT (start: %v, end: %v, invitations: %v, picture: %v bytes)\n",
+		session, startDate, endDate, len(msg.Participants), len(msg.Picture))
 
 	checkAuthenticated(session)
 
+	// Get author
 	author, err := server.Model.Accounts.GetUserAccount(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	event, err := server.Model.Events.CreateNewEvent(author, msg.CreatedDate, msg.StartDate, msg.EndDate, msg.Message)
+	// Event builder
+	b := server.Model.Events.NewEventBuilder()
+
+	b.SetAuthor(author)
+	b.SetCreatedDate(createdDate)
+	b.SetStartDate(startDate)
+	b.SetEndDate(endDate)
+	b.SetDescription(msg.Message)
+
+	pAuthor := model.NewParticipant(author.Id(), author.Name(),
+		api.AttendanceResponse_ASSIST, api.InvitationStatus_SERVER_DELIVERED)
+
+	b.ParticipantAdder().AddParticipant(pAuthor)
+	for _, pID := range msg.Participants {
+		b.ParticipantAdder().AddUserID(pID)
+	}
+
+	event, err := b.Build()
 	checkNoErrorOrPanic(err)
 
-	userParticipants, err := server.Model.Events.CreateParticipantsList(author.Id(), msg.Participants)
-	checkNoErrorOrPanic(err)
-
-	if err = server.Model.Events.PublishEvent(event, userParticipants); err == nil {
+	// Publish event
+	if err = server.Model.Events.SaveEvent(event); err == nil {
 
 		// Event Published: set event picture if received
 
@@ -361,35 +382,51 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	server := session.Server
+
 	msg := message.(*proto.ModifyEvent)
+	modificationDate := utils.MillisToTimeUTC(msg.ModifyDate)
+	startDate := utils.MillisToTimeUTC(msg.StartDate)
+	endDate := utils.MillisToTimeUTC(msg.EndDate)
 	log.Printf("> (%v) MODIFY EVENT %v (message: %v, start: %v, end: %v, invitations: %v, picture: %v, remove: %v)\n",
-		session, msg.EventId, msg.Message != "", msg.StartDate, msg.EndDate, len(msg.Participants), len(msg.Picture) > 0, msg.RemovePicture)
+		session, msg.EventId, msg.Message != "", startDate, endDate, len(msg.Participants), len(msg.Picture) > 0, msg.RemovePicture)
 
 	checkAuthenticated(session)
 
 	// Load event
-	event, err := server.Model.Events.GetEvent(msg.EventId)
+	event, err := server.Model.Events.LoadEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
 	// Check author
 	authorID := session.UserId
 	checkEventAuthorOrPanic(authorID, event)
 
-	// Update event object
-	modifiedEvent, err := server.Model.Events.UpdateEventInfo(event,
-		utils.MaxInt64(event.CreatedDate(), msg.ModifyDate),
-		msg.StartDate, msg.EndDate, msg.Message)
+	// Modify event
+	b, err := server.Model.Events.NewEventModifier(event)
 	checkNoErrorOrPanic(err)
 
-	// Participant list
-	var newParticipants map[int64]*model.UserAccount
-	if len(msg.Participants) > 0 {
-		newParticipants, err = server.Model.Events.CreateParticipantsList(authorID, msg.Participants)
-		checkNoErrorOrPanic(err)
+	b.SetModifiedDate(modificationDate)
+
+	if msg.Message != "" {
+		b.SetDescription(msg.Message)
 	}
 
+	if !startDate.IsZero() {
+		b.SetStartDate(startDate)
+	}
+
+	if !endDate.IsZero() {
+		b.SetEndDate(endDate)
+	}
+
+	for _, pID := range msg.Participants {
+		b.ParticipantAdder().AddUserID(pID)
+	}
+
+	modifiedEvent, err := b.Build()
+	checkNoErrorOrPanic(err)
+
 	// Persist event
-	err = server.Model.Events.SaveEvent(modifiedEvent, newParticipants)
+	err = server.Model.Events.SaveEvent(modifiedEvent)
 	checkNoErrorOrPanic(err)
 
 	if len(msg.Picture) > 0 || msg.RemovePicture {
@@ -407,26 +444,21 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	// Send event changed
 	// NOTE: Send liteEvent because full event causes a crash in iOS version lower than 1.0.11
+	// FIXME: If two users modify event at the same time, each one will receive a different view of the event
 	netEvent := convEvent2Net(modifiedEvent.CloneEmptyParticipants())
 	session.Write(session.NewMessage().EventModified(netEvent))
 	log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, modifiedEvent.Id())
 
 	// Send participants by other means
-	participantList := make(map[int64]*model.Participant)
+	newParticipants := server.Model.Events.ExtractNewParticipants(modifiedEvent, event)
 
-	for _, user := range modifiedEvent.Participants() {
-		if _, ok := newParticipants[user.Id()]; ok {
-			participantList[user.Id()] = user
-		}
-	}
-
-	if len(participantList) > 0 {
-		netParticipants := convParticipantList2Net(participantList)
+	if len(newParticipants) > 0 {
+		netParticipants := convParticipantList2Net(newParticipants)
 		packet := session.NewMessage().AttendanceStatus(event.Id(), netParticipants)
 		//packet := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, int32(event.NumGuests()))
 		session.Write(packet)
 		log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n",
-			session.UserId, event.Id(), len(participantList))
+			session.UserId, event.Id(), len(newParticipants))
 	}
 }
 
@@ -439,7 +471,7 @@ func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, sessi
 	checkAuthenticated(session)
 
 	// Load event
-	event, err := server.Model.Events.GetEvent(msg.EventId)
+	event, err := server.Model.Events.LoadEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
 	// Check author
@@ -468,7 +500,7 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	checkAuthenticated(session)
 
-	event, err := server.Model.Events.GetEvent(msg.EventId)
+	event, err := server.Model.Events.LoadEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
 	// Check author
@@ -505,28 +537,35 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 		return
 	}
 
-	event, err := server.Model.Events.GetEvent(msg.EventId)
+	// Read event
+	event, err := server.Model.Events.LoadEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
 	// Check author
-	authorID := session.UserId
-	checkEventAuthorOrPanic(authorID, event)
+	checkEventAuthorOrPanic(session.UserId, event)
 
-	// Event can be modified
-	checkEventWritableOrPanic(event)
-
-	// Load user participants
-	newParticipants, err := server.Model.Events.CreateParticipantsList(authorID, msg.Participants)
+	// Get event modifier to add new participants
+	b, err := server.Model.Events.NewEventModifier(event)
 	checkNoErrorOrPanic(err)
 
-	// Invite participants
-	usersInvited, err := server.Model.Events.InviteUsers(event, newParticipants)
+	for _, pID := range msg.Participants {
+		b.ParticipantAdder().AddUserID(pID)
+	}
+
+	// Build event
+	modifiedEvent, err := b.Build()
 	checkNoErrorOrPanic(err)
+
+	// Save it
+	err = server.Model.Events.SaveEvent(modifiedEvent)
+	checkNoErrorOrPanic(err)
+
+	newParticipants := server.Model.Events.ExtractNewParticipants(modifiedEvent, event)
 
 	// Write response back
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
-	log.Printf("< (%v) INVITE USERS OK (event_id: %v, invitations: %v/%v, total: %v)\n",
-		session, event.Id(), len(usersInvited), len(newParticipants), len(msg.Participants))
+	log.Printf("< (%v) INVITE USERS OK (eventID: %v, newParticipants: %v, total: %v)\n",
+		session, event.Id(), len(newParticipants), len(msg.Participants))
 
 	// Send notification
 	participantList := make(map[int64]*model.Participant)
@@ -551,7 +590,7 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 	checkAuthenticated(session)
 
 	server := session.Server
-	event, err := server.Model.Events.GetEvent(msg.EventId)
+	event, err := server.Model.Events.LoadEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
 	// Change response
@@ -659,27 +698,44 @@ func onListEventsHistory(request *proto.AyiPacket, message proto.Message, sessio
 	server := session.Server
 	msg := message.(*proto.EventListRequest)
 
-	log.Printf("> (%v) REQUEST EVENTS HISTORY (start: %v, end: %v)\n", session, msg.StartWindow, msg.EndWindow) // Message does not has payload
+	log.Printf("> (%v) REQUEST EVENTS HISTORY (start: %v, end: %v)\n",
+		session, utils.MillisToTimeUTC(msg.StartWindow), utils.MillisToTimeUTC(msg.EndWindow)) // Message does not has payload
+
 	checkAuthenticated(session)
 
-	events, err := server.Model.Events.GetEventsHistory(session.UserId, msg.StartWindow, msg.EndWindow)
+	reqStartWindow := utils.MillisToTimeUTC(msg.StartWindow)
+	reqEndWindow := utils.MillisToTimeUTC(msg.EndWindow)
+	events, err := server.Model.Events.GetEventsHistory(session.UserId, reqStartWindow, reqEndWindow)
 	checkNoErrorOrPanic(err)
 
-	var startWindow int64
-	var endWindow int64
+	var firstEvent, lastEvent *model.Event
+	var startWindow, endWindow time.Time
 
 	if msg.StartWindow < msg.EndWindow {
-		startWindow = events[0].StartDate()
-		endWindow = events[len(events)-1].StartDate()
+		firstEvent, lastEvent = events[0], events[len(events)-1]
 	} else {
-		startWindow = events[len(events)-1].StartDate()
-		endWindow = events[0].StartDate()
+		firstEvent, lastEvent = events[len(events)-1], events[0]
+	}
+
+	if firstEvent.IsCancelled() {
+		startWindow = firstEvent.InboxPosition()
+	} else {
+		startWindow = firstEvent.EndDate()
+	}
+
+	if lastEvent.IsCancelled() {
+		endWindow = lastEvent.InboxPosition()
+	} else {
+		endWindow = lastEvent.EndDate()
 	}
 
 	// Send event list to user
-	log.Printf("< (%v) SEND EVENTS HISTORY (num.events: %v)", session, len(events))
+	log.Printf("< (%v) SEND EVENTS HISTORY (num.events: %v, startWindow: %v, endWindow: %v)",
+		session, len(events), startWindow, endWindow)
+
 	session.WriteResponse(request.Header.GetToken(),
-		session.NewMessage().EventsHistoryList(convEventList2Net(events), startWindow, endWindow))
+		session.NewMessage().EventsHistoryList(convEventList2Net(events),
+			utils.TimeToMillis(startWindow), utils.TimeToMillis(endWindow)))
 }
 
 func onGetUserFriends(request *proto.AyiPacket, message proto.Message, session *AyiSession) {

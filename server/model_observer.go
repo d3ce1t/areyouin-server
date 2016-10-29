@@ -72,6 +72,7 @@ func (m *ModelObserver) receiveSignals(tickC <-chan time.Time) {
 func (m *ModelObserver) processSignal(signal *model.Signal) {
 	switch signal.Type {
 
+	case model.SignalNewEvent:
 	case model.SignalEventParticipantsInvited:
 		// Enqueue signal in order to cancel previous notifications
 		collapseKey := fmt.Sprintf("event#%v", signal.Data["EventID"])
@@ -113,6 +114,7 @@ func (m *ModelObserver) processDelayedChanges() {
 
 		switch signal.Type {
 
+		case model.SignalNewEvent:
 		case model.SignalEventParticipantsInvited:
 			m.processNewEventSignal(signal)
 

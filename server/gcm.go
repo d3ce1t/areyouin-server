@@ -28,7 +28,7 @@ func sendNewEventNotification(event *model.Event, userID int64) {
 		return
 	}
 
-	ttlSeconds := uint((event.StartDate() - utils.GetCurrentTimeMillis()) / 1000)
+	ttlSeconds := uint(event.StartDate().Sub(utils.GetCurrentTimeUTC()).Seconds())
 
 	if token.Version() <= 2 {
 		sendToSync(userID, token.Token(), ttlSeconds)
@@ -63,7 +63,7 @@ func sendEventCancelledNotification(event *model.Event, userID int64) {
 		return
 	}
 
-	ttlSeconds := uint((event.EndDate() - utils.GetCurrentTimeMillis()) / 1000)
+	ttlSeconds := uint(event.EndDate().Sub(utils.GetCurrentTimeUTC()).Seconds())
 
 	if token.Version() <= 2 {
 		sendToSync(userID, token.Token(), ttlSeconds)
@@ -99,7 +99,7 @@ func sendEventResponseNotification(event *model.Event, participantID int64, user
 		return
 	}
 
-	ttlSeconds := uint((event.EndDate() - utils.GetCurrentTimeMillis()) / 1000)
+	ttlSeconds := uint(event.EndDate().Sub(utils.GetCurrentTimeUTC()).Seconds())
 
 	if token.Version() <= 2 {
 		sendToSync(userID, token.Token(), ttlSeconds)

@@ -1,9 +1,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
-	"os"
 	"peeple/areyouin/api"
 	"peeple/areyouin/cqldao"
 	imgserv "peeple/areyouin/images_server"
@@ -26,10 +26,13 @@ func main() {
 	globalConfig = cfg
 
 	// Process args
+	var bootStrap bool
 
-	args := os.Args[1:]
-	if len(args) > 0 && args[0] == "--enable-maintenance" {
-		// Overwrites whatever it is en areyouin.yaml
+	flag.BoolVar(&cfg.data.MaintenanceMode, "enable-maintenance", cfg.data.MaintenanceMode, "Enable maintenance mode")
+	flag.BoolVar(&bootStrap, "bootstrap", false, "Bootstrap server")
+	flag.Parse()
+
+	if bootStrap {
 		cfg.data.MaintenanceMode = true
 	}
 
@@ -104,5 +107,5 @@ func main() {
 	go server.startShell()
 
 	// start server loop
-	server.run()
+	server.run(bootStrap)
 }

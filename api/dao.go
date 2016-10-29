@@ -26,10 +26,26 @@ type UserDAO interface {
 	Delete(user *UserDTO) error
 }
 
+type EventTimeLineDAO interface {
+	FindAllFrom(date int64) ([]*TimeLineEntryDTO, error)
+	Insert(item *TimeLineEntryDTO) error
+	Delete(item *TimeLineEntryDTO) error
+	Replace(oldItem *TimeLineEntryDTO, newItem *TimeLineEntryDTO) error
+	DeleteAll() error
+}
+
+type EventHistoryDAO interface {
+	Insert(userID int64, event *TimeLineEntryDTO) error
+	InsertBatch(event *TimeLineEntryDTO, userIDs ...int64) error
+	FindAllBackward(userID int64, fromDate time.Time) ([]int64, error)
+	FindAllForward(userID int64, fromDate time.Time) ([]int64, error)
+	DeleteAll() error
+}
+
 type EventDAO interface {
+	RangeAll(f func(*EventDTO) error) error
+	RangeEvents(f func(*EventDTO) error, event_ids ...int64) error
 	LoadEvents(ids ...int64) (events []*EventDTO, err error)
-	LoadRecentEventsFromUser(userId int64, fromDate int64) ([]*EventDTO, error)
-	LoadEventsHistoryFromUser(userId int64, fromDate int64, toDate int64) ([]*EventDTO, error)
 	LoadEventPicture(eventId int64) (*PictureDTO, error)
 	Insert(event *EventDTO) error
 	AddParticipantToEvent(participant *ParticipantDTO, event *EventDTO) error
@@ -38,6 +54,8 @@ type EventDAO interface {
 	SetParticipantInvitationStatus(userId int64, eventId int64, status InvitationStatus) error
 	SetParticipantResponse(participant int64, response AttendanceResponse, event *EventDTO) error
 	SetNumGuests(eventId int64, numGuests int) (ok bool, err error)
+	// Do it in DAO because I cannot handle transactions in DAO yet
+	CancelEvent(eventID int64, oldPosition time.Time, newPosition time.Time, userIDs []int64) error
 }
 
 type FriendDAO interface {

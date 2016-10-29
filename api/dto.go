@@ -1,5 +1,7 @@
 package api
 
+import "time"
+
 type UserDTO struct {
 	Id            int64
 	Name          string
@@ -31,6 +33,17 @@ type EventDTO struct {
 	Cancelled     bool
 	Participants  map[int64]*ParticipantDTO
 }
+
+type TimeLineEntryDTO struct {
+	EventID  int64
+	Position time.Time
+}
+
+type TimeLineByEndDate []*TimeLineEntryDTO
+
+func (a TimeLineByEndDate) Len() int           { return len(a) }
+func (a TimeLineByEndDate) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a TimeLineByEndDate) Less(i, j int) bool { return a[i].Position.Before(a[j].Position) }
 
 type ParticipantDTO struct {
 	UserId           int64

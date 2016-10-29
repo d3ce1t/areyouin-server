@@ -2,7 +2,6 @@ package model
 
 import (
 	"peeple/areyouin/api"
-	"peeple/areyouin/idgen"
 	"peeple/areyouin/utils"
 	"strings"
 	"time"
@@ -14,32 +13,29 @@ type Event struct {
 	authorName    string
 	description   string
 	pictureDigest []byte
-	createdDate   int64
-	inboxPosition int64
-	startDate     int64
-	endDate       int64
+	createdDate   time.Time
+	modifiedDate  time.Time
+	inboxPosition time.Time
+	startDate     time.Time
+	endDate       time.Time
 	numAttendees  int32
 	numGuests     int32
 	cancelled     bool
 	participants  map[int64]*Participant
-}
 
-func newEvent(authorID int64, authorName string, createdDate int64, startDate int64,
-	endDate int64, message string) *Event {
-	event := &Event{
-		id:            idgen.NewID(),
-		authorID:      authorID,
-		authorName:    authorName,
-		description:   message,
-		createdDate:   createdDate,
-		inboxPosition: startDate,
-		startDate:     startDate,
-		endDate:       endDate,
-		numAttendees:  0,
-		numGuests:     0,
-		participants:  make(map[int64]*Participant),
-	}
-	return event
+	// If this event is a modification of another one, oldEvent must
+	// point to that object
+	oldEvent *Event
+
+	// Indicate if this object has a copy in database. For instance,
+	// an event loaded from db will have isPersisted set. However, a
+	// modified event will have it unset.
+	isPersisted bool
+
+	// Indicate if this object has been created and initialised
+	// from this package. This is used to filter Event{} objects
+	// in API calls
+	initialised bool
 }
 
 func newEventFromDTO(dto *api.EventDTO) *Event {
@@ -50,14 +46,15 @@ func newEventFromDTO(dto *api.EventDTO) *Event {
 		authorName:    dto.AuthorName,
 		description:   dto.Description,
 		pictureDigest: dto.PictureDigest,
-		createdDate:   dto.CreatedDate,
-		inboxPosition: dto.InboxPosition,
-		startDate:     dto.StartDate,
-		endDate:       dto.EndDate,
+		createdDate:   utils.MillisToTimeUTC(dto.CreatedDate).Truncate(time.Second),
+		inboxPosition: utils.MillisToTimeUTC(dto.InboxPosition).Truncate(time.Second),
+		startDate:     utils.MillisToTimeUTC(dto.StartDate).Truncate(time.Second),
+		endDate:       utils.MillisToTimeUTC(dto.EndDate).Truncate(time.Second),
 		numAttendees:  dto.NumAttendees,
 		numGuests:     dto.NumGuests,
 		cancelled:     dto.Cancelled,
 		participants:  make(map[int64]*Participant),
+		initialised:   true,
 	}
 
 	for _, p := range dto.Participants {
@@ -87,15 +84,19 @@ func (e *Event) AuthorName() string {
 	return e.authorName
 }
 
-func (e *Event) CreatedDate() int64 {
+func (e *Event) CreatedDate() time.Time {
 	return e.createdDate
 }
 
-func (e *Event) StartDate() int64 {
+func (e *Event) ModifiedDate() time.Time {
+	return e.modifiedDate
+}
+
+func (e *Event) StartDate() time.Time {
 	return e.startDate
 }
 
-func (e *Event) EndDate() int64 {
+func (e *Event) EndDate() time.Time {
 	return e.endDate
 }
 
@@ -130,7 +131,7 @@ func (e *Event) Description() string {
 	return e.description
 }
 
-func (e *Event) InboxPosition() int64 {
+func (e *Event) InboxPosition() time.Time {
 	return e.inboxPosition
 }
 
@@ -149,18 +150,16 @@ func (e *Event) NumGuests() int {
 func (e *Event) Status() api.EventState {
 
 	currentDate := time.Now()
-	startDate := utils.MillisToTimeUTC(e.startDate)
-	endDate := utils.MillisToTimeUTC(e.endDate)
 
 	if e.IsCancelled() {
 		return api.EventState_CANCELLED
-	} else if startDate.After(currentDate) {
+	} else if e.startDate.After(currentDate) {
 		return api.EventState_NOT_STARTED
-	} else if endDate.Before(currentDate) || endDate.Equal(currentDate) {
+	} else if e.endDate.Before(currentDate) || e.endDate.Equal(currentDate) {
 		return api.EventState_FINISHED
-	} else {
-		return api.EventState_ONGOING
 	}
+
+	return api.EventState_ONGOING
 }
 
 func (e *Event) IsCancelled() bool {
@@ -175,10 +174,10 @@ func (e *Event) AsDTO() *api.EventDTO {
 		AuthorName:    e.authorName,
 		Description:   e.description,
 		PictureDigest: e.pictureDigest,
-		CreatedDate:   e.createdDate,
-		InboxPosition: e.inboxPosition,
-		StartDate:     e.startDate,
-		EndDate:       e.endDate,
+		CreatedDate:   utils.TimeToMillis(e.createdDate),
+		InboxPosition: utils.TimeToMillis(e.inboxPosition),
+		StartDate:     utils.TimeToMillis(e.startDate),
+		EndDate:       utils.TimeToMillis(e.endDate),
 		NumAttendees:  e.numAttendees,
 		NumGuests:     e.numGuests,
 		Cancelled:     e.cancelled,
@@ -191,13 +190,6 @@ func (e *Event) AsDTO() *api.EventDTO {
 
 	return dto
 }
-
-/*func (e *Event) SetParticipants(participants map[int64]*Participant) {
-	e.Participants = participants
-	if participants != nil {
-		e.NumGuests = int32(len(participants))
-	}
-}*/
 
 func (e *Event) GetParticipant(id int64) *Participant {
 	v, _ := e.participants[id]
@@ -219,18 +211,6 @@ func (e *Event) Participants() []*Participant {
 	}
 	return values
 }
-
-func (e *Event) addParticipant(p *Participant) {
-	e.participants[p.id] = p
-	e.numGuests = int32(len(e.participants))
-}
-
-/*func (event *Event) GetEventWithoutParticipants() *Event {
-	new_event := &Event{}
-	*new_event = *event // copy
-	new_event.SetParticipants(nil)
-	return new_event
-}*/
 
 func (e *Event) Clone() *Event {
 	eventCopy := new(Event)

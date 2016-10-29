@@ -14,286 +14,85 @@ import (
 )
 
 type EventManager struct {
-	dbsession   api.DbSession
-	parent      *AyiModel
-	userDAO     api.UserDAO
-	eventDAO    api.EventDAO
-	thumbDAO    api.ThumbnailDAO
-	eventSignal observer.Property
+	dbsession       api.DbSession
+	parent          *AyiModel
+	userDAO         api.UserDAO
+	eventDAO        api.EventDAO
+	timelineDAO     api.EventTimeLineDAO
+	eventHistoryDAO api.EventHistoryDAO
+	thumbDAO        api.ThumbnailDAO
+	eventSignal     observer.Property
+	userEvents      *UserEvents
 }
 
 func newEventManager(parent *AyiModel, session api.DbSession) *EventManager {
-	return &EventManager{
-		parent:      parent,
-		dbsession:   session,
-		userDAO:     cqldao.NewUserDAO(session),
-		eventDAO:    cqldao.NewEventDAO(session),
-		thumbDAO:    cqldao.NewThumbnailDAO(session),
-		eventSignal: observer.NewProperty(nil),
+	evManager := &EventManager{
+		parent:          parent,
+		dbsession:       session,
+		userDAO:         cqldao.NewUserDAO(session),
+		eventDAO:        cqldao.NewEventDAO(session),
+		eventHistoryDAO: cqldao.NewEventHistoryDAO(session),
+		timelineDAO:     cqldao.NewTimeLineDAO(session),
+		thumbDAO:        cqldao.NewThumbnailDAO(session),
+		eventSignal:     observer.NewProperty(nil),
+		userEvents:      newUserEvents(),
 	}
+
+	if err := evManager.loadActiveEvents(); err != nil {
+		log.Printf("newEventManagerError: %v\n", err)
+		return nil
+	}
+
+	return evManager
 }
 
-func (m *EventManager) Observe() observer.Stream {
-	return m.eventSignal.Observe()
-}
+func (m *EventManager) LoadEvent(eventID int64) (*Event, error) {
 
-// CreateNewEvent creates an event with no participants
-//
-// Prominent errors:
-// - ErrInvalidAuthor
-// - ErrEventOutOfCreationWindow
-// - ErrInvalidEventData
-// - ErrInvalidStartDate
-// - ErrInvalidEndDate
-//
-// Assumes:
-// (1) author must exists and be valid
-//
-// Preconditions:
-// (1) event created date must be inside a valid window
-// (2) event start and end date must obey business rules
-func (m *EventManager) CreateNewEvent(author *UserAccount, createdDate int64,
-	startDate int64, endDate int64, description string) (*Event, error) {
-
-	// Create event
-	event := newEvent(author.id, author.name, createdDate, startDate, endDate, description)
-
-	// Check precondition (2)
-
-	if _, err := isValidEvent(event, createdDate); err != nil {
+	events, err := m.eventDAO.LoadEvents(eventID)
+	if err != nil {
 		return nil, err
 	}
 
+	if len(events) > 0 {
+		return newEventFromDTO(events[0]), nil
+	}
+
+	return nil, ErrNotFound
+}
+
+/*
+ * Save an event into database in order to let users request his events list
+ *
+ * Preconditions:
+ * (1) event must have been initialised by model, this implies event object
+ *     is valid
+ * (2) event must not be not persisted
+ */
+func (m *EventManager) SaveEvent(event *Event) error {
+
 	// Check precondition (1)
-	currentDateTime := utils.GetCurrentTimeUTC().Truncate(time.Second)
-	createdDateTime := utils.MillisToTimeUTC(event.CreatedDate())
-
-	if createdDateTime.Before(currentDateTime.Add(-time.Minute)) || createdDateTime.After(currentDateTime.Add(time.Minute)) {
-		return nil, ErrEventOutOfCreationWindow
-	}
-
-	return event, nil
-}
-
-// Preconditions:
-// (1) event dates modification must be inside a valid window
-// (2) event start and end date must obey business rules
-// (3) event description must be valid
-func (m *EventManager) UpdateEventInfo(event *Event, modifyDate int64,
-	startDate int64, endDate int64, description string) (*Event, error) {
-
-	// Copy event and modify it
-	modifiedEvent := event.Clone()
-
-	if description != "" {
-		modifiedEvent.description = description
-	}
-
-	if startDate != 0 {
-		modifiedEvent.startDate = startDate
-	}
-
-	if endDate != 0 {
-		modifiedEvent.endDate = endDate
-	}
-
-	if startDate != 0 || endDate != 0 {
-
-		// Check precondition (1)
-
-		currentDateTime := utils.GetCurrentTimeUTC().Truncate(time.Second)
-		clientSideOpTime := utils.MillisToTimeUTC(modifyDate)
-
-		if clientSideOpTime.Before(currentDateTime.Add(-time.Minute)) || clientSideOpTime.After(currentDateTime.Add(time.Minute)) {
-			return nil, ErrEventOutOfCreationWindow
-		}
-	}
-
-	// Check precondition (2) and (3)
-
-	if _, err := isValidEvent(modifiedEvent, modifyDate); err != nil {
-		return nil, err
-	}
-
-	return modifiedEvent, nil
-}
-
-// CreateParticipantsList creates a participant list by means of the provided participants id.
-// Only friends of user 'authorId' are included in the resulting list.
-func (m *EventManager) CreateParticipantsList(authorID int64, participants []int64) (map[int64]*UserAccount, error) {
-
-	if len(participants) == 0 {
-		return nil, ErrParticipantsRequired
-	}
-
-	usersList := make(map[int64]*UserAccount)
-	friendsCounter := 0
-
-	for _, pID := range participants {
-
-		if ok, err := m.parent.Friends.IsFriend(pID, authorID); ok {
-
-			friendsCounter++
-
-			// Participant has author as his friend
-
-			user, err := m.userDAO.Load(pID)
-			if err == api.ErrNotFound {
-
-				// Participant doesn't exist
-
-				// TODO: Send e-mail to Admin
-				log.Printf("* CREATE PARTICIPANT LIST WARNING: USER %v NOT FOUND: This means user (%v) has a friend list but its account doesn't exist. Admin required.\n", pID, pID)
-				continue
-
-			} else if err != nil {
-				return nil, err
-			}
-
-			usersList[user.Id] = newUserFromDTO(user)
-
-		} else if err != nil {
-			return nil, err
-		} else {
-			log.Printf("* CREATE PARTICIPANT LIST WARNING: USER %v TRIED TO ADD USER %v BUT THEY ARE NOT FRIENDS\n", authorID, pID)
-		}
-
-	} // End for
-
-	if len(usersList) == 0 {
-		if friendsCounter > 0 {
-			return nil, ErrModelInconsistency
-		} else {
-			return nil, ErrParticipantsRequired
-		}
-	}
-
-	return usersList, nil
-}
-
-// Publish an event, i.e. store it in such a way that if a participant request
-// his events list, the event will be included.
-//
-// Note that event should not have participants stored in his event.Participants
-// field. This method will set this property to include only those users whose
-// event delivery had succeeded.
-//
-// Preconditions:
-// (1) author must exists and be valid
-// (2) event created date must be inside a valid window
-// (3) event start and end date must obey business rules
-// (4) Should be at least 1 participant besides the author
-func (m *EventManager) PublishEvent(event *Event, users map[int64]*UserAccount) error {
-
-	// Check precondition (3)
-
-	if _, err := isValidEvent(event, event.createdDate); err != nil {
-		return err
-	}
-
-	// Check precondition (4)
-
-	if len(users) == 0 {
-		return ErrParticipantsRequired
+	if event == nil || !event.initialised {
+		return ErrNotInitialised
 	}
 
 	// Check precondition (2)
-	currentDate := utils.GetCurrentTimeUTC().Truncate(time.Second)
-	createdDate := utils.MillisToTimeUTC(event.CreatedDate())
-
-	if createdDate.Before(currentDate.Add(-time.Minute)) || createdDate.After(currentDate.Add(time.Minute)) {
-		return ErrEventOutOfCreationWindow
+	if event.isPersisted {
+		// Do nothing
+		return nil
 	}
 
-	// Check precondition (1)
-	authorDto, err := m.userDAO.Load(event.AuthorID())
-	if err == api.ErrNotFound {
-		return ErrInvalidAuthor
-	} else if err != nil {
-		return err
+	if event.oldEvent == nil || !event.oldEvent.isPersisted {
+
+		// New event that has no copy in database
+		return m.saveNewEvent(event)
+
 	}
 
-	author := newUserFromDTO(authorDto).AsParticipant()
-
-	if event.AuthorID() != author.Id() {
-		return ErrInvalidAuthor
-	}
-
-	// Persist event.
-	if err := m.eventDAO.Insert(event.AsDTO()); err != nil {
-		return err
-	}
-
-	// Add author first in order to let author receive the event and add other
-	// participants if something fails
-	author.response = api.AttendanceResponse_ASSIST
-	if err := m.eventDAO.AddParticipantToEvent(author.AsDTO(), event.AsDTO()); err != nil {
-		return ErrAuthorDeliveryError
-	}
-
-	event.addParticipant(author)
-
-	// At this point, it's guaranteed that event exists, author is one of
-	// the participants, and author has the event in his events inbox.
-	// If code failed before reaching this point, an event with no participants
-	// may exist (orphaned event)
-
-	// TODO: NumAttendees and NumGuests isn't updated
-
-	// Emit signal
-	signal := &Signal{
-		Type: SignalNewEvent,
-		Data: map[string]interface{}{
-			"EventID": event.Id(),
-			"Event":   event,
-		},
-	}
-
-	m.eventSignal.Update(signal)
-
-	// Invite users. If error do nothing.
-	m.InviteUsers(event, users)
-
-	return nil
+	// Modification of an event that has a copy in database
+	return m.saveModifiedEvent(event)
 }
 
-// Assume event is valid because it's supposed that no one can build invalid event objects
-// outside model module.
-func (m *EventManager) SaveEvent(event *Event, newUsers map[int64]*UserAccount) error {
-
-	// Check precondition
-	if event.Status() != api.EventState_NOT_STARTED {
-		return ErrEventNotWritable
-	}
-
-	// Persist event.
-	liteEvent := event.CloneEmptyParticipants()
-	if err := m.eventDAO.Insert(liteEvent.AsDTO()); err != nil {
-		return err
-	}
-
-	// TODO: NumAttendees and NumGuests isn't updated
-
-	// Emit signal
-	signal := &Signal{
-		Type: SignalEventInfoChanged,
-		Data: map[string]interface{}{
-			"EventID": event.Id(),
-			"Event":   event,
-		},
-	}
-
-	m.eventSignal.Update(signal)
-
-	// Invite users. If error do nothing.
-	if len(newUsers) > 0 {
-		m.InviteUsers(event, newUsers)
-	}
-
-	return nil
-}
-
-// Cancel an existing event_ids
+// Cancel an existing event
 //
 // Assumptions:
 // - (1) Event exist and is persisted in DB
@@ -309,26 +108,23 @@ func (m *EventManager) CancelEvent(event *Event, userID int64) error {
 	}
 
 	// Change event state and position in time line
-	new_inbox_position := utils.GetCurrentTimeMillis()
-	err := m.eventDAO.SetEventStateAndInboxPosition(event.id, api.EventState_CANCELLED,
-		new_inbox_position)
 
+	oldPosition := event.EndDate() // already truncated
+	newPosition := utils.GetCurrentTimeUTC().Truncate(time.Second)
+
+	err := m.eventDAO.CancelEvent(event.Id(), oldPosition, newPosition, event.ParticipantIds())
 	if err != nil {
 		return err
 	}
 
-	// Moreover, change event position inside user inbox so that next time client request recent events
-	// this one is ignored.
-	/*for _, participant := range event.Participants {
-		err := eventDAO.SetUserEventInboxPosition(participant, event, new_inbox_position)
-		if err != nil {
-			log.Println("onCancelEvent Error:", err) // FIXME: Add retry logic
-		}
-	}*/
-
 	// Update event object
-	event.inboxPosition = new_inbox_position
+	event.inboxPosition = newPosition
 	event.cancelled = true
+
+	// Remove from inbox and add to history
+	for pID := range event.participants {
+		m.userEvents.Remove(pID, event.Id())
+	}
 
 	// Emit signal
 	signal := &Signal{
@@ -343,84 +139,6 @@ func (m *EventManager) CancelEvent(event *Event, userID int64) error {
 	m.eventSignal.Update(signal)
 
 	return nil
-}
-
-// Invite participants to an existing event.
-// Returns a slice of participants that were actually invited.
-//
-// TODO: By now, only author can invite participants to an event.
-// However, when other users are able of doing the same it will be
-// needed to consider concurrency issues that may cause data
-// inconsistency.
-//
-// Assumptions:
-// - (1) Event exist and is persisted in DB
-// - (2) User who performs this operation have permission
-//
-// Preconditions:
-// - (1) Event must have not started
-// - (2) There must to be at least one new participant to be invited
-func (m *EventManager) InviteUsers(event *Event, users map[int64]*UserAccount) (map[int64]*UserAccount, error) {
-
-	// Check precondition (1)
-	if event.Status() != api.EventState_NOT_STARTED {
-		return nil, ErrEventNotWritable
-	}
-
-	// Check precondition (2) and invite participants at the same time
-	oldParticipants := event.ParticipantIds()
-	newParticipants := 0
-	usersInvited := make(map[int64]*UserAccount)
-
-	for _, user := range users {
-
-		if _, ok := event.participants[user.id]; !ok {
-
-			newParticipants++
-
-			participant := user.AsParticipant()
-			participant.invitationStatus = api.InvitationStatus_SERVER_DELIVERED
-
-			if err := m.eventDAO.AddParticipantToEvent(participant.AsDTO(), event.AsDTO()); err == nil {
-				event.addParticipant(participant)
-				usersInvited[user.id] = user
-			} else {
-				log.Printf("* INVITE USERS WARNING: %v\n", err)
-			}
-		}
-	}
-
-	if newParticipants == 0 || len(usersInvited) == 0 {
-		log.Printf("* INVITE USERS WARNING: %v/%v participants added\n", len(usersInvited), newParticipants)
-		return nil, ErrParticipantsRequired
-	}
-
-	// TODO: If two users invite participants at the same time, counter will be inconsistent.
-	// Remove this implementation when possible. Replace by another one where counters aren't needed
-	if _, err := m.eventDAO.SetNumGuests(event.id, len(event.participants)); err != nil {
-		log.Printf("* INVITE USERS WARNING: Update Num. guestss Error %v\n", err)
-	}
-
-	event.numGuests = int32(len(event.participants))
-
-	if len(usersInvited) > 0 {
-
-		// Emit signal
-
-		signal := &Signal{
-			Type: SignalEventParticipantsInvited,
-			Data: map[string]interface{}{
-				"EventID":         event.Id(),
-				"NewParticipants": getUserMapKeys(usersInvited),
-				"OldParticipants": oldParticipants,
-				"Event":           event,
-			},
-		}
-
-		m.eventSignal.Update(signal)
-	}
-
-	return usersInvited, nil
 }
 
 // Change event picture
@@ -594,20 +312,6 @@ func (m *EventManager) ChangeDeliveryState(event *Event, userId int64, state api
 	return false, nil
 }
 
-func (m *EventManager) GetEvent(eventID int64) (*Event, error) {
-
-	events, err := m.eventDAO.LoadEvents(eventID)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(events) > 0 {
-		return newEventFromDTO(events[0]), nil
-	}
-
-	return nil, ErrNotFound
-}
-
 func (m *EventManager) GetEventForUser(userId int64, eventId int64) (*Event, error) {
 
 	// TODO: Make a more efficient implementation by adding DAO support to load a single event
@@ -631,112 +335,310 @@ func (m *EventManager) GetEventForUser(userId int64, eventId int64) (*Event, err
 }
 
 // FIXME: Do not get all of the private events, but limit to a fixed number.
-func (m *EventManager) GetRecentEvents(userId int64) ([]*Event, error) {
+func (m *EventManager) GetRecentEvents(userID int64) ([]*Event, error) {
 
-	currentTime := utils.GetCurrentTimeMillis()
-	eventsDto, err := m.eventDAO.LoadRecentEventsFromUser(userId, currentTime)
+	// Event IDs
+	eventIDs := m.userEvents.FindAll(userID)
 
-	if err == api.ErrNoResults {
+	if len(eventIDs) == 0 {
 		return nil, ErrEmptyInbox
-	} else if err != nil {
+	}
+
+	// Read from event table to get the actual info
+	eventsDTO, err := m.eventDAO.LoadEvents(eventIDs...)
+	if err != nil {
+		log.Printf("GetRecentEvents (%v): %v\n", userID, err)
 		return nil, err
 	}
 
-	events := make([]*Event, 0, len(eventsDto))
-	for _, ev := range eventsDto {
+	// Convert DTO to model.Event
+	events := make([]*Event, 0, len(eventsDTO))
+	for _, ev := range eventsDTO {
 		events = append(events, newEventFromDTO(ev))
 	}
 
 	return events, nil
 }
 
-func (m *EventManager) GetEventsHistory(userId int64, start int64, end int64) ([]*Event, error) {
+func (m *EventManager) GetEventsHistory(userID int64, start time.Time, end time.Time) ([]*Event, error) {
 
-	currentTime := utils.GetCurrentTimeMillis()
+	currentTime := utils.GetCurrentTimeUTC().Truncate(time.Second)
 
-	if start >= currentTime {
+	// Fix start and end to not be higher than current time
+	if start.After(currentTime) {
 		start = currentTime
 	}
 
-	if end >= currentTime {
+	if end.After(currentTime) {
 		end = currentTime
 	}
 
-	eventsDto, err := m.eventDAO.LoadEventsHistoryFromUser(userId, start, end)
+	// Load event ID from user history in database
+	var eventIDs []int64
+	var err error
+
+	if start.Before(end) {
+		eventIDs, err = m.eventHistoryDAO.FindAllForward(userID, start.Truncate(time.Second))
+	} else {
+		eventIDs, err = m.eventHistoryDAO.FindAllBackward(userID, start.Truncate(time.Second))
+	}
+
 	if err == api.ErrNoResults {
 		return nil, ErrEmptyInbox
 	} else if err != nil {
 		return nil, err
 	}
 
-	events := make([]*Event, 0, len(eventsDto))
-	for _, ev := range eventsDto {
+	// Read from event table to get the actual info
+	eventsDTO, err := m.eventDAO.LoadEvents(eventIDs...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert DTO to model.Event
+	events := make([]*Event, 0, len(eventsDTO))
+	for _, ev := range eventsDTO {
 		events = append(events, newEventFromDTO(ev))
 	}
 
 	return events, nil
 }
 
-/*func (self *EventManager) FilterEvents(events []*Event, targetParticipant int64) []*Event {
+func (m *EventManager) BuildEventsTimeLine() error {
 
-	filteredEvents := make([]*Event, 0, len(events))
-
-	for _, event := range events {
-		filteredEvents = append(filteredEvents, self.GetFilteredEvent(event, targetParticipant))
+	if err := m.timelineDAO.DeleteAll(); err != nil {
+		return err
 	}
 
-	return filteredEvents
-}*/
+	err := m.eventDAO.RangeAll(func(event *api.EventDTO) error {
 
-/*func (self *EventManager) filterParticipants(participants map[int64]*Participant, targetParticipant int64) map[int64]*Participant {
-
-	result := make(map[int64]*Participant)
-
-	for key, p := range participants {
-		if ok, _ := self.canSee(targetParticipant, p); ok {
-			result[key] = p
-		} else {
-			result[key] = p.asAnonym()
+		// Insert into timeline
+		entryDTO := &api.TimeLineEntryDTO{
+			EventID:  event.Id,
+			Position: utils.MillisToTimeUTC(event.EndDate).Truncate(time.Second),
 		}
-	}
 
-	return result
-}*/
-
-/*func (self *EventManager) FilterParticipantsSlice(participants []*Participant, targetParticipant int64) map[int64]*Participant {
-
-	result := make(map[int64]*Participant)
-
-	for _, p := range participants {
-		if ok, _ := self.canSee(targetParticipant, p); ok {
-			result[p.id] = p
-		} else {
-			result[p.id] = p.asAnonym()
+		if event.Cancelled {
+			entryDTO.Position = utils.MillisToTimeUTC(event.InboxPosition).Truncate(time.Second)
 		}
-	}
 
-	return result
-}*/
+		if err := m.timelineDAO.Insert(entryDTO); err != nil {
+			return err
+		}
 
-/*func (self *EventManager) GetFilteredEvent(event *Event, targetParticipant int64) *Event {
-
-	// Clone event with empty participant list (num.attendees and num.guest are preserved)
-	eventCopy := event.CloneEmptyParticipants()
-
-	// Copy filtered participants list to the new event
-	eventCopy.participants = self.GetFilteredParticipants(event, targetParticipant)
-	return eventCopy
-}*/
-
-/*func (self *EventManager) GetFilteredParticipants(event *Event, targetParticipant int64) map[int64]*Participant {
-
-	if len(event.participants) == 0 {
-		log.Printf("FILTER PARTICIPANTS WARNING: Event %v has zero participants\n", event.id)
 		return nil
+	})
+
+	return err
+}
+
+func (m *EventManager) BuildEventsHistory() error {
+
+	if err := m.eventHistoryDAO.DeleteAll(); err != nil {
+		return err
 	}
 
-	return self.filterParticipants(event.participants, targetParticipant)
-}*/
+	err := m.eventDAO.RangeAll(func(event *api.EventDTO) error {
+
+		entryDTO := &api.TimeLineEntryDTO{
+			EventID:  event.Id,
+			Position: utils.MillisToTimeUTC(event.EndDate).Truncate(time.Second),
+		}
+
+		if event.Cancelled {
+			entryDTO.Position = utils.MillisToTimeUTC(event.InboxPosition).Truncate(time.Second)
+		}
+
+		for pID, _ := range event.Participants {
+
+			// Insert into event history
+			if err := m.eventHistoryDAO.Insert(pID, entryDTO); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	return err
+}
+
+func (m *EventManager) Observe() observer.Stream {
+	return m.eventSignal.Observe()
+}
+
+func (m *EventManager) emitEventoInfoChanged(event *Event) {
+	m.eventSignal.Update(&Signal{
+		Type: SignalEventInfoChanged,
+		Data: map[string]interface{}{
+			"EventID": event.Id(),
+			"Event":   event,
+		},
+	})
+}
+
+func (m *EventManager) emitEventParticipantsInvited(event *Event, newParticipants []int64, oldParticipants []int64) {
+	m.eventSignal.Update(&Signal{
+		Type: SignalEventParticipantsInvited,
+		Data: map[string]interface{}{
+			"EventID":         event.Id(),
+			"NewParticipants": newParticipants,
+			"OldParticipants": oldParticipants,
+			"Event":           event,
+		},
+	})
+}
+
+func (m *EventManager) emitNewEvent(event *Event) {
+	m.eventSignal.Update(&Signal{
+		Type: SignalNewEvent,
+		Data: map[string]interface{}{
+			"EventID":         event.Id(),
+			"NewParticipants": event.ParticipantIds(),
+			"OldParticipants": []int{},
+			"Event":           event,
+		},
+	})
+}
+
+/*
+ * Preconditions
+ * (1) author must exists and be valid
+ * (2) event must be created inside a valid temporal window
+ */
+func (m *EventManager) saveNewEvent(event *Event) error {
+
+	currentDate := utils.GetCurrentTimeUTC().Truncate(time.Second)
+
+	// Check precondition (2)
+	if event.CreatedDate().Before(currentDate.Add(-2*time.Minute)) || event.CreatedDate().After(currentDate.Add(2*time.Minute)) {
+		return ErrEventOutOfCreationWindow
+	}
+
+	// Check precondition (1)
+	_, err := m.userDAO.Load(event.AuthorID())
+	if err == api.ErrNotFound {
+		return ErrInvalidAuthor
+	} else if err != nil {
+		return err
+	}
+
+	// Insert in timeline
+	entry := &api.TimeLineEntryDTO{EventID: event.Id(), Position: event.EndDate()}
+	if err := m.timelineDAO.Insert(entry); err != nil {
+		return err
+	}
+
+	// Persist event.
+	if err := m.eventDAO.Insert(event.AsDTO()); err != nil {
+		return err
+	}
+
+	// Add to inbox
+	for pID := range event.participants {
+		m.userEvents.Insert(pID, event.Id())
+	}
+
+	// If code failed before reaching this point, a timeline entry
+	// could exist that doesn't point to any event. Moreover, if
+	// 'add to inbox' failed, event would exist only in database
+	// but users would be unable to retrieve it.
+
+	// Emit signal
+	m.emitNewEvent(event)
+
+	return nil
+}
+
+/*
+ * Preconditions
+ * (1) event must be created inside a valid temporal window
+ */
+func (m *EventManager) saveModifiedEvent(event *Event) error {
+
+	currentDate := utils.GetCurrentTimeUTC().Truncate(time.Second)
+	oldEvent := event.oldEvent
+
+	// Check precondition (1)
+	if event.ModifiedDate().Before(currentDate.Add(-2*time.Minute)) || event.ModifiedDate().After(currentDate.Add(2*time.Minute)) {
+		return ErrEventOutOfCreationWindow
+	}
+
+	if !event.endDate.Equal(oldEvent.endDate) {
+
+		// Move event in timeline
+		// TODO: Write timeline entry along with the event in a logged batch
+
+		oldEntry := &api.TimeLineEntryDTO{EventID: event.Id(), Position: oldEvent.EndDate()}
+		newEntry := &api.TimeLineEntryDTO{EventID: event.Id(), Position: event.EndDate()}
+
+		if err := m.timelineDAO.Replace(oldEntry, newEntry); err != nil {
+			return err
+		}
+	}
+
+	// Persist event. Take into account that only new participants must be written
+	// because previous participants could have changed their state since event
+	// was loaded
+	eventDTO := event.CloneEmptyParticipants().AsDTO()
+
+	newParticipants := m.ExtractNewParticipants(event, oldEvent)
+	for pID, participant := range newParticipants {
+		eventDTO.Participants[pID] = participant.AsDTO()
+	}
+
+	// If this insert fail, timeline entry would be inconsistent
+	// TODO: Use transaction (IF bla != known_value) to avoid an event being modified from two places at the same time
+	if err := m.eventDAO.Insert(eventDTO); err != nil {
+		return err
+	}
+
+	// Add to inbox
+	for pID := range newParticipants {
+		m.userEvents.Insert(pID, event.Id())
+	}
+
+	// Emit signal
+	if m.isEventInfoChanged(event, oldEvent) {
+		m.emitEventoInfoChanged(event)
+	}
+
+	// Emit signal
+	if len(newParticipants) > 0 {
+		m.emitEventParticipantsInvited(event, getParticipantMapKeys(newParticipants), oldEvent.ParticipantIds())
+	}
+
+	return nil
+}
+
+// ExtractNewParticipants extracts participants from extractList that are not in baseList
+func (m *EventManager) ExtractNewParticipants(extractEvent *Event, baseEvent *Event) map[int64]*Participant {
+
+	newParticipants := make(map[int64]*Participant)
+
+	for pID, participant := range extractEvent.participants {
+		if _, ok := baseEvent.participants[pID]; !ok {
+			newParticipants[pID] = participant
+		}
+	}
+
+	return newParticipants
+}
+
+func (m *EventManager) isEventInfoChanged(event *Event, oldEvent *Event) bool {
+
+	if event.startDate.Equal(oldEvent.startDate) &&
+		event.endDate.Equal(oldEvent.endDate) &&
+		event.createdDate.Equal(oldEvent.createdDate) &&
+		event.inboxPosition.Equal(oldEvent.inboxPosition) &&
+		event.description == oldEvent.description &&
+		event.cancelled == oldEvent.cancelled {
+
+		return false
+	}
+
+	return true
+}
 
 func (m *EventManager) saveEventPicture(event_id int64, picture *Picture) error {
 
@@ -797,4 +699,54 @@ func (m *EventManager) canSee(p1 int64, p2 *Participant) (bool, error) {
 	} else {
 		return m.parent.Friends.IsFriend(p2.id, p1)
 	}
+}
+
+func (m *EventManager) loadActiveEvents() error {
+
+	currentTimeMillis := utils.GetCurrentTimeMillis()
+
+	// Load next events
+	entries, err := m.timelineDAO.FindAllFrom(currentTimeMillis)
+	if err != nil {
+		return err
+	} else if len(entries) == 0 {
+		return nil
+	}
+
+	// Extract IDs
+	eventIDs := make([]int64, 0, len(entries))
+	for _, entry := range entries {
+		eventIDs = append(eventIDs, entry.EventID)
+	}
+
+	// Range events
+	err = m.eventDAO.RangeEvents(func(event *api.EventDTO) error {
+
+		for pID := range event.Participants {
+
+			if event.Cancelled {
+				// Time line should not include cancelled events
+				log.Printf("WARNING: Timeline includes cancelled events (currentTime: %v, EventID: %v)\n",
+					currentTimeMillis, event.Id)
+			}
+
+			// Add entry to each user of the event
+
+			m.userEvents.Insert(pID, event.Id)
+		}
+
+		return nil
+
+	}, eventIDs...)
+
+	if err != nil {
+		return err
+	}
+
+	// Sort user inbox
+	/*for _, inbox := range m.userInbox {
+		sort.Sort(api.TimeLineByEndDate(inbox))
+	}*/
+
+	return nil
 }

@@ -322,6 +322,6 @@ func (d *UserDAO) deleteFacebookCredentials(fb_id string) error {
 	if fb_id == "" {
 		return api.ErrInvalidArg
 	}
-	err := d.session.Query(`DELETE FROM user_facebook_credentials	WHERE fb_id = ?`, fb_id).Exec()
+	err := d.session.Query(`DELETE FROM user_facebook_credentials WHERE fb_id = ?`, fb_id).Exec()
 	return convErr(err)
 }

@@ -58,7 +58,24 @@ func (s *Server) init() {
 	s.callbacks = make(map[proto.PacketType]Callback)
 }
 
-func (s *Server) run() {
+func (s *Server) bootstrapServer() {
+
+	log.Println("Bootstraping server...")
+
+	err := s.Model.Events.BuildEventsTimeLine()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = s.Model.Events.BuildEventsHistory()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	log.Println("Bootstraping done")
+}
+
+func (s *Server) run(bootstrap bool) {
 
 	if !s.Config.MaintenanceMode() {
 
@@ -76,7 +93,12 @@ func (s *Server) run() {
 		go s.modelObserver.run()
 
 	} else {
+
 		log.Println("Server running in MAINTENANCE MODE")
+
+		if bootstrap {
+			go s.bootstrapServer()
+		}
 	}
 
 	// Start up server listener
@@ -362,12 +384,6 @@ func checkUnauthenticated(session *AyiSession) {
 func checkNoErrorOrPanic(err error) {
 	if err != nil {
 		panic(err)
-	}
-}
-
-func checkEventWritableOrPanic(event *model.Event) {
-	if event.Status() != api.EventState_NOT_STARTED {
-		panic(model.ErrEventNotWritable)
 	}
 }
 
