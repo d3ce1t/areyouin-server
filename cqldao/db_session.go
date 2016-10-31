@@ -13,6 +13,7 @@ func NewSession(keyspace string, cqlVersion int, hosts ...string) *GocqlSession 
 	session.cluster.Consistency = gocql.LocalQuorum
 	session.cluster.Timeout = 3 * time.Second
 	session.cluster.ProtoVersion = cqlVersion
+	session.cluster.DefaultTimestamp = true // is true by default
 	return session
 }
 
