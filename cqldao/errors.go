@@ -2,15 +2,17 @@ package cqldao
 
 import (
 	"errors"
-	"github.com/gocql/gocql"
 	"peeple/areyouin/api"
+
+	"github.com/gocql/gocql"
 )
 
 var (
-	ErrNoSession     = errors.New("no session to Cassandra available")
-	ErrGracePeriod   = errors.New("grace period due to old and new conflict")
-	ErrUnexpected    = errors.New("unexpected error")
-	ErrInconsistency = errors.New("db inconsistency detected")
+	ErrNoSession        = errors.New("no session to Cassandra available")
+	ErrGracePeriod      = errors.New("grace period due to old and new conflict")
+	ErrUnexpected       = errors.New("unexpected error")
+	ErrInconsistency    = errors.New("db inconsistency detected")
+	ErrIllegalArguments = errors.New("illegal arguments")
 )
 
 func convErr(err error) error {

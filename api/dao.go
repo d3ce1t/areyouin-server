@@ -47,15 +47,11 @@ type EventDAO interface {
 	RangeEvents(f func(*EventDTO) error, event_ids ...int64) error
 	LoadEvents(ids ...int64) (events []*EventDTO, err error)
 	LoadEventPicture(eventId int64) (*PictureDTO, error)
+	LoadParticipant(participantID int64, eventID int64) (*ParticipantDTO, error)
 	Insert(event *EventDTO) error
-	AddParticipantToEvent(participant *ParticipantDTO, event *EventDTO) error
+	Replace(oldEvent *EventDTO, newEvent *EventDTO) error
+	InsertParticipant(p *ParticipantDTO) error
 	SetEventPicture(event_id int64, picture *PictureDTO) error
-	SetEventStateAndInboxPosition(eventId int64, newStatus EventState, newPosition int64) error
-	SetParticipantInvitationStatus(userId int64, eventId int64, status InvitationStatus) error
-	SetParticipantResponse(participant int64, response AttendanceResponse, event *EventDTO) error
-	SetNumGuests(eventId int64, numGuests int) (ok bool, err error)
-	// Do it in DAO because I cannot handle transactions in DAO yet
-	CancelEvent(eventID int64, oldPosition time.Time, newPosition time.Time, userIDs []int64) error
 }
 
 type FriendDAO interface {

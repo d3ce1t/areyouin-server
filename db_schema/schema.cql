@@ -114,9 +114,8 @@ CREATE TABLE event (
 	public boolean STATIC,
 	latitude float STATIC,
 	longitude float STATIC,
-	num_attendees int STATIC, // maybe use a counter?
-	num_guests int STATIC,
 	event_state int STATIC, // 0) Not started, 1) Ongoing, 2) Finished, 3) Cancelled
+	event_timestamp bigint STATIC,
 	// Participants
 	guest_id bigint,
 	guest_name text, // participant name

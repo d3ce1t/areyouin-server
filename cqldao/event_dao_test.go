@@ -1,192 +1,210 @@
 package cqldao
 
-/*import (
-	"math/rand"
-	core "peeple/areyouin/common"
+import (
+	"peeple/areyouin/api"
+	"peeple/areyouin/utils"
 	"testing"
 	"time"
 )
 
-func TestCreateEvent(t *testing.T) {
-
-	user_dao := NewUserDAO(session)
-
-	core.DeleteFakeusers(user_dao)
-	core.ClearEvents(session)
-	core.CreateFakeUsers(user_dao)
-
-	author, _ := user_dao.LoadByEmail("user1@foo.com")
-
-	if author == nil {
-		t.Fail()
-	}
-
-	// Create event
-	event_id := idgen.GenerateID()
-	event := core.CreateNewEvent(event_id, author.Id, author.Name,
-		core.GetCurrentTimeMillis(), core.GetCurrentTimeMillis(), core.GetCurrentTimeMillis(), "test")
-
-	if event.AuthorId != author.Id || event.AuthorName != author.Name ||
-		event.Message != "test" || event.EventId == 0 {
-		t.Fail()
-	}
-}
-
-// Insert a valid event
-func TestEventInsert1(t *testing.T) {
-
-	event_dao := NewEventDAO(session)
-	user_dao := NewUserDAO(session)
-	author, _ := user_dao.LoadByEmail("user1@foo.com")
-
-	if author == nil {
-		t.Fail()
-	}
-
-	// Create event
-	event_id := idgen.GenerateID()
-	event := core.CreateNewEvent(event_id, author.Id, author.Name, core.GetCurrentTimeMillis(),
-		core.GetCurrentTimeMillis(), core.GetCurrentTimeMillis(), "test")
-
-	if ok, err := event_dao.InsertEventCAS(event); !ok {
-		t.Fatal("Coudn't insert the event in the database because", err)
-	}
-}
-
-// Insert an event that already exists
-func TestEventInsert2(t *testing.T) {
-
-	event_dao := NewEventDAO(session)
-	user_dao := NewUserDAO(session)
-	author, _ := user_dao.LoadByEmail("user1@foo.com")
-
-	if author == nil {
-		t.Fail()
-	}
-
-	// Create event
-	event_id := idgen.GenerateID()
-	event := core.CreateNewEvent(event_id, author.Id, author.Name, core.GetCurrentTimeMillis(),
-		core.GetCurrentTimeMillis(), core.GetCurrentTimeMillis(), "test")
-
-	if ok, err := event_dao.InsertEventCAS(event); !ok {
-		t.Fatal("Coudn't insert the event in the database because", err)
-	}
-
-	if ok, _ := event_dao.InsertEventCAS(event); ok {
-		t.Fatal("It was expected an event duplicate error but It wasn't triggered")
-	}
-}
-
-// Test inserting event with participants
-func TestEventAddOrUpdateParticipants(t *testing.T) {
-
-	event_dao := NewEventDAO(session)
-	user_dao := NewUserDAO(session)
-	author, _ := user_dao.LoadByEmail("user1@foo.com")
-
-	if author == nil {
-		t.Fail()
-	}
-
-	// Create event
-	event_id := uint64(16364452597203970)
-	event := core.CreateNewEvent(event_id, author.Id, author.Name, core.GetCurrentTimeMillis(),
-		core.GetCurrentTimeMillis(), core.GetCurrentTimeMillis(), "test")
-
-	if ok, err := event_dao.InsertEventCAS(event); !ok {
-		t.Fatal("Coudn't insert the event in the database because", err)
-	}
-
-	// Create participants
-	friends, _ := user_dao.LoadFriends(author.Id, 0)
-
-	if friends != nil {
-		participants := core.CreateParticipantsFromFriends(author.Id, friends)
-		if err := event_dao.AddOrUpdateParticipants(event_id, participants); err != nil {
+func TestEventDAO_Insert(t *testing.T) {
+	events := generateEvents(100)
+	d := NewEventDAO(session)
+	for _, eventDTO := range events {
+		if err := d.Insert(eventDTO); err != nil {
 			t.Fatal(err)
 		}
-	} else {
-		t.Fatal("No friends or error")
 	}
 }
 
-func TestLoadParticipants(t *testing.T) {
-	dao := NewEventDAO(session)
-	event_participants, _ := dao.LoadAllParticipants(uint64(16364452597203970))
-	if len(event_participants) != 7 {
-		t.FailNow()
-	}
-}
+func TestEventDAO_Replace(t *testing.T) {
 
-func TestLoadEvent(t *testing.T) {
-	dao := NewEventDAO(session)
-	events, err := dao.LoadEvent(uint64(16364452597203970))
-	if err != nil {
-		t.Fatal(err)
+	// Insert 100 events
+	events := generateEvents(100)
+	d := NewEventDAO(session)
+	for _, eventDTO := range events {
+		if err := d.Insert(eventDTO); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	if len(events) != 1 {
-		t.FailNow()
-	}
-}
+	// Replace
+	for i, eventDTO := range events {
 
-func TestLoadEventAndParticipants(t *testing.T) {
+		copy := eventDTO.Clone()
+		copy.Timestamp = time.Now().UnixNano() / 1000
 
-	dao := NewEventDAO(session)
-	events, err := dao.LoadEventAndParticipants(uint64(16364452597203970))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(events) != 1 || len(events[0].Participants) != 7 {
-		t.FailNow()
-	}
-}
-
-// Test AddEventToUserInbox
-func TestAddEventToUserInbox(t *testing.T) {
-
-	event_dao := NewEventDAO(session)
-	user_dao := NewUserDAO(session)
-	author, _ := user_dao.LoadByEmail("user1@foo.com")
-
-	// Create event
-	event_id := idgen.GenerateID()
-	event := core.CreateNewEvent(event_id, author.Id, author.Name, core.GetCurrentTimeMillis(),
-		core.GetCurrentTimeMillis(), core.GetCurrentTimeMillis(), "test")
-
-	if ok, err := event_dao.InsertEventCAS(event); !ok {
-		t.Fatal("Coudn't insert the event in the database because", err)
-	}
-
-	if err := event_dao.AddEventToUserInbox(author.Id, event,
-		core.AttendanceResponse_NO_ASSIST); err != nil {
-		t.Fatal(err)
-	}
-
-	if events, err := event_dao.LoadUserEvents(author.Id, 0); err == nil {
-
-		found := false
-		i := 0
-
-		for !found && i < len(events) {
-			if events[i].EventId == event.EventId {
-				found = true
+		if i%10 == 0 {
+			// Change dates
+			currentTime := time.Now().UTC()
+			startDate := currentTime.Add(35 * time.Minute)
+			endDate := currentTime.Add(1 * time.Hour)
+			copy.StartDate = utils.TimeToMillis(startDate)
+			copy.EndDate = utils.TimeToMillis(endDate)
+		} else if i%6 == 0 {
+			// Add participants
+			for _, p := range generateParticipants(20) {
+				p.EventID = copy.Id
+				p.ResponseTS = copy.Timestamp
+				p.StatusTS = copy.Timestamp
+				copy.Participants[p.UserID] = p
 			}
-			i++
+		} else if i%5 == 0 {
+			// Cancel event
+			copy.Cancelled = true
+			copy.InboxPosition = utils.GetCurrentTimeMillis()
 		}
 
-		if !found {
-			t.Fatal("Event", event.EventId, "cannot be found on users inbox")
+		if err := d.Replace(eventDTO, copy); err != nil {
+			t.Fatalf("Error replacing event: %v (i=%v)", err, i)
 		}
-
-	} else {
-		t.Fatal(err)
 	}
 }
 
-func BenchmarkInsertEventCAS(b *testing.B) {
+func TestEventDAO_InsertParticipant(t *testing.T) {
+
+	// Insert 1 event
+	event := generateEvent(1)
+	d := NewEventDAO(session)
+	if err := d.Insert(event); err != nil {
+		t.Fatal(err)
+	}
+
+	// Update participant
+	p := event.Participants[1]
+	p.Response = api.AttendanceResponse_ASSIST
+	p.ResponseTS = time.Now().UnixNano() / 1000
+
+	if err := d.InsertParticipant(p); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check
+	loadedParticipant, err := d.LoadParticipant(p.UserID, p.EventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !api.EqualParticipantDTO(p, loadedParticipant) {
+		t.Fatal("Written participant and loaded don't match")
+	}
+}
+
+func TestEventDAO_LoadEvents(t *testing.T) {
+
+	// Insert 100 events
+	events := generateEvents(100)
+	d := NewEventDAO(session)
+	for _, eventDTO := range events {
+		if err := d.Insert(eventDTO); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// get ids
+	eventIds := make([]int64, 0, len(events))
+	for _, eventDTO := range events {
+		eventIds = append(eventIds, eventDTO.Id)
+	}
+
+	// Read written events
+	storedEvents, err := d.LoadEvents(eventIds...)
+	if err != nil {
+		t.Fatalf("Error loading events: %v", err)
+	}
+
+	// Check count
+	if len(storedEvents) == 0 || len(storedEvents) != len(events) {
+		t.Fatal("Loaded events count mismatch")
+	}
+
+	// Compare
+	for i, readEvent := range storedEvents {
+		if !api.EqualEventDTO(readEvent, events[i]) {
+
+			t.Log("Event read from database is not equal to the one that was written")
+			t.Log("Read Event:")
+			for _, p := range readEvent.Participants {
+				t.Logf("%v", *p)
+			}
+			t.Log("Written Event:")
+			for _, p := range events[i].Participants {
+				t.Logf("%v", *p)
+			}
+			t.FailNow()
+		}
+	}
+}
+
+func TestEventDAO_LoadParticipant(t *testing.T) {
+
+	// Insert one event
+	event := generateEvent(1)
+	d := NewEventDAO(session)
+	if err := d.Insert(event); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read participant
+	participant, err := d.LoadParticipant(1, event.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !api.EqualParticipantDTO(participant, event.Participants[1]) {
+		t.Fatal("Read participant is different than the written one")
+	}
+}
+
+func TestEventDAO_Event_Timestamp(t *testing.T) {
+
+	// Insert one event with one participant
+	event := generateEvent(1)
+	d := NewEventDAO(session)
+	if err := d.Insert(event); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read timestamp
+	var writtenTS, ts int64
+	stmt := `SELECT DISTINCT event_timestamp, writetime(author_id) as ts FROM event WHERE event_id = ?`
+	q := session.Query(stmt, event.Id)
+	if err := q.Scan(&writtenTS, &ts); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check
+	if event.Timestamp != writtenTS || writtenTS != ts {
+		t.Fatal("Timestamp doesn't match")
+	}
+}
+
+func TestEventDAO_Participant_Timestamp(t *testing.T) {
+
+	// Insert one event with one participant
+	event := generateEvent(1)
+	d := NewEventDAO(session)
+	if err := d.Insert(event); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read timestamp
+	var respTS, statusTS int64
+	p := event.Participants[1]
+	stmt := `SELECT writetime(guest_response) as respTS, writetime(guest_status) as statusTS
+		FROM event WHERE event_id = ? AND guest_id = ?`
+	q := session.Query(stmt, event.Id, p.UserID)
+	if err := q.Scan(&respTS, &statusTS); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check
+	if event.Timestamp != respTS || event.Timestamp != statusTS {
+		t.Fatal("Timestamp doesn't match")
+	}
+}
+
+/*func BenchmarkInsertEventCAS(b *testing.B) {
 
 	event_dao := NewEventDAO(session)
 	date := core.GetCurrentTimeMillis()

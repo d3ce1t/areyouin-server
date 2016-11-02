@@ -1,23 +1,18 @@
 package cqldao
 
 import (
-	"flag"
-	"os"
 	"peeple/areyouin/api"
 	"peeple/areyouin/utils"
 	"testing"
 	"time"
 )
 
-var session *GocqlSession
-
-func TestMain(m *testing.M) {
-	session = NewSession("areyouin_test", 3, "192.168.1.10")
-	flag.Parse()
-	os.Exit(m.Run())
+func TestTimeLineDAO_Clean(t *testing.T) {
+	d1 := NewTimeLineDAO(session)
+	d1.DeleteAll()
 }
 
-func TestInsert(t *testing.T) {
+func TestTimeLineDAO_Insert(t *testing.T) {
 
 	rt := time.Date(2016, 10, 10, 12, 0, 0, 0, time.UTC)
 
@@ -38,8 +33,8 @@ func TestInsert(t *testing.T) {
 	for _, test := range tests {
 
 		dto := &api.TimeLineEntryDTO{
-			EventID: test.eventID,
-			EndDate: test.endDate,
+			EventID:  test.eventID,
+			Position: test.endDate,
 		}
 
 		if err := d.Insert(dto); err != nil {
@@ -75,8 +70,9 @@ func TestFindAllFrom(t *testing.T) {
 
 		test := tests[i]
 
-		if item.EventID != test.eventID || item.EndDate != test.endDate {
-			t.Fatal("Read back different items than inserted in previous test")
+		if item.EventID != test.eventID || !item.Position.Equal(test.endDate) {
+			t.Fatalf("TestFindAllFrom: %v) Read back different items than inserted in previous testing (item.ID: %v, item.position: %v, test.ID: %v, endDate: %v)",
+				i, item.EventID, item.Position, test.eventID, test.endDate)
 		}
 	}
 }
@@ -104,13 +100,13 @@ func TestReplace(t *testing.T) {
 	for _, test := range tests {
 
 		oldDto := &api.TimeLineEntryDTO{
-			EventID: test.eventID,
-			EndDate: test.endDate,
+			EventID:  test.eventID,
+			Position: test.endDate,
 		}
 
 		newDto := &api.TimeLineEntryDTO{
-			EventID: test.eventID,
-			EndDate: test.newEndDate,
+			EventID:  test.eventID,
+			Position: test.newEndDate,
 		}
 
 		if err := d.Replace(oldDto, newDto); err != nil {
@@ -128,7 +124,7 @@ func TestReplace(t *testing.T) {
 
 		test := tests[i]
 
-		if item.EventID != test.eventID || item.EndDate != test.newEndDate {
+		if item.EventID != test.eventID || item.Position != test.newEndDate {
 			t.Fatal("Read back different items than replaced")
 		}
 	}
@@ -155,8 +151,8 @@ func TestDelete(t *testing.T) {
 	for _, test := range tests {
 
 		dto := &api.TimeLineEntryDTO{
-			EventID: test.eventID,
-			EndDate: test.endDate,
+			EventID:  test.eventID,
+			Position: test.endDate,
 		}
 
 		if err := d.Delete(dto); err != nil {

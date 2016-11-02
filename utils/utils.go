@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/disintegration/imaging"
-	"github.com/gocql/gocql"
 )
 
 const (
@@ -113,19 +112,6 @@ func MillisToTimeUTC(timestamp int64) time.Time {
 	}
 
 	return time.Time{}
-}
-
-func ClearUserAccounts(session *gocql.Session) {
-	session.Query(`TRUNCATE user_facebook_credentials`).Exec()
-	session.Query(`TRUNCATE user_email_credentials`).Exec()
-	session.Query(`TRUNCATE user_account`).Exec()
-	session.Query(`TRUNCATE user_friends`).Exec()
-}
-
-func ClearEvents(session *gocql.Session) {
-	session.Query(`TRUNCATE event`).Exec()
-	//session.Query(`TRUNCATE event_participants`).Exec()
-	session.Query(`TRUNCATE user_events`).Exec()
 }
 
 func RandUint16() (uint16, error) {

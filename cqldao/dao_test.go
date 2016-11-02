@@ -1,119 +1,103 @@
 package cqldao
 
-/*import (
+import (
 	"flag"
-	"github.com/gocql/gocql"
+	"fmt"
 	"log"
 	"os"
-	core "peeple/areyouin/common"
+	"peeple/areyouin/api"
+	"peeple/areyouin/utils"
 	"testing"
-)*/
+	"time"
+)
 
-/*var session *gocql.Session
-var idgen *core.IDGen
-var participants100 []*core.EventParticipant
-var eventIds10000 []uint64
-var eventIds10000unsorted []uint64
-*/
+var session *GocqlSession
+var eventsGenerated int64
 
-/*func TestMain(m *testing.M) {
+func TestMain(m *testing.M) {
+	session = NewSession("areyouin_test", 4, "192.168.1.10")
 
-	idgen = core.NewIDGen(1)
-
-	// Connect to Cassandra
-	cluster := gocql.NewCluster("192.168.1.10", "192.168.1.11")
-	cluster.Keyspace = "areyouin"
-	cluster.Consistency = gocql.Quorum
-
-	s, err := cluster.CreateSession()
-
-	if err != nil {
-		log.Println("Error connection to cassandra", err)
-		return
+	if err := session.Connect(); err != nil {
+		log.Printf("Error: %v", err)
+		os.Exit(-1)
 	}
 
-	session = s
-
-	// Create 100 randome participants
-	participants100 = make([]*core.EventParticipant, 0, 100)
-
-	for i := 0; i < 100; i++ {
-		participants100 = append(participants100, CreateRandomParticipant())
+	if err := session.Query("TRUNCATE event").Exec(); err != nil {
+		log.Printf("Error: %v", err)
+		os.Exit(-1)
 	}
 
-	// Load 1000 events Ids
-	eventIds10000 = GetEventIDs(10000)
-
-	// Unsort
-	eventIds10000unsorted = make([]uint64, len(eventIds10000))
-
-	initial_offset := 0
-	final_offset := len(eventIds10000) - 1
-
-	for i := 0; i < len(eventIds10000); i += 2 {
-		eventIds10000unsorted[initial_offset] = eventIds10000[i]
-		eventIds10000unsorted[final_offset] = eventIds10000[i+1]
-		initial_offset++
-		final_offset--
-	}
-
-	//core.Create100Users(NewUserDAO(s))
-	//core.Delete100Users(NewUserDAO(s))
-
+	d1 := NewTimeLineDAO(session)
+	d1.DeleteAll()
 	flag.Parse()
 	os.Exit(m.Run())
-}*/
+}
 
-/*func CreateParticipantsList(author_id int64, participants_id []int64) []*core.EventParticipant {
+func generateEvent(numParticipants int) *api.EventDTO {
 
-	result := make([]*core.EventParticipant, 0, len(participants_id))
+	eventID := int64(eventsGenerated + 1)
+	createdDate := time.Now().UTC()
+	timestamp := time.Now().UnixNano() / 1000
+	startDate := createdDate.Add(35 * time.Minute)
+	endDate := createdDate.Add(1 * time.Hour)
 
-	dao := NewUserDAO(session)
+	eventDTO := &api.EventDTO{
+		Id:            eventID,
+		AuthorId:      eventID,
+		AuthorName:    fmt.Sprintf("Author %v", eventID),
+		Description:   fmt.Sprintf("Test %v", eventID),
+		CreatedDate:   utils.TimeToMillis(createdDate),
+		InboxPosition: utils.TimeToMillis(startDate),
+		StartDate:     utils.TimeToMillis(startDate),
+		EndDate:       utils.TimeToMillis(endDate),
+		Timestamp:     timestamp,
+		Participants:  make(map[int64]*api.ParticipantDTO),
+	}
 
-	for _, user_id := range participants_id {
-		if ok, _ := dao.AreFriends(author_id, user_id); ok {
-			if uac, _ := dao.Load(user_id); uac != nil {
-				result = append(result, uac.AsParticipant())
-			} else {
-				log.Println("createParticipantList() participant", user_id, "does not exist")
-			}
-		} else {
-			log.Println("createParticipantList() Not friends", author_id, "and", user_id, "or doesn't exist")
+	for _, p := range generateParticipants(numParticipants) {
+		p.EventID = eventDTO.Id
+		p.NameTS = timestamp
+		p.ResponseTS = timestamp
+		p.StatusTS = timestamp
+		eventDTO.Participants[p.UserID] = p
+	}
+
+	eventsGenerated++
+
+	return eventDTO
+}
+
+func generateEvents(numEvents int) []*api.EventDTO {
+
+	events := make([]*api.EventDTO, 0, numEvents)
+
+	for i := 0; i < numEvents; i++ {
+		eventDTO := generateEvent(i % 10)
+		eventDTO.Cancelled = i%4 == 0
+		events = append(events, eventDTO)
+	}
+
+	return events
+}
+
+func generateParticipants(numParticipants int) []*api.ParticipantDTO {
+
+	participants := make([]*api.ParticipantDTO, 0, numParticipants)
+
+	for i := 0; i < numParticipants; i++ {
+		timestamp := time.Now().UnixNano() / 1000
+		userID := int64(i + 1)
+		pDTO := &api.ParticipantDTO{
+			UserID:           userID,
+			Name:             fmt.Sprintf("User %v", userID),
+			Response:         api.AttendanceResponse_NO_RESPONSE,
+			InvitationStatus: api.InvitationStatus_SERVER_DELIVERED,
+			ResponseTS:       timestamp,
+			StatusTS:         timestamp,
 		}
+
+		participants = append(participants, pDTO)
 	}
 
-	return result
-}*/
-
-/*func CreateRandomParticipant() *core.EventParticipant {
-
-	participant := &core.EventParticipant{
-		UserId:    int64(idgen.GenerateID()),
-		Name:      "Prueba",
-		Response:  core.AttendanceResponse_NO_RESPONSE,
-		Delivered: core.MessageStatus_NO_DELIVERED,
-	}
-
-	return participant
-}*/
-
-/*func GetEventIDs(limit int) []uint64 {
-
-	stmt := `SELECT DISTINCT event_id FROM event LIMIT ?`
-
-	iter := session.Query(stmt, limit).Iter()
-
-	list_ids := make([]uint64, 0, limit)
-	var event_id uint64
-
-	for iter.Scan(&event_id) {
-		list_ids = append(list_ids, event_id)
-	}
-
-	if err := iter.Close(); err != nil {
-		log.Println("GetEventIDS Error:", err)
-		return nil
-	}
-
-	return list_ids
-}*/
+	return participants
+}

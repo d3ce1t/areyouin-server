@@ -1,16 +1,21 @@
 package cqldao
 
 import (
+	"fmt"
 	"peeple/areyouin/api"
 	"peeple/areyouin/utils"
-	"time"
 
 	"github.com/gocql/gocql"
 )
 
 const (
-	MAX_NUM_GUESTS            = 100
-	MAX_EVENTS_IN_RECENT_LIST = 100
+	MAX_NUM_GUESTS            = 100 // Not used by now
+	MAX_EVENTS_IN_RECENT_LIST = 100 // Not used by now
+
+	queryCols = `event_id, author_id, author_name, message, picture_digest,
+		created_date, inbox_position, start_date, end_date, event_state, event_timestamp,
+		guest_id, guest_name, guest_response, guest_status, writetime(guest_name) as guest_name_ts, 
+		writetime(guest_response) as guest_response_ts,	writetime(guest_status) as guest_status_ts`
 )
 
 type EventDAO struct {
@@ -22,77 +27,142 @@ func NewEventDAO(session api.DbSession) api.EventDAO {
 	return &EventDAO{session: session.(*GocqlSession)}
 }
 
+// Insert event into database with timestamp the one of the event. Participant will have the same timestamp.
 func (d *EventDAO) Insert(event *api.EventDTO) error {
 
 	checkSession(d.session)
 
-	stmt_event := `INSERT INTO event (event_id, author_id, author_name, message,
-		start_date, end_date, num_attendees, num_guests, created_date,
-		inbox_position, event_state)
-	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	stmtTimeline := `INSERT INTO events_timeline (bucket, event_id, position)
+		VALUES (?, ?, ?) USING TIMESTAMP ?`
+
+	stmtEvent := `INSERT INTO event (event_id, author_id, author_name, message,
+		start_date, end_date, created_date, inbox_position, event_state, event_timestamp)
+	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)  USING TIMESTAMP ?`
 
 	var status int32
 	if event.Cancelled {
 		status = 3
 	}
 
-	var err error
+	// Prepare batch
+	batch := d.session.NewBatch(gocql.LoggedBatch)
+	//batch.WithTimestamp(event.Timestamp)
+
+	timeLineBucket := utils.MillisToTimeUTC(event.EndDate).Year()
+	batch.Query(stmtTimeline, timeLineBucket, event.Id, event.EndDate, event.Timestamp)
+
+	batch.Query(stmtEvent, event.Id, event.AuthorId, event.AuthorName,
+		event.Description, event.StartDate, event.EndDate, event.CreatedDate,
+		event.InboxPosition, status, event.Timestamp, event.Timestamp)
 
 	if len(event.Participants) > 0 {
-
-		stmt_participant := `INSERT INTO event (event_id, guest_id, guest_name,
-			guest_response, guest_status) VALUES (?, ?, ?, ?, ?)`
-
-		// Use unlogged batches when making updates to the same partition key.
-		batch := d.session.NewBatch(gocql.UnloggedBatch)
-
-		batch.Query(stmt_event, event.Id, event.AuthorId, event.AuthorName,
-			event.Description, event.StartDate, event.EndDate, event.NumAttendees,
-			event.NumGuests, event.CreatedDate, event.InboxPosition, status)
-
+		stmtParticipant := `INSERT INTO event (event_id, guest_id, guest_name, guest_response, guest_status)
+			VALUES (?, ?, ?, ?, ?) USING TIMESTAMP ?`
 		for _, p := range event.Participants {
-			batch.Query(stmt_participant, event.Id, p.UserId, p.Name, p.Response,
-				p.InvitationStatus)
+			batch.Query(stmtParticipant, event.Id, p.UserID, p.Name, p.Response, p.InvitationStatus, event.Timestamp)
 		}
-
-		err = d.session.ExecuteBatch(batch)
-
-	} else {
-
-		q := d.session.Query(stmt_event, event.Id, event.AuthorId, event.AuthorName,
-			event.Description, event.StartDate, event.EndDate, event.NumAttendees,
-			event.NumGuests, event.CreatedDate, event.InboxPosition, status)
-
-		err = q.Exec()
 	}
+
+	// Execute
+	err := d.session.ExecuteBatch(batch)
 
 	return convErr(err)
 }
 
-// Adds a participant to an existing event. If a participant with same id
-// already exists it gets overwritten.
-func (dao *EventDAO) AddParticipantToEvent(participant *api.ParticipantDTO, event *api.EventDTO) error {
+// Replace modifies information of an existing event. This implementation only
+// changes message, start_date, end_date, inbox_position and event state. Moreover,
+// it doesn't modify information related to existing participants but only can add
+// new ones where version isn't set.
+// NOTE: This implementation takes into account the single use case where an event update
+// contains new participants only.
+func (d *EventDAO) Replace(oldEvent *api.EventDTO, newEvent *api.EventDTO) error {
 
-	checkSession(dao.session)
-
-	stmt := `INSERT INTO event (event_id, guest_id, guest_name,
-		guest_response, guest_status) VALUES (?, ?, ?, ?, ?)`
-
-	q := dao.session.Query(stmt, event.Id, participant.UserId, participant.Name,
-		participant.Response, participant.InvitationStatus)
-
-	return convErr(q.Exec())
-}
-
-func (d *EventDAO) RangeAll(f func(*api.EventDTO) error) error {
+	if oldEvent.Id != newEvent.Id {
+		return ErrIllegalArguments
+	}
 
 	checkSession(d.session)
 
-	stmt := `SELECT event_id, author_id, author_name, message, picture_digest,
-		created_date, inbox_position, start_date, end_date, num_attendees, num_guests,
-		event_state, guest_id, guest_name, guest_response, guest_status
-		FROM event`
+	// Get newPosition and oldPosition in timeline
+	newPosition := utils.MillisToTimeUTC(newEvent.EndDate)
+	if newEvent.Cancelled {
+		newPosition = utils.MillisToTimeUTC(newEvent.InboxPosition)
+	}
 
+	oldPosition := utils.MillisToTimeUTC(oldEvent.EndDate)
+	if oldEvent.Cancelled {
+		oldPosition = utils.MillisToTimeUTC(oldEvent.InboxPosition)
+	}
+
+	// Prepare batch
+	batch := d.session.NewBatch(gocql.LoggedBatch)
+	//batch.WithTimestamp(newEvent.Timestamp)
+
+	// TODO: Optimise use case when only it has to write to event (with and without participants)
+
+	if newPosition != oldPosition {
+		stmtTimelineDelete := `DELETE FROM events_timeline USING TIMESTAMP ? WHERE bucket = ? AND position = ? AND event_id = ?`
+		stmtTimelineAdd := `INSERT INTO events_timeline (bucket, event_id, position) VALUES (?, ?, ?) USING TIMESTAMP ?`
+		newBucket := newPosition.Year()
+		oldBucket := oldPosition.Year()
+		batch.Query(stmtTimelineDelete, newEvent.Timestamp, oldBucket, utils.TimeToMillis(oldPosition), oldEvent.Id)
+		batch.Query(stmtTimelineAdd, newBucket, newEvent.Id, utils.TimeToMillis(newPosition), newEvent.Timestamp)
+	}
+
+	// TODO: Replace status by cancelled in DB
+	var status int32
+	if newEvent.Cancelled {
+		status = 3
+	}
+
+	stmtEvent := `INSERT INTO event (event_id, message, start_date,	end_date,
+		inbox_position, event_state, event_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?) USING TIMESTAMP ?`
+	batch.Query(stmtEvent, newEvent.Id, newEvent.Description, newEvent.StartDate, newEvent.EndDate,
+		newEvent.InboxPosition, status, newEvent.Timestamp, newEvent.Timestamp)
+
+	// Only add new participants when updating/replacing
+	newParticipants := d.extractNewParticipants(newEvent, oldEvent)
+	if len(newParticipants) > 0 {
+		stmtParticipant := `INSERT INTO event (event_id, guest_id, guest_name, guest_response, guest_status)
+		VALUES (?, ?, ?, ?, ?) USING TIMESTAMP ?`
+		for _, p := range newParticipants {
+			batch.Query(stmtParticipant, newEvent.Id, p.UserID, p.Name, p.Response, p.InvitationStatus, newEvent.Timestamp)
+		}
+	}
+
+	if !oldEvent.Cancelled && newEvent.Cancelled && len(newParticipants) == 0 {
+		// Event was just cancelled. Insert event into user events history
+		historyStmt := `INSERT INTO events_history_by_user (user_id, position, event_id) VALUES (?, ?, ?) USING TIMESTAMP ?`
+		for pID := range newEvent.Participants {
+			batch.Query(historyStmt, pID, utils.TimeToMillis(newPosition), newEvent.Id, newEvent.Timestamp)
+		}
+	}
+
+	// Execute
+	err := d.session.ExecuteBatch(batch)
+
+	return convErr(err)
+}
+
+func (d *EventDAO) InsertParticipant(p *api.ParticipantDTO) error {
+
+	checkSession(d.session)
+
+	infoStmt := `INSERT INTO event (event_id, guest_id, guest_name) VALUES (?, ?, ?) USING TIMESTAMP ?`
+	responseStmt := `INSERT INTO event (event_id, guest_id, guest_response) VALUES (?, ?, ?) USING TIMESTAMP ?`
+	statusStmt := `INSERT INTO event (event_id, guest_id, guest_status) VALUES (?, ?, ?) USING TIMESTAMP ?`
+
+	batch := d.session.NewBatch(gocql.UnloggedBatch)
+	batch.Query(infoStmt, p.EventID, p.UserID, p.Name, p.NameTS)
+	batch.Query(responseStmt, p.EventID, p.UserID, p.Response, p.ResponseTS)
+	batch.Query(statusStmt, p.EventID, p.UserID, p.InvitationStatus, p.StatusTS)
+
+	return convErr(d.session.ExecuteBatch(batch))
+}
+
+func (d *EventDAO) RangeAll(f func(*api.EventDTO) error) error {
+	checkSession(d.session)
+	stmt := fmt.Sprintf("SELECT %v FROM event", queryCols)
 	q := d.session.Query(stmt)
 	return d.findAllAux(q, f)
 }
@@ -105,11 +175,7 @@ func (d *EventDAO) RangeEvents(f func(*api.EventDTO) error, event_ids ...int64) 
 		return api.ErrInvalidArg
 	}
 
-	stmt := `SELECT event_id, author_id, author_name, message, picture_digest,
-		created_date, inbox_position, start_date, end_date, num_attendees, num_guests,
-		event_state, guest_id, guest_name, guest_response, guest_status
-		FROM event WHERE event_id IN (` + utils.GenParams(len(event_ids)) + `)`
-
+	stmt := fmt.Sprintf("SELECT %v FROM event WHERE event_id IN (%v)", queryCols, utils.GenParams(len(event_ids)))
 	values := utils.GenValues(event_ids)
 	q := d.session.Query(stmt, values...)
 	return d.findAllAux(q, f)
@@ -125,11 +191,7 @@ func (d *EventDAO) LoadEvents(event_ids ...int64) ([]*api.EventDTO, error) {
 		return nil, api.ErrInvalidArg
 	}
 
-	stmt := `SELECT event_id, author_id, author_name, message, picture_digest,
-		created_date, inbox_position, start_date, end_date, num_attendees, num_guests,
-		event_state, guest_id, guest_name, guest_response, guest_status
-		FROM event WHERE event_id IN (` + utils.GenParams(len(event_ids)) + `)`
-
+	stmt := fmt.Sprintf("SELECT %v FROM event WHERE event_id IN (%v)", queryCols, utils.GenParams(len(event_ids)))
 	values := utils.GenValues(event_ids)
 	q := d.session.Query(stmt, values...)
 
@@ -157,98 +219,43 @@ func (d *EventDAO) LoadEvents(event_ids ...int64) ([]*api.EventDTO, error) {
 	return events, nil
 }
 
-func (d *EventDAO) findAllAux(query *gocql.Query, f func(*api.EventDTO) error) error {
+func (d *EventDAO) LoadParticipant(participantID int64, eventID int64) (*api.ParticipantDTO, error) {
 
 	checkSession(d.session)
 
-	iter := query.Iter()
-
-	var dto api.EventDTO
-	var status int32
-	var guest_id int64
-	var guest_name string
-	var guest_response int32
-	var guest_status int32
-
-	var err error
-	var currentEvent *api.EventDTO
-
-	// Except guest attributes, all of the attributes are STATIC in cassandra
-	for iter.Scan(&dto.Id, &dto.AuthorId, &dto.AuthorName, &dto.Description,
-		&dto.PictureDigest, &dto.CreatedDate, &dto.InboxPosition, &dto.StartDate,
-		&dto.EndDate, &dto.NumAttendees, &dto.NumGuests, &status,
-		&guest_id, &guest_name, &guest_response, &guest_status) {
-
-		if currentEvent == nil || currentEvent.Id != dto.Id {
-
-			// Send currentEvent to f
-			if currentEvent != nil {
-				if err = f(currentEvent); err != nil {
-					currentEvent = nil
-					break
-				}
-			}
-
-			// Read new event
-			currentEvent = new(api.EventDTO)
-			*currentEvent = dto
-			currentEvent.Participants = make(map[int64]*api.ParticipantDTO)
-			if status == 3 {
-				currentEvent.Cancelled = true
-			}
-		}
-
-		if guest_id != 0 {
-			participant := &api.ParticipantDTO{
-				UserId:           guest_id,
-				Name:             guest_name,
-				Response:         api.AttendanceResponse(guest_response),
-				InvitationStatus: api.InvitationStatus(guest_status),
-			}
-			currentEvent.Participants[participant.UserId] = participant
-		}
+	if participantID == 0 || eventID == 0 {
+		return nil, api.ErrInvalidArg
 	}
 
+	cols := `guest_id, guest_name, guest_response, guest_status, writetime(guest_name) as guest_name_ts,
+		writetime(guest_response) as guest_response_ts,	writetime(guest_status) as guest_status_ts`
+
+	stmt := fmt.Sprintf("SELECT %v FROM event WHERE event_id = ? AND guest_id = ?", cols)
+	q := d.session.Query(stmt, eventID, participantID)
+
+	var guestID int64
+	var guestName string
+	var guestResponse, guestStatus int32
+	var guestNameTS, guestResponseTS, guestStatusTS int64
+
+	err := q.Scan(&guestID, &guestName, &guestResponse, &guestStatus, &guestNameTS, &guestResponseTS, &guestStatusTS)
 	if err != nil {
-		iter.Close()
-	} else {
-		err = iter.Close()
-		if err == nil && currentEvent != nil {
-			err = f(currentEvent)
-		}
+		return nil, convErr(err)
 	}
 
-	return convErr(err)
+	participant := &api.ParticipantDTO{
+		UserID:           guestID,
+		EventID:          eventID,
+		Name:             guestName,
+		Response:         api.AttendanceResponse(guestResponse),
+		InvitationStatus: api.InvitationStatus(guestStatus),
+		NameTS:           guestNameTS,
+		ResponseTS:       guestResponseTS,
+		StatusTS:         guestStatusTS,
+	}
+
+	return participant, nil
 }
-
-// FIXME: Each event of event table is in its own partition, classify events by date
-// or something in order to improve read performance.
-/*func (dao *EventDAO) LoadRecentEventsFromUser(user_id int64,
-	fromDate int64) ([]*api.EventDTO, error) {
-
-	checkSession(dao.session)
-
-	// Get index of events
-	//toDate := core.TimeToMillis(time.Now().Add(core.MAX_DIF_IN_START_DATE)) // One year
-	userEvents, err := dao.loadUserInbox(user_id, fromDate)
-	if err != nil {
-		return nil, err
-	}
-
-	event_id_list := make([]int64, 0, len(userEvents))
-	for _, userEvent := range userEvents {
-		event_id_list = append(event_id_list, userEvent.EventId)
-	}
-
-	// Read from event table to get the actual info
-	events, err := dao.LoadEvents(event_id_list...)
-	if err != nil {
-		log.Println("LoadUserEventsAndParticipants 2 (", user_id, "):", err)
-		return nil, err
-	}
-
-	return events, nil
-}*/
 
 func (de *EventDAO) LoadEventPicture(event_id int64) (*api.PictureDTO, error) {
 
@@ -277,128 +284,83 @@ func (dao *EventDAO) SetEventPicture(event_id int64, picture *api.PictureDTO) er
 	return convErr(q.Exec())
 }
 
-func (dao *EventDAO) SetEventStateAndInboxPosition(event_id int64,
-	new_status api.EventState, new_position int64) error {
-
-	checkSession(dao.session)
-
-	stmt := `UPDATE event SET inbox_position = ?, event_state = ? WHERE event_id = ?`
-	q := dao.session.Query(stmt, new_position, new_status, event_id)
-
-	return convErr(q.Exec())
-}
-
-func (d *EventDAO) CancelEvent(eventID int64, oldPosition time.Time, newPosition time.Time, userIDs []int64) error {
+func (d *EventDAO) findAllAux(query *gocql.Query, f func(*api.EventDTO) error) error {
 
 	checkSession(d.session)
 
-	updateStmt := `UPDATE event SET inbox_position = ?, event_state = ? WHERE event_id = ?`
-	deleteStmt := `DELETE FROM events_timeline WHERE bucket = ? AND position = ? AND event_id = ?`
-	insertStmt := `INSERT INTO events_timeline (bucket, event_id, position) VALUES (?, ?, ?)`
-	historyStmt := `INSERT INTO events_history_by_user (user_id, position, event_id) VALUES (?, ?, ?)`
+	iter := query.Iter()
 
-	batch := d.session.NewBatch(gocql.LoggedBatch)
+	var dto api.EventDTO
+	var status int32
+	var guestID int64
+	var guestName string
+	var guestResponse, guestStatus int32
+	var guestNameTS, guestResponseTS, guestStatusTS int64
 
-	// Set event inboxPosition and mark as cancelled
-	batch.Query(updateStmt, utils.TimeToMillis(newPosition), api.EventState_CANCELLED, eventID)
+	var err error
+	var currentEvent *api.EventDTO
 
-	// Change event timeline
-	batch.Query(deleteStmt, oldPosition.Year(), utils.TimeToMillis(oldPosition), eventID)
-	batch.Query(insertStmt, newPosition.Year(), eventID, utils.TimeToMillis(newPosition))
+	// Except guest attributes, all of the attributes are STATIC in cassandra
+	for iter.Scan(&dto.Id, &dto.AuthorId, &dto.AuthorName, &dto.Description, &dto.PictureDigest,
+		&dto.CreatedDate, &dto.InboxPosition, &dto.StartDate, &dto.EndDate, &status, &dto.Timestamp,
+		&guestID, &guestName, &guestResponse, &guestStatus, &guestNameTS, &guestResponseTS, &guestStatusTS) {
 
-	for _, userID := range userIDs {
-		// Insert event into user events history
-		batch.Query(historyStmt, userID, utils.TimeToMillis(newPosition), eventID)
+		if currentEvent == nil || currentEvent.Id != dto.Id {
+
+			// Send currentEvent to f
+			if currentEvent != nil {
+				if err = f(currentEvent); err != nil {
+					currentEvent = nil
+					break
+				}
+			}
+
+			// Read new event
+			currentEvent = new(api.EventDTO)
+			*currentEvent = dto
+			currentEvent.Participants = make(map[int64]*api.ParticipantDTO)
+			if status == 3 {
+				currentEvent.Cancelled = true
+			}
+		}
+
+		if guestID != 0 {
+			participant := &api.ParticipantDTO{
+				UserID:           guestID,
+				EventID:          dto.Id,
+				Name:             guestName,
+				Response:         api.AttendanceResponse(guestResponse),
+				InvitationStatus: api.InvitationStatus(guestStatus),
+				NameTS:           guestNameTS,
+				ResponseTS:       guestResponseTS,
+				StatusTS:         guestStatusTS,
+			}
+			currentEvent.Participants[participant.UserID] = participant
+		}
 	}
 
-	return convErr(d.session.ExecuteBatch(batch))
+	if err != nil {
+		iter.Close()
+	} else {
+		err = iter.Close()
+		if err == nil && currentEvent != nil {
+			err = f(currentEvent)
+		}
+	}
+
+	return convErr(err)
 }
 
-// Compare-and-set (read-before) update operation
-/*func (dao *EventDAO) SetNumGuests(eventId int64, numGuests int) (ok bool, err error) {
+// ExtractNewParticipants extracts participants from extractList that are not in baseList
+func (d *EventDAO) extractNewParticipants(extractEvent *api.EventDTO, baseEvent *api.EventDTO) map[int64]*api.ParticipantDTO {
 
-	checkSession(dao.session)
+	newParticipants := make(map[int64]*api.ParticipantDTO)
 
-	read_stmt := `SELECT num_guests FROM event WHERE event_id = ?`
-	q := dao.session.Query(read_stmt, eventId)
-
-	var oldNumGuests int32
-	var write_stmt string
-
-	if err := q.Scan(&oldNumGuests); err != nil {
-		return false, err
+	for pID, participant := range extractEvent.Participants {
+		if _, ok := baseEvent.Participants[pID]; !ok {
+			newParticipants[pID] = participant
+		}
 	}
 
-	write_stmt = `UPDATE event SET num_guests = ? WHERE event_id = ?
-								IF num_guests = ?`
-
-	q = dao.session.Query(write_stmt, numGuests, eventId, oldNumGuests)
-	return q.ScanCAS(nil)
-}*/
-
-func (dao *EventDAO) SetNumGuests(eventId int64, numGuests int) (bool, error) {
-
-	checkSession(dao.session)
-
-	stmt := `UPDATE event SET num_guests = ? WHERE event_id = ?`
-	q := dao.session.Query(stmt, numGuests, eventId)
-	if err := q.Exec(); err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
-// Compare-and-set (read-before) update operation
-/*func (dao *EventDAO) CompareAndSetNumAttendees(event_id int64, num_attendees int) (ok bool, err error) {
-
-	checkSession(dao.session)
-
-	read_stmt := `SELECT num_attendees FROM event WHERE event_id = ?`
-	q := dao.session.Query(read_stmt, event_id)
-
-	var old_attendees int32
-	var write_stmt string
-
-	if err := q.Scan(&old_attendees); err != nil {
-		return false, err
-	}
-
-	write_stmt = `UPDATE event SET num_attendees = ? WHERE event_id = ?
-								IF num_attendees = ?`
-
-	q = dao.session.Query(write_stmt, num_attendees, event_id, old_attendees)
-
-	return q.ScanCAS(nil)
-}*/
-
-/*func (dao *EventDAO) SetNumAttendees(event_id int64, num_attendees int) error {
-
-	checkSession(dao)
-
-	stmt := `UPDATE event SET num_attendees = ? WHERE event_id = ?`
-	q := dao.session.Query(stmt, num_attendees, event_id)
-	return q.Exec()
-}*/
-
-func (dao *EventDAO) SetParticipantInvitationStatus(user_id int64, event_id int64,
-	status api.InvitationStatus) error {
-
-	checkSession(dao.session)
-
-	stmt := `UPDATE event SET guest_status = ? WHERE event_id = ? AND guest_id = ?`
-	q := dao.session.Query(stmt, status, event_id, user_id)
-
-	return convErr(q.Exec())
-}
-
-func (d *EventDAO) SetParticipantResponse(participant int64, response api.AttendanceResponse,
-	event *api.EventDTO) error {
-
-	checkSession(d.session)
-
-	stmt := `UPDATE event SET guest_response = ? WHERE event_id = ? AND guest_id = ?`
-	q := d.session.Query(stmt, response, event.Id, participant)
-
-	return convErr(q.Exec())
+	return newParticipants
 }
