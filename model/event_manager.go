@@ -74,11 +74,14 @@ func (m *EventManager) LoadEvent(eventID int64) (*Event, error) {
 		return nil, err
 	}
 
-	if len(events) > 0 {
-		return newEventFromDTO(events[0]), nil
+	if len(events) == 0 {
+		return nil, ErrNotFound
 	}
 
-	return nil, ErrNotFound
+	event := newEventFromDTO(events[0])
+	event.isPersisted = true
+
+	return event, nil
 }
 
 /*
@@ -275,22 +278,14 @@ func (m *EventManager) ChangeDeliveryState(event *Event, userId int64, state api
 	return participant, nil
 }
 
-func (m *EventManager) GetEventForUser(userId int64, eventId int64) (*Event, error) {
+func (m *EventManager) GetEventForUser(userID int64, eventID int64) (*Event, error) {
 
-	// TODO: Make a more efficient implementation by adding DAO support to load a single event
-
-	events, err := m.eventDAO.LoadEvents(eventId)
+	event, err := m.LoadEvent(eventID)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(events) == 0 {
-		return nil, ErrNotFound
-	}
-
-	event := newEventFromDTO(events[0])
-
-	if participant := event.GetParticipant(userId); participant == nil {
+	if participant := event.GetParticipant(userID); participant == nil {
 		return nil, ErrNotFound
 	}
 
@@ -302,7 +297,6 @@ func (m *EventManager) GetRecentEvents(userID int64) ([]*Event, error) {
 
 	// Event IDs
 	eventIDs := m.userEvents.FindAll(userID)
-
 	if len(eventIDs) == 0 {
 		return nil, ErrEmptyInbox
 	}
@@ -317,7 +311,9 @@ func (m *EventManager) GetRecentEvents(userID int64) ([]*Event, error) {
 	// Convert DTO to model.Event
 	events := make([]*Event, 0, len(eventsDTO))
 	for _, ev := range eventsDTO {
-		events = append(events, newEventFromDTO(ev))
+		event := newEventFromDTO(ev)
+		event.isPersisted = true
+		events = append(events, event)
 	}
 
 	return events, nil
@@ -361,7 +357,9 @@ func (m *EventManager) GetEventsHistory(userID int64, start time.Time, end time.
 	// Convert DTO to model.Event
 	events := make([]*Event, 0, len(eventsDTO))
 	for _, ev := range eventsDTO {
-		events = append(events, newEventFromDTO(ev))
+		event := newEventFromDTO(ev)
+		event.isPersisted = true
+		events = append(events, event)
 	}
 
 	return events, nil
