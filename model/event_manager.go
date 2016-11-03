@@ -680,10 +680,10 @@ func (m *EventManager) canSee(p1 int64, p2 *Participant) (bool, error) {
 
 func (m *EventManager) loadActiveEvents() error {
 
-	currentTimeMillis := utils.GetCurrentTimeMillis()
+	currentTime := utils.GetCurrentTimeUTC()
 
 	// Load next events
-	entries, err := m.timelineDAO.FindAllFrom(currentTimeMillis)
+	entries, err := m.timelineDAO.FindAllForward(currentTime)
 	if err != nil {
 		return err
 	} else if len(entries) == 0 {
@@ -702,7 +702,7 @@ func (m *EventManager) loadActiveEvents() error {
 		if event.Cancelled {
 			// Time line should not include cancelled events
 			log.Printf("WARNING: Timeline includes cancelled events (currentTime: %v, EventID: %v)\n",
-				currentTimeMillis, event.Id)
+				currentTime, event.Id)
 			return nil
 		}
 
@@ -727,4 +727,8 @@ func (m *EventManager) loadActiveEvents() error {
 	}*/
 
 	return nil
+}
+
+func (m *EventManager) readEventsInMinute(t time.Time) {
+
 }

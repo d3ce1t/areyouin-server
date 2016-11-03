@@ -13,6 +13,7 @@ import (
 
 var session *GocqlSession
 var eventsGenerated int64
+var timeLinesGenerated int64
 
 func TestMain(m *testing.M) {
 	session = NewSession("areyouin_test", 4, "192.168.1.10")
@@ -100,4 +101,24 @@ func generateParticipants(numParticipants int) []*api.ParticipantDTO {
 	}
 
 	return participants
+}
+
+func generateTimelineEntries(origin time.Time, numEntries int) []*api.TimeLineEntryDTO {
+
+	entries := make([]*api.TimeLineEntryDTO, 0, numEntries)
+
+	for i := 0; i < numEntries; i++ {
+
+		newDate := origin.AddDate(i/3, i%12, i%30)
+
+		dto := &api.TimeLineEntryDTO{
+			EventID:  timeLinesGenerated + 1,
+			Position: newDate,
+		}
+
+		entries = append(entries, dto)
+		timeLinesGenerated++
+	}
+
+	return entries
 }

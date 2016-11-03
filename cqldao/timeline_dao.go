@@ -4,6 +4,7 @@ import (
 	"peeple/areyouin/api"
 	"peeple/areyouin/utils"
 	"sort"
+	"time"
 
 	"github.com/gocql/gocql"
 )
@@ -25,9 +26,36 @@ func NewTimeLineDAO(session api.DbSession) api.EventTimeLineDAO {
 	return dao
 }
 
-// Read events in timeline from date. Returned items are in range [date, infinite)
-// and it includes events that have not finished yet (not started or in progress).
-func (d *EventTimeLineDAO) FindAllFrom(date int64) ([]*api.TimeLineEntryDTO, error) {
+func (d *EventTimeLineDAO) FindAllBackward(date time.Time) ([]*api.TimeLineEntryDTO, error) {
+
+	checkSession(d.session)
+
+	stmt := `SELECT event_id, position
+		FROM events_timeline
+		WHERE bucket = ? and position <= ? ORDER BY position DESC LIMIT ?`
+
+	dateMillis := utils.TimeToMillis(date)
+
+	// Compute buckets to read
+	exploreBuckets := d.bucketsToRead(date, true)
+
+	// Reserve initial memory to load results
+	var err error
+	results := make([]*api.TimeLineEntryDTO, 0, 1000)
+	q := d.session.Query(stmt)
+
+	for _, bucket := range exploreBuckets {
+		// Read buckets
+		q.Bind(bucket, dateMillis, timeLinePartitionLimit)
+		if results, err = d.findAllAux(q, results); err != nil {
+			return nil, err
+		}
+	}
+
+	return results, nil
+}
+
+func (d *EventTimeLineDAO) FindAllForward(date time.Time) ([]*api.TimeLineEntryDTO, error) {
 
 	checkSession(d.session)
 
@@ -35,25 +63,49 @@ func (d *EventTimeLineDAO) FindAllFrom(date int64) ([]*api.TimeLineEntryDTO, err
 		FROM events_timeline
 		WHERE bucket = ? and position >= ? LIMIT ?`
 
-	fromDate := utils.MillisToTimeUTC(date)
+	dateMillis := utils.TimeToMillis(date)
 
 	// Compute buckets to read
-	var exploreBuckets []int
-	_, pos := d.hasBucket(fromDate.Year())
-
-	if pos < len(d.bucketIndex) {
-		exploreBuckets = d.bucketIndex[pos:]
-	}
+	exploreBuckets := d.bucketsToRead(date, false)
 
 	// Reserve initial memory to load results
 	var err error
 	results := make([]*api.TimeLineEntryDTO, 0, 1000)
+	q := d.session.Query(stmt)
 
 	for _, bucket := range exploreBuckets {
-
 		// Read buckets
+		q.Bind(bucket, dateMillis, timeLinePartitionLimit)
+		if results, err = d.findAllAux(q, results); err != nil {
+			return nil, err
+		}
+	}
 
-		q := d.session.Query(stmt, bucket, date, timeLinePartitionLimit)
+	return results, nil
+}
+
+func (d *EventTimeLineDAO) FindAllBetween(fromDate time.Time, toDate time.Time) ([]*api.TimeLineEntryDTO, error) {
+
+	checkSession(d.session)
+
+	stmt := `SELECT event_id, position
+		FROM events_timeline
+		WHERE bucket = ? and position >= ? and position <= ? LIMIT ?`
+
+	fromDateMillis := utils.TimeToMillis(fromDate)
+	toDateMillis := utils.TimeToMillis(toDate)
+
+	// Compute buckets to read
+	exploreBuckets := d.bucketsToRead(fromDate, false)
+
+	// Reserve initial memory to load results
+	var err error
+	results := make([]*api.TimeLineEntryDTO, 0, 1000)
+	q := d.session.Query(stmt)
+
+	for _, bucket := range exploreBuckets {
+		// Read buckets
+		q.Bind(bucket, fromDateMillis, toDateMillis, timeLinePartitionLimit)
 		if results, err = d.findAllAux(q, results); err != nil {
 			return nil, err
 		}
@@ -170,6 +222,29 @@ func (d *EventTimeLineDAO) hasBucket(bucket int) (bool, int) {
 	}
 
 	return true, pos
+}
+
+func (d *EventTimeLineDAO) bucketsToRead(date time.Time, desc bool) []int {
+
+	var exploreBuckets []int
+	exist, pos := d.hasBucket(date.Year())
+
+	if !desc {
+		if pos < len(d.bucketIndex) {
+			exploreBuckets = d.bucketIndex[pos:]
+		}
+	} else {
+		if exist && pos >= 0 && pos < len(d.bucketIndex) {
+			pos++
+		}
+		exploreBuckets = d.bucketIndex[0:pos]
+		for i := len(exploreBuckets)/2 - 1; i >= 0; i-- {
+			opp := len(exploreBuckets) - 1 - i
+			exploreBuckets[i], exploreBuckets[opp] = exploreBuckets[opp], exploreBuckets[i]
+		}
+	}
+
+	return exploreBuckets
 }
 
 func (d *EventTimeLineDAO) findAllAux(query *gocql.Query, results []*api.TimeLineEntryDTO) ([]*api.TimeLineEntryDTO, error) {

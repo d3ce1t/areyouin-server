@@ -1,166 +1,199 @@
 package cqldao
 
 import (
-	"peeple/areyouin/api"
-	"peeple/areyouin/utils"
 	"testing"
 	"time"
 )
 
-func TestTimeLineDAO_Clean(t *testing.T) {
-	d1 := NewTimeLineDAO(session)
-	d1.DeleteAll()
+func createDate(year, month, day, hour, min int) time.Time {
+	return time.Date(year, time.Month(month), day, hour, min, 0, 0, time.UTC)
 }
 
 func TestTimeLineDAO_Insert(t *testing.T) {
 
-	rt := time.Date(2016, 10, 10, 12, 0, 0, 0, time.UTC)
-
-	var tests = []struct {
-		eventID int64
-		endDate time.Time
-	}{
-		{1, rt},
-		{2, rt.Add(2 * time.Hour)},
-		{3, rt.Add(4 * time.Hour)},
-		{4, rt.Add(6 * time.Hour)},
-		{5, rt.Add(8 * time.Hour)},
-		{6, rt.AddDate(1, 0, 0)},
-	}
-
 	d := NewTimeLineDAO(session)
+	origin := createDate(2016, 11, 3, 12, 0)
 
-	for _, test := range tests {
-
-		dto := &api.TimeLineEntryDTO{
-			EventID:  test.eventID,
-			Position: test.endDate,
-		}
-
+	for _, dto := range generateTimelineEntries(origin, 50) {
 		if err := d.Insert(dto); err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 
-func TestFindAllFrom(t *testing.T) {
-
-	rt := time.Date(2016, 10, 10, 12, 0, 0, 0, time.UTC)
-
-	var tests = []struct {
-		eventID int64
-		endDate time.Time
-	}{
-		{1, rt},
-		{2, rt.Add(2 * time.Hour)},
-		{3, rt.Add(4 * time.Hour)},
-		{4, rt.Add(6 * time.Hour)},
-		{5, rt.Add(8 * time.Hour)},
-		{6, rt.AddDate(1, 0, 0)},
-	}
+func TestTimeLineDAO_FindAllForward(t *testing.T) {
 
 	d := NewTimeLineDAO(session)
 
-	results, err := d.FindAllFrom(utils.TimeToMillis(rt))
+	// Clear
+	if err := d.DeleteAll(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert
+	origin := createDate(2016, 11, 3, 12, 0)
+	entries := generateTimelineEntries(origin, 50)
+	for _, dto := range entries {
+		if err := d.Insert(dto); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Read
+	results, err := d.FindAllForward(origin)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	// Check
 	for i, item := range results {
-
-		test := tests[i]
-
-		if item.EventID != test.eventID || !item.Position.Equal(test.endDate) {
-			t.Fatalf("TestFindAllFrom: %v) Read back different items than inserted in previous testing (item.ID: %v, item.position: %v, test.ID: %v, endDate: %v)",
-				i, item.EventID, item.Position, test.eventID, test.endDate)
+		test := entries[i]
+		if item.EventID != test.EventID || !item.Position.Equal(test.Position) {
+			t.Fatalf("Read back different items than inserted")
 		}
 	}
 }
 
-func TestReplace(t *testing.T) {
-
-	rt := time.Date(2016, 10, 10, 12, 0, 0, 0, time.UTC)
-
-	var tests = []struct {
-		eventID    int64
-		endDate    time.Time
-		newEndDate time.Time
-	}{
-		{1, rt, rt.Add(1 * time.Hour)},
-		{2, rt.Add(2 * time.Hour), rt.Add(3 * time.Hour)},
-		{3, rt.Add(4 * time.Hour), rt.Add(4 * time.Hour)},
-		{4, rt.Add(6 * time.Hour), rt.Add(5 * time.Hour)},
-		{5, rt.Add(8 * time.Hour), rt.Add(6 * time.Hour)},
-		{6, rt.AddDate(1, 0, 0), rt.Add(7 * time.Hour)},
-	}
+func TestTimeLineDAO_FindAllBackward(t *testing.T) {
 
 	d := NewTimeLineDAO(session)
 
-	// Execute test
-	for _, test := range tests {
+	// Clear
+	if err := d.DeleteAll(); err != nil {
+		t.Fatal(err)
+	}
 
-		oldDto := &api.TimeLineEntryDTO{
-			EventID:  test.eventID,
-			Position: test.endDate,
+	// Insert
+	origin := createDate(2016, 11, 3, 12, 0)
+	entries := generateTimelineEntries(origin, 50)
+	for _, dto := range entries {
+		if err := d.Insert(dto); err != nil {
+			t.Fatal(err)
 		}
+	}
 
-		newDto := &api.TimeLineEntryDTO{
-			EventID:  test.eventID,
-			Position: test.newEndDate,
+	// Read
+	results, err := d.FindAllBackward(entries[len(entries)-1].Position)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check
+	for i, result := range results {
+		e := entries[len(entries)-i-1]
+		if result.EventID != e.EventID || !result.Position.Equal(e.Position) {
+			t.Fatalf("Read back different items than inserted")
 		}
+	}
+}
 
-		if err := d.Replace(oldDto, newDto); err != nil {
+func TestTimeLineDAO_FindAllBetween(t *testing.T) {
+
+	d := NewTimeLineDAO(session)
+
+	// Clear
+	if err := d.DeleteAll(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert
+	origin := createDate(2016, 11, 3, 12, 0)
+	entries := generateTimelineEntries(origin, 50)
+	for _, dto := range entries {
+		if err := d.Insert(dto); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Read
+	startIndex := 10
+	endIndex := len(entries) - 10
+	results, err := d.FindAllBetween(entries[startIndex].Position, entries[endIndex].Position)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check
+	if len(results) != (endIndex - startIndex + 1) {
+		t.Fatal("Count mismatch")
+	}
+
+	for i, entry := range entries[startIndex : endIndex+1] {
+		e := results[i]
+		if entry.EventID != e.EventID || !entry.Position.Equal(e.Position) {
+			t.Fatal("Read back different items than inserted")
+		}
+	}
+}
+
+func TestTimeLineDAO_Replace(t *testing.T) {
+
+	d := NewTimeLineDAO(session)
+
+	// Clear
+	if err := d.DeleteAll(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert
+	origin := createDate(2016, 11, 3, 12, 0)
+	groundtruth := generateTimelineEntries(origin, 50)
+	for _, dto := range groundtruth {
+		if err := d.Insert(dto); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Replace
+	for i, oldDto := range groundtruth[0 : len(groundtruth)-1] {
+		if err := d.Replace(oldDto, groundtruth[i+1]); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	// Check results
-	results, err := d.FindAllFrom(utils.TimeToMillis(rt))
+
+	// Read
+	results, err := d.FindAllForward(groundtruth[1].Position)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for i, item := range results {
-
-		test := tests[i]
-
-		if item.EventID != test.eventID || item.Position != test.newEndDate {
+	// Check
+	for i, item := range results[0 : len(results)-1] {
+		test := groundtruth[i+1]
+		if item.EventID != test.EventID || !item.Position.Equal(test.Position) {
 			t.Fatal("Read back different items than replaced")
 		}
 	}
 }
 
-func TestDelete(t *testing.T) {
+func TestTimeLineDAO_Delete(t *testing.T) {
 
-	rt := time.Date(2016, 10, 10, 12, 0, 0, 0, time.UTC)
-
-	var tests = []struct {
-		eventID int64
-		endDate time.Time
-	}{
-		{1, rt.Add(1 * time.Hour)},
-		{2, rt.Add(3 * time.Hour)},
-		{3, rt.Add(4 * time.Hour)},
-		{4, rt.Add(5 * time.Hour)},
-		{5, rt.Add(6 * time.Hour)},
-		{6, rt.Add(7 * time.Hour)},
+	// Clear
+	d := NewTimeLineDAO(session)
+	if err := d.DeleteAll(); err != nil {
+		t.Fatal(err)
 	}
 
-	d := NewTimeLineDAO(session)
-
-	for _, test := range tests {
-
-		dto := &api.TimeLineEntryDTO{
-			EventID:  test.eventID,
-			Position: test.endDate,
+	// Insert
+	origin := createDate(2016, 11, 3, 12, 0)
+	entries := generateTimelineEntries(origin, 50)
+	for _, dto := range entries {
+		if err := d.Insert(dto); err != nil {
+			t.Fatal(err)
 		}
+	}
 
+	// Remove
+	for _, dto := range entries {
 		if err := d.Delete(dto); err != nil {
 			t.Fatal("Delete error")
 		}
 	}
 
-	results, err := d.FindAllFrom(utils.TimeToMillis(rt))
+	// Check
+	results, err := d.FindAllForward(origin)
 	if err != nil {
 		t.Fatal("Delete error: Could not check deletion")
 	}

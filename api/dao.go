@@ -27,7 +27,9 @@ type UserDAO interface {
 }
 
 type EventTimeLineDAO interface {
-	FindAllFrom(date int64) ([]*TimeLineEntryDTO, error)
+	FindAllBackward(date time.Time) ([]*TimeLineEntryDTO, error)
+	FindAllForward(date time.Time) ([]*TimeLineEntryDTO, error)
+	FindAllBetween(fromDate time.Time, toDate time.Time) ([]*TimeLineEntryDTO, error)
 	Insert(item *TimeLineEntryDTO) error
 	Delete(item *TimeLineEntryDTO) error
 	Replace(oldItem *TimeLineEntryDTO, newItem *TimeLineEntryDTO) error
