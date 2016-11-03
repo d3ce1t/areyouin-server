@@ -17,6 +17,7 @@ type EventModifier interface {
 }
 
 type eventModifier struct {
+	ownerID int64
 	// Event data
 	eventID            int64
 	authorID           int64
@@ -36,7 +37,7 @@ type eventModifier struct {
 	sourceEvent         *Event
 }
 
-func (m *EventManager) NewEventModifier(event *Event) (EventModifier, error) {
+func (m *EventManager) NewEventModifier(event *Event, ownerID int64) (EventModifier, error) {
 
 	if event == nil {
 		return nil, ErrIllegalArgument
@@ -66,9 +67,11 @@ func (m *EventManager) NewEventModifier(event *Event) (EventModifier, error) {
 		cancelled:           event.cancelled,
 		currentParticipants: make(map[int64]*Participant),
 		sourceEvent:         event, // event is immutable
+		ownerID:             ownerID,
 	}
 
-	b.participantBuilder.SetAuthor(event.authorID)
+	b.participantBuilder.SetEventID(event.id)
+	b.participantBuilder.SetAuthor(ownerID)
 
 	for k, v := range event.participants {
 		// Participant is immutable so I can assign the pointer
@@ -79,7 +82,9 @@ func (m *EventManager) NewEventModifier(event *Event) (EventModifier, error) {
 }
 
 func (b *eventModifier) SetModifiedDate(date time.Time) {
-	b.modifiedDate = date.Truncate(time.Second)
+	// Do not truncate to seconds still because it's used also
+	// to compute timestamp in microseconds
+	b.modifiedDate = date
 }
 
 func (b *eventModifier) SetStartDate(date time.Time) {
@@ -110,13 +115,16 @@ func (b *eventModifier) Build() (*Event, error) {
 		return nil, err
 	}
 
+	timestamp := b.modifiedDate.UnixNano() / 1000
+	b.participantBuilder.SetTimestamp(timestamp)
+
 	event := &Event{
 		id:            b.eventID,
 		authorID:      b.authorID,
 		authorName:    b.authorName,
 		description:   b.description,
 		createdDate:   b.createdDate,
-		modifiedDate:  b.modifiedDate,
+		modifiedDate:  b.modifiedDate.Truncate(time.Second),
 		inboxPosition: b.startDate,
 		startDate:     b.startDate,
 		endDate:       b.endDate,
@@ -124,6 +132,8 @@ func (b *eventModifier) Build() (*Event, error) {
 		numAttendees:  0,
 		numGuests:     int32(len(b.currentParticipants)),
 		participants:  make(map[int64]*Participant),
+		owner:         b.ownerID,
+		timestamp:     timestamp,
 		initialised:   true,
 		isPersisted:   false,
 		oldEvent:      b.sourceEvent,
@@ -131,13 +141,16 @@ func (b *eventModifier) Build() (*Event, error) {
 
 	// Event is cancelled
 	if b.cancelled {
-		event.inboxPosition = b.modifiedDate
+		event.inboxPosition = b.modifiedDate.Truncate(time.Second)
 	}
 
 	// Copy current participants
 	for k, v := range b.currentParticipants {
 		// Participant is immutable so I can assign the pointer
 		event.participants[k] = v
+		if v.response == api.AttendanceResponse_ASSIST {
+			event.numAttendees++
+		}
 	}
 
 	// New participants added
@@ -173,7 +186,7 @@ func (b *eventModifier) validateData() error {
 		return ErrInvalidDescription
 	}
 
-	if b.startDateChanged && !IsValidStartDate(b.startDate, b.modifiedDate) {
+	if b.startDateChanged && !IsValidStartDate(b.startDate, b.modifiedDate.Truncate(time.Second)) {
 		return ErrInvalidStartDate
 	}
 

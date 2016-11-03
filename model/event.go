@@ -13,15 +13,21 @@ type Event struct {
 	authorName    string
 	description   string
 	pictureDigest []byte
-	createdDate   time.Time
-	modifiedDate  time.Time
-	inboxPosition time.Time
-	startDate     time.Time
-	endDate       time.Time
+	createdDate   time.Time // Seconds precision
+	modifiedDate  time.Time // Seconds precision
+	inboxPosition time.Time // Seconds precision
+	startDate     time.Time // Seconds precision
+	endDate       time.Time // Seconds precision
 	numAttendees  int32
 	numGuests     int32
 	cancelled     bool
 	participants  map[int64]*Participant
+
+	// Owner of this event object in RAM
+	owner int64
+
+	// Used to compute the timestamp for this event version when stored in DB
+	timestamp int64
 
 	// If this event is a modification of another one, oldEvent must
 	// point to that object
@@ -50,16 +56,20 @@ func newEventFromDTO(dto *api.EventDTO) *Event {
 		inboxPosition: utils.MillisToTimeUTC(dto.InboxPosition).Truncate(time.Second),
 		startDate:     utils.MillisToTimeUTC(dto.StartDate).Truncate(time.Second),
 		endDate:       utils.MillisToTimeUTC(dto.EndDate).Truncate(time.Second),
-		numAttendees:  dto.NumAttendees,
-		numGuests:     dto.NumGuests,
 		cancelled:     dto.Cancelled,
 		participants:  make(map[int64]*Participant),
+		timestamp:     dto.Timestamp,
 		initialised:   true,
 	}
 
 	for _, p := range dto.Participants {
-		event.participants[p.UserId] = newParticipantFromDTO(p)
+		event.participants[p.UserID] = newParticipantFromDTO(p)
+		if p.Response == api.AttendanceResponse_ASSIST {
+			event.numAttendees++
+		}
 	}
+
+	event.numGuests = int32(len(event.participants))
 
 	return event
 }
@@ -166,6 +176,10 @@ func (e *Event) IsCancelled() bool {
 	return e.cancelled
 }
 
+func (e *Event) Timestamp() int64 {
+	return e.timestamp
+}
+
 func (e *Event) AsDTO() *api.EventDTO {
 
 	dto := &api.EventDTO{
@@ -178,10 +192,9 @@ func (e *Event) AsDTO() *api.EventDTO {
 		InboxPosition: utils.TimeToMillis(e.inboxPosition),
 		StartDate:     utils.TimeToMillis(e.startDate),
 		EndDate:       utils.TimeToMillis(e.endDate),
-		NumAttendees:  e.numAttendees,
-		NumGuests:     e.numGuests,
 		Cancelled:     e.cancelled,
 		Participants:  make(map[int64]*api.ParticipantDTO),
+		Timestamp:     e.timestamp,
 	}
 
 	for _, v := range e.participants {
@@ -230,7 +243,5 @@ func (e *Event) CloneEmptyParticipants() *Event {
 	eventCopy.pictureDigest = make([]byte, len(e.pictureDigest))
 	copy(eventCopy.pictureDigest, e.pictureDigest)
 	eventCopy.participants = nil
-	//eventCopy.NumGuests = 0
-	//eventCopy.NumAttendees = 0
 	return eventCopy
 }

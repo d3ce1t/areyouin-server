@@ -17,6 +17,7 @@ type EventBuilder interface {
 }
 
 type eventBuilder struct {
+	ownerID int64
 	// Event data
 	eventID            int64
 	authorID           int64
@@ -30,8 +31,9 @@ type eventBuilder struct {
 	//pictureDigest []byte
 }
 
-func (m *EventManager) NewEventBuilder() EventBuilder {
+func (m *EventManager) NewEventBuilder(ownerID int64) EventBuilder {
 	return &eventBuilder{
+		ownerID:            ownerID,
 		createdDate:        utils.GetCurrentTimeUTC(),
 		participantBuilder: m.newParticipantListCreator(),
 		eventManager:       m,
@@ -45,7 +47,9 @@ func (b *eventBuilder) SetAuthor(author *UserAccount) {
 }
 
 func (b *eventBuilder) SetCreatedDate(date time.Time) {
-	b.createdDate = date.Truncate(time.Second)
+	// Do not truncate to seconds still because it's used also
+	// to compute timestamp in microseconds
+	b.createdDate = date
 }
 
 func (b *eventBuilder) SetStartDate(date time.Time) {
@@ -66,29 +70,39 @@ func (b *eventBuilder) ParticipantAdder() ParticipantAdder {
 
 func (b *eventBuilder) Build() (*Event, error) {
 
+	// Event ID and timestamp
 	b.eventID = idgen.NewID()
+	b.participantBuilder.SetEventID(b.eventID)
 
+	timestamp := b.createdDate.UnixNano() / 1000
+	b.participantBuilder.SetTimestamp(timestamp)
+
+	// Validate data
 	if err := b.validateData(); err != nil {
 		return nil, err
 	}
 
+	// Build participant list
 	participants, err := b.participantBuilder.Build()
 	if err != nil {
 		return nil, err
 	}
 
+	// Build event
 	event := &Event{
 		id:            b.eventID,
 		authorID:      b.authorID,
 		authorName:    b.authorName,
 		description:   b.description,
-		createdDate:   b.createdDate,
+		createdDate:   b.createdDate.Truncate(time.Second),
 		inboxPosition: b.startDate,
 		startDate:     b.startDate,
 		endDate:       b.endDate,
 		numAttendees:  0,
 		numGuests:     int32(len(participants)),
 		participants:  participants,
+		timestamp:     timestamp,
+		owner:         b.ownerID,
 		initialised:   true,
 		isPersisted:   false,
 		oldEvent:      nil,
@@ -111,7 +125,7 @@ func (b *eventBuilder) validateData() error {
 		return ErrInvalidDescription
 	}
 
-	if !IsValidStartDate(b.startDate, b.createdDate) {
+	if !IsValidStartDate(b.startDate.Truncate(time.Second), b.createdDate) {
 		return ErrInvalidStartDate
 	}
 

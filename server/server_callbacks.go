@@ -317,65 +317,36 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	author, err := server.Model.Accounts.GetUserAccount(session.UserId)
 	checkNoErrorOrPanic(err)
 
-	// Event builder
-	b := server.Model.Events.NewEventBuilder()
-
-	b.SetAuthor(author)
-	b.SetCreatedDate(createdDate)
-	b.SetStartDate(startDate)
-	b.SetEndDate(endDate)
-	b.SetDescription(msg.Message)
-
-	pAuthor := model.NewParticipant(author.Id(), author.Name(),
-		api.AttendanceResponse_ASSIST, api.InvitationStatus_SERVER_DELIVERED)
-
-	b.ParticipantAdder().AddParticipant(pAuthor)
-	for _, pID := range msg.Participants {
-		b.ParticipantAdder().AddUserID(pID)
-	}
-
-	event, err := b.Build()
+	// New event
+	event, err := server.Model.Events.NewEvent(author, createdDate, startDate, endDate, msg.Message, msg.Participants)
 	checkNoErrorOrPanic(err)
 
 	// Publish event
-	if err = server.Model.Events.SaveEvent(event); err == nil {
+	err = server.Model.Events.SaveEvent(event)
+	checkNoErrorOrPanic(err)
 
-		// Event Published: set event picture if received
+	// Event Published: set event picture if received
 
-		if len(msg.Picture) != 0 {
-			if err = server.Model.Events.ChangeEventPicture(event, msg.Picture); err != nil {
-				// Only log error but do nothing. Event has already been published.
-				log.Printf("* (%v) Error saving picture for event %v (%v)\n", session, event.Id(), err)
-			}
+	if len(msg.Picture) != 0 {
+		if err = server.Model.Events.ChangeEventPicture(event, msg.Picture); err != nil {
+			// Only log error but do nothing. Event has already been published.
+			log.Printf("* (%v) Error saving picture for event %v (%v)\n", session, event.Id(), err)
 		}
-
-		// Send event with InvitationStatus_CLIENT_DELIVERED
-		coreEvent := convEvent2Net(event)
-		coreEvent.Participants[session.UserId].Delivered = core.InvitationStatus_CLIENT_DELIVERED
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventCreated(coreEvent))
-		log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v, Remaining.Participants: %v)\n",
-			session, event.Id(), event.NumGuests(), 1+len(msg.Participants)-event.NumGuests())
-
-		// Change invitation status
-		_, err := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
-		if err != nil {
-			log.Printf("* (%v) CREATE EVENT WARNING Changing delivery state: %err", err)
-		}
-
-	} else if err == model.ErrParticipantsRequired {
-
-		// Participants required
-
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_EVENT_PARTICIPANTS_REQUIRED))
-		log.Printf("< (%v) CREATE EVENT ERROR: THERE ARE NO PARTICIPANTS\n", session)
-
-	} else {
-
-		// Error
-
-		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), getNetErrorCode(err, proto.E_OPERATION_FAILED)))
-		log.Printf("< (%v) CREATE EVENT ERROR: %v\n", session, err)
 	}
+
+	// Send event with InvitationStatus_CLIENT_DELIVERED
+	coreEvent := convEvent2Net(event)
+	coreEvent.Participants[session.UserId].Delivered = core.InvitationStatus_CLIENT_DELIVERED
+	session.WriteResponse(request.Header.GetToken(), session.NewMessage().EventCreated(coreEvent))
+	log.Printf("< (%v) CREATE EVENT OK (eventId: %v, Num.Participants: %v, Remaining.Participants: %v)\n",
+		session, event.Id(), event.NumGuests(), 1+len(msg.Participants)-event.NumGuests())
+
+	// Change invitation status
+	_, err = server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
+	if err != nil {
+		log.Printf("* (%v) CREATE EVENT WARNING Changing delivery state: %err", err)
+	}
+
 }
 
 // Modify existing event. If a field isn't set that means it isn't modified.
@@ -401,7 +372,7 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkEventAuthorOrPanic(authorID, event)
 
 	// Modify event
-	b, err := server.Model.Events.NewEventModifier(event)
+	b, err := server.Model.Events.NewEventModifier(event, authorID)
 	checkNoErrorOrPanic(err)
 
 	b.SetModifiedDate(modificationDate)
@@ -504,11 +475,20 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkNoErrorOrPanic(err)
 
 	// Check author
+	// TODO: Should user permissions be part of server or the model?
 	authorID := session.UserId
 	checkEventAuthorOrPanic(authorID, event)
 
 	// Cancel event
-	err = server.Model.Events.CancelEvent(event, session.UserId)
+	b, err := server.Model.Events.NewEventModifier(event, authorID)
+	checkNoErrorOrPanic(err)
+
+	b.SetCancelled(true)
+	cancelledEvent, err := b.Build()
+	checkNoErrorOrPanic(err)
+
+	// Persist event
+	err = server.Model.Events.SaveEvent(cancelledEvent)
 	checkNoErrorOrPanic(err)
 
 	// FIXME: Could send directly the event canceled message, and ignore author from
@@ -517,9 +497,9 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 
 	// Send event changed
-	liteEvent := event.CloneEmptyParticipants()
+	liteEvent := cancelledEvent.CloneEmptyParticipants()
 	session.Write(session.NewMessage().EventCancelled(session.UserId, convEvent2Net(liteEvent)))
-	log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, event.Id())
+	log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, cancelledEvent.Id())
 }
 
 func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
@@ -530,7 +510,7 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	checkAuthenticated(session)
 
-	// First of all, check participants
+	// Fail early
 	if len(msg.Participants) == 0 {
 		session.WriteResponse(request.Header.GetToken(), session.NewMessage().Error(request.Type(), proto.E_EVENT_PARTICIPANTS_REQUIRED))
 		log.Printf("< (%v) INVITE USERS ERROR (event_id=%v) PARTICIPANTS REQUIRED\n", session, msg.EventId)
@@ -545,7 +525,7 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkEventAuthorOrPanic(session.UserId, event)
 
 	// Get event modifier to add new participants
-	b, err := server.Model.Events.NewEventModifier(event)
+	b, err := server.Model.Events.NewEventModifier(event, session.UserId)
 	checkNoErrorOrPanic(err)
 
 	for _, pID := range msg.Participants {
@@ -594,7 +574,8 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 	checkNoErrorOrPanic(err)
 
 	// Change response
-	_, err = server.Model.Events.ChangeParticipantResponse(session.UserId, api.AttendanceResponse(msg.ActionCode), event)
+	participant, err := server.Model.Events.ChangeParticipantResponse(session.UserId,
+		api.AttendanceResponse(msg.ActionCode), event)
 	checkNoErrorOrPanic(err)
 
 	// Send OK Response
@@ -602,7 +583,6 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 	log.Printf("< (%v) CONFIRM ATTENDANCE %v OK\n", session, msg.EventId)
 
 	// Send new AttendanceStatus
-	participant := event.GetParticipant(session.UserId)
 	participantList := make(map[int64]*model.Participant)
 	participantList[participant.Id()] = participant
 	netParticipants := convParticipantList2Net(participantList)

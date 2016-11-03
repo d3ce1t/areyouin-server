@@ -216,7 +216,7 @@ func (m *ModelObserver) processParticipantChangeSignal(signal *model.Signal) {
 
 	participantList := make(map[int64]*model.Participant)
 	participantList[participant.Id()] = participant
-	netParticipants := convParticipantList2Net(participantList)
+	netParticipant := convParticipantList2Net(participantList)
 
 	for _, pID := range event.ParticipantIds() {
 
@@ -228,9 +228,9 @@ func (m *ModelObserver) processParticipantChangeSignal(signal *model.Signal) {
 			}
 
 			if session := m.server.getSession(participantID); session != nil {
-				message := session.NewMessage().AttendanceStatus(event.Id(), netParticipants)
+				message := session.NewMessage().AttendanceStatus(event.Id(), netParticipant)
 				if ok := session.Write(message); ok {
-					log.Printf("< (%v) EVENT %v ATTENDANCE STATUS (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
+					log.Printf("< (%v) EVENT %v ATTENDANCE STATUS (%v participants changed)\n", session.UserId, event.Id(), len(netParticipant))
 				} else {
 					log.Println("* processParticipantChangeSignal: Coudn't send message to", session.UserId)
 				}
