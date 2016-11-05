@@ -547,7 +547,7 @@ func (m *EventManager) emitNewEvent(event *Event) {
 		Data: map[string]interface{}{
 			"EventID":         event.Id(),
 			"NewParticipants": event.ParticipantIds(),
-			"OldParticipants": []int{},
+			"OldParticipants": []int64{},
 			"Event":           event,
 		},
 	})
