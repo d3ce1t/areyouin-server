@@ -8,6 +8,11 @@ type DbSession interface {
 	Closed() bool
 }
 
+type SettingsDAO interface {
+	Find(key SettingOption) (string, error)
+	Insert(key SettingOption, value string) error
+}
+
 type UserDAO interface {
 	Load(userId int64) (*UserDTO, error)
 	LoadByEmail(email string) (*UserDTO, error)

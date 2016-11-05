@@ -184,11 +184,20 @@ CREATE TABLE friend_requests_sent (
 )
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
 
+// Q14: Store an retrieve cluster settings by key
+DROP TABLE IF EXISTS settings;
+CREATE TABLE settings (
+	key text,
+	value text,
+	PRIMARY KEY (key)
+)
+WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'};
+
 //
 // Stats
 //
 
-// Q14: Find active sessions per node by day
+// Q15: Find active sessions per node by day
 CREATE TABLE log_active_sessions_by_day (
 	node int,
 	day int,  // yyyyMMdd format
@@ -199,7 +208,7 @@ CREATE TABLE log_active_sessions_by_day (
 WITH COMPACTION = {'class' : 'LeveledCompactionStrategy'}
 AND CLUSTERING ORDER BY (user_id DESC);
  
-// Q15: Find registered users by day
+// Q16: Find registered users by day
 CREATE TABLE log_registered_users_by_day (
 	day int, // yyyyMMdd format
 	user_id bigint,

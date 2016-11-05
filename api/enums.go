@@ -1,5 +1,11 @@
 package api
 
+type SettingOption string
+
+const (
+	MasterLastArchiveTime SettingOption = "MasterLastArchiveTime"
+)
+
 type AttendanceResponse int8
 
 const (

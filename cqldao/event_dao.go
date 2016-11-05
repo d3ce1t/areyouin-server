@@ -284,7 +284,7 @@ func (dao *EventDAO) SetEventPicture(event_id int64, picture *api.PictureDTO) er
 	return convErr(q.Exec())
 }
 
-func (d *EventDAO) findAllAux(query *gocql.Query, f func(*api.EventDTO) error) error {
+func (d *EventDAO) findAllAux(query *gocql.Query, handler func(*api.EventDTO) error) error {
 
 	checkSession(d.session)
 
@@ -307,9 +307,9 @@ func (d *EventDAO) findAllAux(query *gocql.Query, f func(*api.EventDTO) error) e
 
 		if currentEvent == nil || currentEvent.Id != dto.Id {
 
-			// Send currentEvent to f
+			// Send currentEvent to handler
 			if currentEvent != nil {
-				if err = f(currentEvent); err != nil {
+				if err = handler(currentEvent); err != nil {
 					currentEvent = nil
 					break
 				}
@@ -344,7 +344,8 @@ func (d *EventDAO) findAllAux(query *gocql.Query, f func(*api.EventDTO) error) e
 	} else {
 		err = iter.Close()
 		if err == nil && currentEvent != nil {
-			err = f(currentEvent)
+			// Send last loaded event
+			err = handler(currentEvent)
 		}
 	}
 
