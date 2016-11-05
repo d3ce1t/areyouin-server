@@ -425,11 +425,11 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	if len(newParticipants) > 0 {
 		netParticipants := convParticipantList2Net(newParticipants)
-		packet := session.NewMessage().AttendanceStatus(event.Id(), netParticipants)
+		packet := session.NewMessage().AttendanceStatus(modifiedEvent.Id(), netParticipants)
 		//packet := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, int32(event.NumGuests()))
 		session.Write(packet)
 		log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n",
-			session.UserId, event.Id(), len(newParticipants))
+			session.UserId, modifiedEvent.Id(), len(newParticipants))
 	}
 }
 

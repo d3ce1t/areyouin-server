@@ -49,9 +49,7 @@ func main() {
 	// Connect to database
 
 	session := cqldao.NewSession(cfg.DbKeyspace(), cfg.DbCQLVersion(), cfg.DbAddress()...)
-	model := model.New(session, "default")
 	err = session.Connect()
-
 	for err != nil {
 		log.Println(err)
 		time.Sleep(5 * time.Second)
@@ -60,8 +58,8 @@ func main() {
 
 	log.Println("Connected to Cassandra successfully")
 
-	// Create and init server
-
+	// Create model and init server
+	model := model.New(session, "default")
 	server := NewServer(session, model, cfg)
 
 	if !cfg.MaintenanceMode() {

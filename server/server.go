@@ -87,6 +87,10 @@ func (s *Server) run(bootstrap bool) {
 			s.webhook.Run()
 		}
 
+		// Start model background tasks
+
+		s.Model.StartBackgroundTasks()
+
 		// Start up model observer
 
 		s.modelObserver = newModelObserver(s)
