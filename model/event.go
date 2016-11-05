@@ -165,7 +165,7 @@ func (e *Event) Status() api.EventState {
 		return api.EventState_CANCELLED
 	} else if e.startDate.After(currentDate) {
 		return api.EventState_NOT_STARTED
-	} else if e.endDate.Before(currentDate) || e.endDate.Equal(currentDate) {
+	} else if e.endDate.Before(currentDate) || e.endDate.Equal(currentDate) { // End date isn't included
 		return api.EventState_FINISHED
 	}
 

@@ -22,7 +22,9 @@ var (
 	ErrInvalidEndDate       = errors.New("invalid end date")
 	ErrInvalidEventData     = errors.New("invalid event data")
 	ErrParticipantsRequired = errors.New("participants required")
+	ErrCannotArchive        = errors.New("cannot archive event")
 
+	ErrModelInitError        = errors.New("model init error")
 	ErrModelAlreadyExist     = errors.New("cannot register model because it already exists")
 	ErrModelNotFound         = errors.New("model not found")
 	ErrModelInconsistency    = errors.New("Model has an inconsistency that requires admin fixes")

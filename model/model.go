@@ -23,11 +23,13 @@ func init() {
 }
 
 type AyiModel struct {
+	sync.RWMutex
 	supportedDpi []int32
 	dbsession    api.DbSession
 	Accounts     *AccountManager
 	Events       *EventManager
 	Friends      *FriendManager
+	initialised  bool
 }
 
 // Creates a new model with the given key for later retrieval. If model exist panic
@@ -36,23 +38,22 @@ func New(session api.DbSession, key string) *AyiModel {
 	mutex.RLock()
 
 	model, ok := registeredModels.Get(key)
-
-	if !ok {
-		model = &AyiModel{
-			supportedDpi: []int32{utils.IMAGE_MDPI,
-				utils.IMAGE_HDPI,
-				utils.IMAGE_XHDPI,
-				utils.IMAGE_XXHDPI,
-				utils.IMAGE_XXXHDPI},
-			dbsession: session,
-		}
-		model.Accounts = newAccountManager(model, session)
-		model.Events = newEventManager(model, session)
-		model.Friends = newFriendManager(model, session)
-		registeredModels.Put(key, model)
-	} else {
+	if ok {
 		panic(ErrModelAlreadyExist)
 	}
+
+	model = &AyiModel{
+		supportedDpi: []int32{utils.IMAGE_MDPI,
+			utils.IMAGE_HDPI,
+			utils.IMAGE_XHDPI,
+			utils.IMAGE_XXHDPI,
+			utils.IMAGE_XXXHDPI},
+		dbsession: session,
+	}
+	model.Accounts = newAccountManager(model, session)
+	model.Events = newEventManager(model, session)
+	model.Friends = newFriendManager(model, session)
+	registeredModels.Put(key, model)
 
 	return model
 }
@@ -68,20 +69,14 @@ func Get(key string) *AyiModel {
 	}
 }
 
-func getUserMapKeys(m map[int64]*UserAccount) []int64 {
-	keys := make([]int64, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+// Start init background and start tasks required for this model to work over time
+func (m *AyiModel) StartBackgroundTasks() {
+	defer m.Unlock()
+	m.Lock()
+	if !m.initialised {
+		m.Events.initBackgroundTasks()
+		m.initialised = true
 	}
-	return keys
-}
-
-func getParticipantMapKeys(m map[int64]*Participant) []int64 {
-	keys := make([]int64, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 func (m *AyiModel) DbSession() api.DbSession {
@@ -112,4 +107,20 @@ func (self *AyiModel) GetClosestDpi(reqDpi int32) int32 {
 	}
 
 	return self.supportedDpi[dpi_index]
+}
+
+func getUserMapKeys(m map[int64]*UserAccount) []int64 {
+	keys := make([]int64, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func getParticipantMapKeys(m map[int64]*Participant) []int64 {
+	keys := make([]int64, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

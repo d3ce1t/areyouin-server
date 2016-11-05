@@ -8,6 +8,7 @@ import (
 	"peeple/areyouin/api"
 	"peeple/areyouin/cqldao"
 	"peeple/areyouin/utils"
+	"strconv"
 	"time"
 
 	"github.com/imkira/go-observer"
@@ -21,11 +22,14 @@ type EventManager struct {
 	timelineDAO     api.EventTimeLineDAO
 	eventHistoryDAO api.EventHistoryDAO
 	thumbDAO        api.ThumbnailDAO
+	settingsDAO     api.SettingsDAO
 	eventSignal     observer.Property
 	userEvents      *UserEvents
+	lastArchiveTime time.Time
 }
 
 func newEventManager(parent *AyiModel, session api.DbSession) *EventManager {
+
 	evManager := &EventManager{
 		parent:          parent,
 		dbsession:       session,
@@ -34,16 +38,83 @@ func newEventManager(parent *AyiModel, session api.DbSession) *EventManager {
 		eventHistoryDAO: cqldao.NewEventHistoryDAO(session),
 		timelineDAO:     cqldao.NewTimeLineDAO(session),
 		thumbDAO:        cqldao.NewThumbnailDAO(session),
+		settingsDAO:     cqldao.NewSettingsDAO(session),
 		eventSignal:     observer.NewProperty(nil),
 		userEvents:      newUserEvents(),
 	}
 
+	if err := evManager.readLastArchiveTime(); err != nil {
+		log.Printf("newEventManagerError: %v\n", err)
+		panic(ErrModelInitError)
+	}
+
 	if err := evManager.loadActiveEvents(); err != nil {
 		log.Printf("newEventManagerError: %v\n", err)
-		return nil
+		panic(ErrModelInitError)
 	}
 
 	return evManager
+}
+
+func (m *EventManager) initBackgroundTasks() {
+	go func() {
+		for {
+			m.startJobManager()
+		}
+	}()
+}
+
+func (m *EventManager) readLastArchiveTime() error {
+
+	value, err := m.settingsDAO.Find(api.MasterLastArchiveTime)
+	if err == api.ErrNotFound {
+		value = "0"
+	} else if err != nil {
+		return err
+	}
+
+	millis, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	m.lastArchiveTime = utils.MillisToTimeUTC(millis)
+	return nil
+}
+
+func (m *EventManager) startJobManager() {
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("EventsJobManager: Unexpected end %v", r)
+		}
+	}()
+
+	log.Println("EventsJobManager: Started")
+
+	var lastTime time.Time
+
+	archiveJob := func() {
+		lastTime = utils.GetCurrentTimeUTC()
+		if err := m.archiveFinishedEventsSinceLastCheck(); err != nil {
+			log.Printf("EventsJobManager: Finish archiving events with errors: %v", err)
+		}
+	}
+
+	for {
+		currentTime := utils.GetCurrentTimeUTC()
+		timeSinceLastTime := currentTime.Sub(lastTime)
+
+		if timeSinceLastTime >= 1*time.Minute {
+			archiveJob()
+		} else {
+			nextMinute := currentTime.Truncate(time.Minute).Add(time.Minute)
+			select {
+			case <-time.After(nextMinute.Sub(currentTime)):
+				archiveJob()
+			}
+		}
+	}
 }
 
 func (m *EventManager) NewEvent(author *UserAccount, createdDate time.Time, startDate time.Time, endDate time.Time,
@@ -399,23 +470,19 @@ func (m *EventManager) BuildEventsHistory() error {
 		return err
 	}
 
+	currentTime := utils.GetCurrentTimeUTC()
+
 	err := m.eventDAO.RangeAll(func(event *api.EventDTO) error {
 
-		entryDTO := &api.TimeLineEntryDTO{
-			EventID:  event.Id,
-			Position: utils.MillisToTimeUTC(event.EndDate).Truncate(time.Second),
+		endDate := utils.MillisToTimeUTC(event.EndDate)
+
+		if endDate.After(currentTime) {
+			log.Printf("WARNING: Skip archiving event %v because it has not finished yet", event.Id)
+			return nil
 		}
 
-		if event.Cancelled {
-			entryDTO.Position = utils.MillisToTimeUTC(event.InboxPosition).Truncate(time.Second)
-		}
-
-		for pID, _ := range event.Participants {
-
-			// Insert into event history
-			if err := m.eventHistoryDAO.Insert(pID, entryDTO); err != nil {
-				return err
-			}
+		if err := m.archiveEvent(event); err != nil {
+			return err
 		}
 
 		return nil
@@ -721,14 +788,100 @@ func (m *EventManager) loadActiveEvents() error {
 		return err
 	}
 
-	// Sort user inbox
-	/*for _, inbox := range m.userInbox {
-		sort.Sort(api.TimeLineByEndDate(inbox))
-	}*/
+	return nil
+}
+
+func (m *EventManager) archiveEvent(event *api.EventDTO) error {
+
+	entryDTO := &api.TimeLineEntryDTO{
+		EventID:  event.Id,
+		Position: utils.MillisToTimeUTC(event.EndDate).Truncate(time.Second),
+	}
+
+	if event.Cancelled {
+		entryDTO.Position = utils.MillisToTimeUTC(event.InboxPosition).Truncate(time.Second)
+	}
+
+	for pID := range event.Participants {
+
+		// Insert into event history
+		if err := m.eventHistoryDAO.Insert(pID, entryDTO); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
 
-func (m *EventManager) readEventsInMinute(t time.Time) {
+// Read finished or cancelled events since last time and archives them,
+// i.e. events are move from user's recent events to events history
+func (m *EventManager) archiveFinishedEventsSinceLastCheck() error {
 
+	currentTime := utils.GetCurrentTimeUTC()
+
+	// Get events between last check and current time, both included.
+	// In order to not retrieve events that were loaded in the previous call,
+	// add 1 millisecond to the begining of the window.
+	from := m.lastArchiveTime.Add(time.Millisecond)
+	entries, err := m.timelineDAO.FindAllBetween(from, currentTime)
+	if err != nil {
+		return err
+	}
+
+	handler := func(event *api.EventDTO) error {
+
+		endDate := utils.MillisToTimeUTC(event.EndDate)
+
+		if endDate.After(currentTime) {
+			log.Printf("WARNING: Stop archiving events because there are events that have not finished yet (%v)", event.Id)
+			return ErrCannotArchive
+		}
+
+		if event.Cancelled {
+			// Skip cancelled events. They are archived when cancelled.
+			log.Printf("WARNING: Skip archiving event %v because it's cancelled (so likely already archived)", event.Id)
+			return nil
+		}
+
+		// Archive
+		if err := m.archiveEvent(event); err != nil {
+			return err
+		}
+
+		// Remove from inbox
+		for pID := range event.Participants {
+			m.userEvents.Remove(pID, event.Id)
+		}
+
+		return nil
+	}
+
+	if len(entries) > 0 {
+
+		log.Printf("Num.Events %v from %v to %v", len(entries), from, currentTime)
+
+		// Extract IDs
+		eventIDs := make([]int64, 0, len(entries))
+		for _, entry := range entries {
+			eventIDs = append(eventIDs, entry.EventID)
+		}
+
+		// Range events
+		// TODO: If archive fails in the middle then retry from (minute, event). Currently, retry policy starts
+		// again from (minute) so it will re-archive already archived events. This is not harmful but is a
+		// waste of resources.
+		err = m.eventDAO.RangeEvents(handler, eventIDs...)
+		if err != nil {
+			return err
+		}
+
+		// Update lastArchiveTime
+		value := strconv.FormatInt(utils.TimeToMillis(currentTime), 10)
+		if err := m.settingsDAO.Insert(api.MasterLastArchiveTime, value); err != nil {
+			return err
+		}
+		m.lastArchiveTime = currentTime
+	}
+
+	return nil
 }
