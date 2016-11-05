@@ -13,7 +13,7 @@ type MessageBuilder interface {
 	EventModified(event *core.Event) *AyiPacket
 	InvitationReceived(event *core.Event) *AyiPacket
 	AttendanceStatus(event_id int64, participants map[int64]*core.EventParticipant) *AyiPacket
-	AttendanceStatusWithNumGuests(event_id int64, status map[int64]*core.EventParticipant, num_guests int32) *AyiPacket
+	AttendanceStatusWithNumGuests(event_id int64, status map[int64]*core.EventParticipant, num_guests int) *AyiPacket
 	UserAccessGranted(user_id int64, auth_token string) *AyiPacket
 	Ok(msg_type PacketType) *AyiPacket
 	Error(msg_type PacketType, error_code int32) *AyiPacket

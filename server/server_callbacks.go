@@ -544,18 +544,14 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	// Write response back
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
-	log.Printf("< (%v) INVITE USERS OK (eventID: %v, newParticipants: %v, total: %v)\n",
-		session, event.Id(), len(newParticipants), len(msg.Participants))
+	log.Printf("< (%v) INVITE USERS OK (eventID: %v, newParticipants: %v/%v, total: %v)\n",
+		session, event.Id(), len(newParticipants), len(msg.Participants), modifiedEvent.NumGuests())
 
-	// Send notification
-	participantList := make(map[int64]*model.Participant)
-	for _, user := range newParticipants {
-		participantList[user.Id()] = event.GetParticipant(user.Id())
-	}
-	netParticipants := convParticipantList2Net(participantList)
-	packet := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, int32(event.NumGuests()))
+	// Send new participants
+	netParticipants := convParticipantList2Net(newParticipants)
+	packet := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, modifiedEvent.NumGuests())
 	session.Write(packet)
-	log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
+	log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n", session.UserId, modifiedEvent.Id(), len(netParticipants))
 }
 
 // When a ConfirmAttendance message is received, the attendance response of the participant

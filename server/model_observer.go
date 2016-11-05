@@ -178,7 +178,7 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 			}
 
 			go func(session *AyiSession) {
-				message := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, int32(event.NumGuests()))
+				message := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, event.NumGuests())
 				if ok := session.Write(message); ok {
 					log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
 				} else {
