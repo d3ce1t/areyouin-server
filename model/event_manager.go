@@ -25,6 +25,9 @@ type EventManager struct {
 	settingsDAO     api.SettingsDAO
 	eventSignal     observer.Property
 	userEvents      *UserEvents
+
+	// Date till events have been archived. This date included. In other words,
+	// events before or equal to this date have been reviewed and archived.
 	lastArchiveTime time.Time
 }
 
@@ -349,6 +352,13 @@ func (m *EventManager) ChangeDeliveryState(event *Event, userId int64, state api
 	return participant, nil
 }
 
+// RemoveFromInbox is a workaround method to enable server removing cancelled events from
+// inbox after it has been sent to the client. This method will not be needed when an API
+// to retrieve last changes is able.
+func (m *EventManager) RemoveFromInbox(userID int64, eventID int64) {
+	m.userEvents.Remove(userID, eventID)
+}
+
 func (m *EventManager) GetEventForUser(userID int64, eventID int64) (*Event, error) {
 
 	event, err := m.LoadEvent(eventID)
@@ -363,7 +373,8 @@ func (m *EventManager) GetEventForUser(userID int64, eventID int64) (*Event, err
 	return event, nil
 }
 
-// FIXME: Do not get all of the private events, but limit to a fixed number.
+// TODO: Do not get all of the private events, but limit to a fixed number with
+// pagination support.
 func (m *EventManager) GetRecentEvents(userID int64) ([]*Event, error) {
 
 	// Event IDs
@@ -381,6 +392,7 @@ func (m *EventManager) GetRecentEvents(userID int64) ([]*Event, error) {
 
 	// Convert DTO to model.Event
 	events := make([]*Event, 0, len(eventsDTO))
+
 	for _, ev := range eventsDTO {
 		event := newEventFromDTO(ev)
 		event.isPersisted = true
@@ -472,11 +484,11 @@ func (m *EventManager) BuildEventsHistory() error {
 
 	currentTime := utils.GetCurrentTimeUTC()
 
-	err := m.eventDAO.RangeAll(func(event *api.EventDTO) error {
+	handler := func(event *api.EventDTO) error {
 
 		endDate := utils.MillisToTimeUTC(event.EndDate)
 
-		if endDate.After(currentTime) {
+		if !event.Cancelled && endDate.After(currentTime) {
 			log.Printf("WARNING: Skip archiving event %v because it has not finished yet", event.Id)
 			return nil
 		}
@@ -486,9 +498,17 @@ func (m *EventManager) BuildEventsHistory() error {
 		}
 
 		return nil
-	})
+	}
 
-	return err
+	if err := m.eventDAO.RangeAll(handler); err != nil {
+		return err
+	}
+
+	if err := m.updateAndPersistLastArchiveTime(currentTime); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *EventManager) Observe() observer.Stream {
@@ -610,21 +630,14 @@ func (m *EventManager) saveModifiedEvent(event *Event) error {
 		return ErrEventOutOfCreationWindow
 	}
 
-	// Persist event. Take into account that only new participants must be written
-	// because previous participants could have changed their state since event
-	// was loaded
-	eventDTO := event.CloneEmptyParticipants().AsDTO()
-	newParticipants := m.ExtractNewParticipants(event, oldEvent)
-	for pID, participant := range newParticipants {
-		eventDTO.Participants[pID] = participant.AsDTO()
-	}
-
 	// Persist event
-	if err := m.eventDAO.Replace(oldEvent.AsDTO(), eventDTO); err != nil {
+	if err := m.eventDAO.Replace(oldEvent.AsDTO(), event.AsDTO()); err != nil {
 		return err
 	}
 
 	if !event.cancelled {
+
+		newParticipants := m.ExtractNewParticipants(event, oldEvent)
 
 		// Add this event to user's inbox
 		for pID := range newParticipants {
@@ -643,10 +656,11 @@ func (m *EventManager) saveModifiedEvent(event *Event) error {
 
 	} else {
 
-		// Remove this event from user's inbox
-		for pID := range event.participants {
-			m.userEvents.Remove(pID, event.Id())
-		}
+		// Do not remove from user's inbox in order to give users a
+		// chance to read the cancelled state. Server is responsible to
+		// call RemoveFromInbox when a cancelled event is read.
+		// TODO: When a supported API for sending changes to users become available,
+		// add here logic to remove events from inbox.
 
 		// Emit cancelled
 		m.emitEventCancelled(event, event.owner)
@@ -766,11 +780,15 @@ func (m *EventManager) loadActiveEvents() error {
 	// Range events
 	err = m.eventDAO.RangeEvents(func(event *api.EventDTO) error {
 
+		// WORKAROUND: Include cancelled events so that clients have a chance
+		// to get the event with the cancelled state. When an API for get last
+		// changes from last time is available, enable this code.
+
 		if event.Cancelled {
 			// Time line should not include cancelled events
-			log.Printf("WARNING: Timeline includes cancelled events (currentTime: %v, EventID: %v)\n",
+			log.Printf("NOTICE: Timeline includes cancelled events (currentTime: %v, EventID: %v)\n",
 				currentTime, event.Id)
-			return nil
+			//return nil
 		}
 
 		for pID := range event.Participants {
@@ -817,12 +835,12 @@ func (m *EventManager) archiveEvent(event *api.EventDTO) error {
 // i.e. events are move from user's recent events to events history
 func (m *EventManager) archiveFinishedEventsSinceLastCheck() error {
 
-	currentTime := utils.GetCurrentTimeUTC()
+	currentTime := utils.GetCurrentTimeUTC().Truncate(time.Millisecond)
 
 	// Get events between last check and current time, both included.
 	// In order to not retrieve events that were loaded in the previous call,
 	// add 1 millisecond to the begining of the window.
-	from := m.lastArchiveTime.Add(time.Millisecond)
+	from := m.lastArchiveTime.Truncate(time.Millisecond).Add(time.Millisecond)
 	entries, err := m.timelineDAO.FindAllBetween(from, currentTime)
 	if err != nil {
 		return err
@@ -832,15 +850,15 @@ func (m *EventManager) archiveFinishedEventsSinceLastCheck() error {
 
 		endDate := utils.MillisToTimeUTC(event.EndDate)
 
+		if event.Cancelled {
+			// Skip cancelled events. They are archived when cancelled.
+			log.Printf("WARNING: Skip archiving event %v because it's cancelled (likely already archived)", event.Id)
+			return nil
+		}
+
 		if endDate.After(currentTime) {
 			log.Printf("WARNING: Stop archiving events because there are events that have not finished yet (%v)", event.Id)
 			return ErrCannotArchive
-		}
-
-		if event.Cancelled {
-			// Skip cancelled events. They are archived when cancelled.
-			log.Printf("WARNING: Skip archiving event %v because it's cancelled (so likely already archived)", event.Id)
-			return nil
 		}
 
 		// Archive
@@ -858,7 +876,7 @@ func (m *EventManager) archiveFinishedEventsSinceLastCheck() error {
 
 	if len(entries) > 0 {
 
-		log.Printf("Num.Events %v from %v to %v", len(entries), from, currentTime)
+		log.Printf("JobManager: Start archiving %v events from %v to %v", len(entries), from, currentTime)
 
 		// Extract IDs
 		eventIDs := make([]int64, 0, len(entries))
@@ -870,18 +888,26 @@ func (m *EventManager) archiveFinishedEventsSinceLastCheck() error {
 		// TODO: If archive fails in the middle then retry from (minute, event). Currently, retry policy starts
 		// again from (minute) so it will re-archive already archived events. This is not harmful but is a
 		// waste of resources.
-		err = m.eventDAO.RangeEvents(handler, eventIDs...)
-		if err != nil {
+		if err := m.eventDAO.RangeEvents(handler, eventIDs...); err != nil {
 			return err
 		}
 
 		// Update lastArchiveTime
-		value := strconv.FormatInt(utils.TimeToMillis(currentTime), 10)
-		if err := m.settingsDAO.Insert(api.MasterLastArchiveTime, value); err != nil {
+		if err := m.updateAndPersistLastArchiveTime(currentTime); err != nil {
 			return err
 		}
-		m.lastArchiveTime = currentTime
+
+		log.Println("JobManager: Archiving events finished")
 	}
 
+	return nil
+}
+
+func (m *EventManager) updateAndPersistLastArchiveTime(t time.Time) error {
+	value := strconv.FormatInt(utils.TimeToMillis(t), 10)
+	if err := m.settingsDAO.Insert(api.MasterLastArchiveTime, value); err != nil {
+		return err
+	}
+	m.lastArchiveTime = t
 	return nil
 }

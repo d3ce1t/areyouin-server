@@ -612,6 +612,11 @@ func onReadEvent(request *proto.AyiPacket, message proto.Message, session *AyiSe
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Event(netEvent))
 	log.Printf("< (%v) SEND EVENT %v\n", session.UserId, event.Id())
 
+	// WORKAROUND: Read EventManager
+	if event.IsCancelled() {
+		server.Model.Events.RemoveFromInbox(session.UserId, event.Id())
+	}
+
 	if event.Status() == api.EventState_NOT_STARTED {
 		// Update delivery status
 		// TODO: I should receive an ACK before try to change state.
@@ -657,6 +662,12 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 
 	// Update delivery status
 	for _, event := range events {
+
+		// WORKAROUND: Read EventManager
+		if event.IsCancelled() {
+			server.Model.Events.RemoveFromInbox(session.UserId, event.Id())
+		}
+
 		// TODO: I should receive an ACK before try to change state.
 		if participant := event.GetParticipant(session.UserId); participant != nil {
 			if participant.InvitationStatus() != api.InvitationStatus_CLIENT_DELIVERED {

@@ -193,7 +193,6 @@ func (m *ModelObserver) processEventCancelledSignal(signal *model.Signal) {
 
 	event := signal.Data["Event"].(*model.Event)
 	cancelledBy := signal.Data["CancelledBy"].(int64)
-	//liteEvent := convEvent2Net(event.CloneEmptyParticipants())
 
 	for _, pID := range event.ParticipantIds() {
 

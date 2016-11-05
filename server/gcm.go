@@ -78,7 +78,7 @@ func sendEventCancelledNotification(event *model.Event, userID int64) {
 			TimeToLive:       &gcmTTL,
 			Priority:         "high",
 			Notification:     createEventCancelledNotification(event),
-			ContentAvailable: true, // For iOS
+			ContentAvailable: true, // For iOS, like send to sync
 		})
 
 		if token.Platform() == PLATFORM_ANDROID {

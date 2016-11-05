@@ -77,6 +77,8 @@ func (d *EventDAO) Insert(event *api.EventDTO) error {
 // contains new participants only.
 func (d *EventDAO) Replace(oldEvent *api.EventDTO, newEvent *api.EventDTO) error {
 
+	// TODO: Optimise use case when only it has to write to event (with and without participants)
+
 	if oldEvent.Id != newEvent.Id {
 		return ErrIllegalArguments
 	}
@@ -96,11 +98,14 @@ func (d *EventDAO) Replace(oldEvent *api.EventDTO, newEvent *api.EventDTO) error
 
 	// Prepare batch
 	batch := d.session.NewBatch(gocql.LoggedBatch)
+
+	// WORKAROUND: WithTimestamp isn't working so make use of USING TIMESTAMP as part of the Query.
 	//batch.WithTimestamp(newEvent.Timestamp)
 
-	// TODO: Optimise use case when only it has to write to event (with and without participants)
-
-	if newPosition != oldPosition {
+	// WORKAROUND: By now, do not move cancelled events in time line in order to
+	// let a fresh reboot of the server to load cancelled events and give clients
+	// a chance to receive the last event state.
+	if !newEvent.Cancelled && newPosition != oldPosition {
 		stmtTimelineDelete := `DELETE FROM events_timeline USING TIMESTAMP ? WHERE bucket = ? AND position = ? AND event_id = ?`
 		stmtTimelineAdd := `INSERT INTO events_timeline (bucket, event_id, position) VALUES (?, ?, ?) USING TIMESTAMP ?`
 		newBucket := newPosition.Year()
@@ -130,7 +135,7 @@ func (d *EventDAO) Replace(oldEvent *api.EventDTO, newEvent *api.EventDTO) error
 		}
 	}
 
-	if !oldEvent.Cancelled && newEvent.Cancelled && len(newParticipants) == 0 {
+	if !oldEvent.Cancelled && newEvent.Cancelled {
 		// Event was just cancelled. Insert event into user events history
 		historyStmt := `INSERT INTO events_history_by_user (user_id, position, event_id) VALUES (?, ?, ?) USING TIMESTAMP ?`
 		for pID := range newEvent.Participants {
