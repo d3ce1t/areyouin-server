@@ -3,9 +3,10 @@ package protocol
 import (
 	"bytes"
 	"fmt"
-	proto "github.com/golang/protobuf/proto"
 	"log"
 	"runtime/debug"
+
+	proto "github.com/golang/protobuf/proto"
 )
 
 func newPacket() *AyiPacket {
@@ -87,8 +88,10 @@ func (packet *AyiPacket) SetMessage(message Message) {
 
 	size := len(data)
 
-	if size > MAX_PAYLOAD_SIZE {
-		log.Printf("WARNING: Message exceeds max.size of %v bytes\n", MAX_PAYLOAD_SIZE)
+	if size > maxPayloadSizeBytes {
+		log.Printf("WARNING: Message exceeds max.size of %v bytes (%v > %v\n",
+			maxPayloadSizeBytes, size, maxPayloadSizeBytes)
+		log.Printf("Message -> %v", message)
 	}
 
 	packet.Data = data

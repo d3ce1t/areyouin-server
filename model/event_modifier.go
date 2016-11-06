@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"peeple/areyouin/api"
 	"peeple/areyouin/utils"
 	"time"
@@ -28,6 +29,7 @@ type eventModifier struct {
 	description        string
 	participantBuilder *participantListCreator
 	eventManager       *EventManager
+	pictureDigest      []byte
 	// New fields for modification
 	modifiedDate        time.Time
 	cancelled           bool
@@ -60,6 +62,7 @@ func (m *EventManager) NewEventModifier(event *Event, ownerID int64) (EventModif
 		startDate:          event.startDate,
 		endDate:            event.endDate,
 		description:        event.description,
+		pictureDigest:      bytes.Repeat(event.pictureDigest, 1),
 		participantBuilder: m.newParticipantListCreator(),
 		eventManager:       m,
 		// New fields
@@ -128,6 +131,7 @@ func (b *eventModifier) Build() (*Event, error) {
 		inboxPosition: b.startDate,
 		startDate:     b.startDate,
 		endDate:       b.endDate,
+		pictureDigest: bytes.Repeat(b.pictureDigest, 1),
 		cancelled:     b.cancelled,
 		numAttendees:  0,
 		numGuests:     int32(len(b.currentParticipants)),

@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	MAX_WRITE_TIMEOUT = 15 * time.Second
-	MAX_PAYLOAD_SIZE  = 1024000 // 1 Mb
-	VERSION_1         = 0       // Use old packet v1
-	VERSION_2         = 1       // Use new header format pb based
-	VERSION_3         = 2       // Same header but different behaviour
+	MAX_WRITE_TIMEOUT   = 15 * time.Second
+	maxPayloadSizeBytes = 1 * 1024 * 1024 // 1 Mb
+	VERSION_1           = 0               // Use old packet v1
+	VERSION_2           = 1               // Use new header format pb based
+	VERSION_3           = 2               // Same header but different behaviour
 )
 
 func NewPacket(version uint8) *PacketBuilder {
@@ -80,7 +80,7 @@ func ReadPacket(reader io.Reader) (*AyiPacket, error) {
 	// Read Payload
 	payload_size := packet.Header.GetSize()
 
-	if payload_size > MAX_PAYLOAD_SIZE {
+	if payload_size > maxPayloadSizeBytes {
 		return nil, ErrMaxPayloadExceeded
 	}
 
