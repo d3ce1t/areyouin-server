@@ -242,15 +242,7 @@ func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 
 	// Emit signal
 	if modified {
-		signal := &Signal{
-			Type: SignalEventInfoChanged,
-			Data: map[string]interface{}{
-				"EventID": event.Id(),
-				"Event":   event,
-			},
-		}
-
-		m.eventSignal.Update(signal)
+		m.emitEventoInfoChanged(event)
 	}
 
 	return nil
@@ -690,7 +682,8 @@ func (m *EventManager) isEventInfoChanged(event *Event, oldEvent *Event) bool {
 		event.createdDate.Equal(oldEvent.createdDate) &&
 		event.inboxPosition.Equal(oldEvent.inboxPosition) &&
 		event.description == oldEvent.description &&
-		event.cancelled == oldEvent.cancelled {
+		event.cancelled == oldEvent.cancelled &&
+		bytes.Equal(event.pictureDigest, oldEvent.pictureDigest) {
 
 		return false
 	}

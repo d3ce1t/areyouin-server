@@ -83,8 +83,6 @@ func (m *ModelObserver) processSignal(signal *model.Signal) {
 		// Enqueue signal in order to cancel previous notifications
 		collapseKey := fmt.Sprintf("event#%v", signal.Data["EventID"])
 		m.signalsQueue.AddWithKey(collapseKey, signal)
-		// Process signal inmediately
-		m.processEventCancelledSignal(signal)
 
 	case model.SignalEventInfoChanged:
 		collapseKey := fmt.Sprintf("event-change#%v", signal.Data["EventID"])
@@ -120,8 +118,8 @@ func (m *ModelObserver) processDelayedChanges() {
 		case model.SignalEventParticipantsInvited:
 			m.processNewEventSignal(signal)
 
-			/*case model.SignalEventCancelled:
-			m.processEventCancelledSignal(signal)*/
+		case model.SignalEventCancelled:
+			m.processEventCancelledSignal(signal)
 
 		case model.SignalEventInfoChanged:
 			m.processEventChangedSignal(signal)
