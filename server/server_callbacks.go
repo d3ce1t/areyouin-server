@@ -358,8 +358,9 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	modificationDate := utils.MillisToTimeUTC(msg.ModifyDate)
 	startDate := utils.MillisToTimeUTC(msg.StartDate)
 	endDate := utils.MillisToTimeUTC(msg.EndDate)
-	log.Printf("> (%v) MODIFY EVENT %v (message: %v, start: %v, end: %v, invitations: %v, picture: %v, remove: %v)\n",
-		session, msg.EventId, msg.Message != "", startDate, endDate, len(msg.Participants), len(msg.Picture) > 0, msg.RemovePicture)
+	log.Printf("> (%v) MODIFY EVENT %v (message: %v, start: %v, end: %v, modify: %v, invitations: %v, picture: %v, remove: %v)\n",
+		session, msg.EventId, msg.Message != "", startDate, endDate, modificationDate,
+		len(msg.Participants), len(msg.Picture) > 0, msg.RemovePicture)
 
 	checkAuthenticated(session)
 
@@ -376,17 +377,21 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkNoErrorOrPanic(err)
 
 	b.SetModifiedDate(modificationDate)
+	eventInfoChanged := false
 
-	if msg.Message != "" {
+	if msg.Message != "" && msg.Message != event.Description() {
 		b.SetDescription(msg.Message)
+		eventInfoChanged = true
 	}
 
-	if !startDate.IsZero() {
+	if !startDate.IsZero() && !startDate.Equal(event.StartDate()) {
 		b.SetStartDate(startDate)
+		eventInfoChanged = true
 	}
 
-	if !endDate.IsZero() {
+	if !endDate.IsZero() && !endDate.Equal(event.EndDate()) {
 		b.SetEndDate(endDate)
+		eventInfoChanged = true
 	}
 
 	for _, pID := range msg.Participants {
@@ -406,6 +411,8 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 		if err := server.Model.Events.ChangeEventPicture(modifiedEvent, msg.Picture); err != nil {
 			log.Printf("* (%v) Error saving picture for event %v (%v)\n", session, modifiedEvent.Id(), err)
+		} else {
+			eventInfoChanged = true
 		}
 	}
 
@@ -414,19 +421,20 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	log.Printf("< (%v) MODIFY EVENT OK (eventId: %v)\n", session, event.Id())
 
 	// Send event changed
-	// NOTE: Send liteEvent because full event causes a crash in iOS version lower than 1.0.11
-	// FIXME: If two users modify event at the same time, each one will receive a different view of the event
-	netEvent := convEvent2Net(modifiedEvent.CloneEmptyParticipants())
-	session.Write(session.NewMessage().EventModified(netEvent))
-	log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, modifiedEvent.Id())
+	if eventInfoChanged {
+		// NOTE: Send liteEvent because full event causes a crash in iOS version lower than 1.0.11
+		// FIXME: If two users modify event at the same time, each one will receive a different view of the event
+		netEvent := convEvent2Net(modifiedEvent.CloneEmptyParticipants())
+		session.Write(session.NewMessage().EventModified(netEvent))
+		log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, modifiedEvent.Id())
+	}
 
 	// Send participants by other means
 	newParticipants := server.Model.Events.ExtractNewParticipants(modifiedEvent, event)
 
 	if len(newParticipants) > 0 {
 		netParticipants := convParticipantList2Net(newParticipants)
-		packet := session.NewMessage().AttendanceStatus(modifiedEvent.Id(), netParticipants)
-		//packet := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, int32(event.NumGuests()))
+		packet := session.NewMessage().AttendanceStatusWithNumGuests(event.Id(), netParticipants, modifiedEvent.NumGuests())
 		session.Write(packet)
 		log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n",
 			session.UserId, modifiedEvent.Id(), len(newParticipants))
