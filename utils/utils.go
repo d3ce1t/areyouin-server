@@ -114,6 +114,10 @@ func MillisToTimeUTC(timestamp int64) time.Time {
 	return time.Time{}
 }
 
+func CreateDate(year, month, day, hour, min int) time.Time {
+	return time.Date(year, time.Month(month), day, hour, min, 0, 0, time.UTC)
+}
+
 func RandUint16() (uint16, error) {
 	v, err := rand.Int(rand.Reader, big.NewInt(65536))
 	return uint16(v.Int64()), err

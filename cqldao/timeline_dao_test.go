@@ -1,18 +1,14 @@
 package cqldao
 
 import (
+	"peeple/areyouin/utils"
 	"testing"
-	"time"
 )
-
-func createDate(year, month, day, hour, min int) time.Time {
-	return time.Date(year, time.Month(month), day, hour, min, 0, 0, time.UTC)
-}
 
 func TestTimeLineDAO_Insert(t *testing.T) {
 
 	d := NewTimeLineDAO(session)
-	origin := createDate(2016, 11, 3, 12, 0)
+	origin := utils.CreateDate(2016, 11, 3, 12, 0)
 
 	for _, dto := range generateTimelineEntries(origin, 50) {
 		if err := d.Insert(dto); err != nil {
@@ -31,7 +27,7 @@ func TestTimeLineDAO_FindAllForward(t *testing.T) {
 	}
 
 	// Insert
-	origin := createDate(2016, 11, 3, 12, 0)
+	origin := utils.CreateDate(2016, 11, 3, 12, 0)
 	entries := generateTimelineEntries(origin, 50)
 	for _, dto := range entries {
 		if err := d.Insert(dto); err != nil {
@@ -64,7 +60,7 @@ func TestTimeLineDAO_FindAllBackward(t *testing.T) {
 	}
 
 	// Insert
-	origin := createDate(2016, 11, 3, 12, 0)
+	origin := utils.CreateDate(2016, 11, 3, 12, 0)
 	entries := generateTimelineEntries(origin, 50)
 	for _, dto := range entries {
 		if err := d.Insert(dto); err != nil {
@@ -97,7 +93,7 @@ func TestTimeLineDAO_FindAllBetween(t *testing.T) {
 	}
 
 	// Insert
-	origin := createDate(2016, 11, 3, 12, 0)
+	origin := utils.CreateDate(2016, 11, 3, 12, 0)
 	entries := generateTimelineEntries(origin, 50)
 	for _, dto := range entries {
 		if err := d.Insert(dto); err != nil {
@@ -136,7 +132,7 @@ func TestTimeLineDAO_Replace(t *testing.T) {
 	}
 
 	// Insert
-	origin := createDate(2016, 11, 3, 12, 0)
+	origin := utils.CreateDate(2016, 11, 3, 12, 0)
 	groundtruth := generateTimelineEntries(origin, 50)
 	for _, dto := range groundtruth {
 		if err := d.Insert(dto); err != nil {
@@ -177,7 +173,7 @@ func TestTimeLineDAO_Delete(t *testing.T) {
 	}
 
 	// Insert
-	origin := createDate(2016, 11, 3, 12, 0)
+	origin := utils.CreateDate(2016, 11, 3, 12, 0)
 	entries := generateTimelineEntries(origin, 50)
 	for _, dto := range entries {
 		if err := d.Insert(dto); err != nil {

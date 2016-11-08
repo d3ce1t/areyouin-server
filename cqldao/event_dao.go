@@ -32,6 +32,10 @@ func (d *EventDAO) Insert(event *api.EventDTO) error {
 
 	checkSession(d.session)
 
+	if event == nil || event.Id == 0 {
+		return ErrIllegalArguments
+	}
+
 	stmtTimeline := `INSERT INTO events_timeline (bucket, event_id, position)
 		VALUES (?, ?, ?) USING TIMESTAMP ?`
 
@@ -79,7 +83,7 @@ func (d *EventDAO) Replace(oldEvent *api.EventDTO, newEvent *api.EventDTO) error
 
 	// TODO: Optimise use case when only it has to write to event (with and without participants)
 
-	if oldEvent.Id != newEvent.Id {
+	if oldEvent == nil || newEvent == nil || oldEvent.Id != newEvent.Id || newEvent.Id == 0 {
 		return ErrIllegalArguments
 	}
 

@@ -29,6 +29,7 @@ type UserDAO interface {
 	SetFacebook(userId int64, fbId string, fbToken string) error
 	SetIIDToken(userId int64, iidToken *IIDTokenDTO) error
 	Delete(user *UserDTO) error
+	DeleteAll() error
 }
 
 type EventTimeLineDAO interface {

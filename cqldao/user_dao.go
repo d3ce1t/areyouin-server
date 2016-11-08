@@ -539,3 +539,29 @@ func (dao *UserDAO) Delete(user *api.UserDTO) error {
 
 	return convErr(dao.session.ExecuteBatch(batch))
 }
+
+func (d *UserDAO) DeleteAll() error {
+
+	checkSession(d.session)
+
+	if err := d.session.Query("TRUNCATE user_account").Exec(); err != nil {
+		return err
+	}
+	if err := d.session.Query("TRUNCATE user_email_credentials").Exec(); err != nil {
+		return err
+	}
+	if err := d.session.Query("TRUNCATE user_facebook_credentials").Exec(); err != nil {
+		return err
+	}
+	if err := d.session.Query("TRUNCATE friends_by_user").Exec(); err != nil {
+		return err
+	}
+	if err := d.session.Query("TRUNCATE groups_by_user").Exec(); err != nil {
+		return err
+	}
+	if err := d.session.Query("TRUNCATE friends_by_group").Exec(); err != nil {
+		return err
+	}
+
+	return nil
+}
