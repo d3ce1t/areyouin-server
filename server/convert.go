@@ -33,7 +33,7 @@ func convEvent2Net(event *model.Event) *core.Event {
 		Participants:  make(map[int64]*core.EventParticipant),
 	}
 
-	for _, p := range event.Participants() {
+	for _, p := range event.Participants.AsSlice() {
 
 		netEvent.Participants[p.Id()] = &core.EventParticipant{
 			UserId:    p.Id(),

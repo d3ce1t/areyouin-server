@@ -342,7 +342,7 @@ func onCreateEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 		session, event.Id(), event.NumGuests(), 1+len(msg.Participants)-event.NumGuests())
 
 	// Change invitation status
-	_, err = server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
+	_, err = server.Model.Events.ChangeDeliveryState(session.UserId, api.InvitationStatus_CLIENT_DELIVERED, event)
 	if err != nil {
 		log.Printf("* (%v) CREATE EVENT WARNING Changing delivery state: %err", err)
 	}
@@ -373,9 +373,7 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkEventAuthorOrPanic(authorID, event)
 
 	// Modify event
-	b, err := server.Model.Events.NewEventModifier(event, authorID)
-	checkNoErrorOrPanic(err)
-
+	b := server.Model.Events.NewEventModifier(event, authorID)
 	b.SetModifiedDate(modificationDate)
 	eventInfoChanged := false
 
@@ -488,9 +486,7 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkEventAuthorOrPanic(authorID, event)
 
 	// Cancel event
-	b, err := server.Model.Events.NewEventModifier(event, authorID)
-	checkNoErrorOrPanic(err)
-
+	b := server.Model.Events.NewEventModifier(event, authorID)
 	b.SetCancelled(true)
 	cancelledEvent, err := b.Build()
 	checkNoErrorOrPanic(err)
@@ -532,15 +528,11 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	// Check author
 	checkEventAuthorOrPanic(session.UserId, event)
 
-	// Get event modifier to add new participants
-	b, err := server.Model.Events.NewEventModifier(event, session.UserId)
-	checkNoErrorOrPanic(err)
-
+	// Build event
+	b := server.Model.Events.NewEventModifier(event, session.UserId)
 	for _, pID := range msg.Participants {
 		b.ParticipantAdder().AddUserID(pID)
 	}
-
-	// Build event
 	modifiedEvent, err := b.Build()
 	checkNoErrorOrPanic(err)
 
@@ -628,9 +620,9 @@ func onReadEvent(request *proto.AyiPacket, message proto.Message, session *AyiSe
 	if event.Status() == api.EventState_NOT_STARTED {
 		// Update delivery status
 		// TODO: I should receive an ACK before try to change state.
-		if participant := event.GetParticipant(session.UserId); participant != nil {
+		if participant, _ := event.Participants.Get(session.UserId); participant != nil {
 			if participant.InvitationStatus() != api.InvitationStatus_CLIENT_DELIVERED {
-				_, err := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
+				_, err := server.Model.Events.ChangeDeliveryState(session.UserId, api.InvitationStatus_CLIENT_DELIVERED, event)
 				if err != nil {
 					log.Printf("* (%v) READ EVENT UPDATE DELIVERY STATUS ERROR (eventID: %v): %v)", session, event.Id(), err)
 				}
@@ -677,9 +669,9 @@ func onListPrivateEvents(request *proto.AyiPacket, message proto.Message, sessio
 		}
 
 		// TODO: I should receive an ACK before try to change state.
-		if participant := event.GetParticipant(session.UserId); participant != nil {
+		if participant, _ := event.Participants.Get(session.UserId); participant != nil {
 			if participant.InvitationStatus() != api.InvitationStatus_CLIENT_DELIVERED {
-				_, err := server.Model.Events.ChangeDeliveryState(event, session.UserId, api.InvitationStatus_CLIENT_DELIVERED)
+				_, err := server.Model.Events.ChangeDeliveryState(session.UserId, api.InvitationStatus_CLIENT_DELIVERED, event)
 				if err != nil {
 					log.Printf("* (%v) SEND PRIVATE EVENTS UPDATE DELIVERY STATUS ERROR (eventID: %v): %v)", session, event.Id(), err)
 				}

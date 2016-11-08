@@ -164,7 +164,7 @@ func (m *ModelObserver) processNewEventSignal(signal *model.Signal) {
 
 		participantList := make(map[int64]*model.Participant)
 		for _, id := range newParticipants {
-			participantList[id] = event.GetParticipant(id)
+			participantList[id], _ = event.Participants.Get(id)
 		}
 		netParticipants := convParticipantList2Net(participantList)
 
@@ -192,7 +192,7 @@ func (m *ModelObserver) processEventCancelledSignal(signal *model.Signal) {
 	event := signal.Data["Event"].(*model.Event)
 	cancelledBy := signal.Data["CancelledBy"].(int64)
 
-	for _, pID := range event.ParticipantIds() {
+	for _, pID := range event.Participants.Ids() {
 
 		if pID == cancelledBy {
 			continue
@@ -217,7 +217,7 @@ func (m *ModelObserver) processParticipantChangeSignal(signal *model.Signal) {
 	participantList[participant.Id()] = participant
 	netParticipant := convParticipantList2Net(participantList)
 
-	for _, pID := range event.ParticipantIds() {
+	for _, pID := range event.Participants.Ids() {
 
 		go func(participantID int64) {
 
@@ -244,7 +244,7 @@ func (m *ModelObserver) processEventChangedSignal(signal *model.Signal) {
 	event := signal.Data["Event"].(*model.Event)
 	liteEvent := convEvent2Net(event.CloneEmptyParticipants())
 
-	for _, pID := range event.ParticipantIds() {
+	for _, pID := range event.Participants.Ids() {
 
 		session := m.server.getSession(pID)
 		if session == nil {

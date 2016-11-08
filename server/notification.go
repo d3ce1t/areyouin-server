@@ -44,7 +44,7 @@ func createEventCancelledNotification(event *model.Event) *gcm.Notification {
 
 func createEventResponseNotification(event *model.Event, participantID int64) *gcm.Notification {
 
-	participant := event.GetParticipant(participantID)
+	participant, _ := event.Participants.Get(participantID)
 	titleArgs, _ := json.Marshal([]string{event.Title()})
 	bodyArgs, _ := json.Marshal([]string{participant.Name()})
 
