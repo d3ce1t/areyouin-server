@@ -37,11 +37,6 @@ type Event struct {
 	// an event loaded from db will have isPersisted set. However, a
 	// modified event will have it unset.
 	isPersisted bool
-
-	// Indicate if this object has been created and initialised
-	// from this package. This is used to filter Event{} objects
-	// in API calls
-	initialised bool
 }
 
 func newEventFromDTO(dto *api.EventDTO) *Event {
@@ -59,7 +54,6 @@ func newEventFromDTO(dto *api.EventDTO) *Event {
 		cancelled:     dto.Cancelled,
 		participants:  make(map[int64]*Participant),
 		timestamp:     dto.Timestamp,
-		initialised:   true,
 	}
 
 	for _, p := range dto.Participants {
@@ -178,6 +172,16 @@ func (e *Event) IsCancelled() bool {
 
 func (e *Event) Timestamp() int64 {
 	return e.timestamp
+}
+
+func (e *Event) IsZero() bool {
+	return e.id == 0 && e.authorID == 0 && e.authorName == "" &&
+		e.description == "" && e.pictureDigest == nil &&
+		e.createdDate.IsZero() && e.modifiedDate.IsZero() &&
+		e.inboxPosition.IsZero() && e.startDate.IsZero() &&
+		e.endDate.IsZero() && e.numAttendees == 0 &&
+		e.numGuests == 0 && e.cancelled == false &&
+		e.participants == nil
 }
 
 func (e *Event) AsDTO() *api.EventDTO {

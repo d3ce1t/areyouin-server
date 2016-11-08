@@ -15,12 +15,12 @@ var (
 	ErrNoCredentials   = errors.New("no credentials")
 
 	// Event
-	ErrNotInitialised       = errors.New("Object isn't initialised")
+	ErrInvalidEvent         = errors.New("event is invalid")
+	ErrInvalidOwner         = errors.New("invalid owner")
 	ErrInvalidAuthor        = errors.New("invalid author")
 	ErrInvalidDescription   = errors.New("invalid event description")
 	ErrInvalidStartDate     = errors.New("invalid start date")
 	ErrInvalidEndDate       = errors.New("invalid end date")
-	ErrInvalidEventData     = errors.New("invalid event data")
 	ErrParticipantsRequired = errors.New("participants required")
 	ErrCannotArchive        = errors.New("cannot archive event")
 
@@ -31,7 +31,7 @@ var (
 	ErrImageOutOfBounds      = errors.New("image is out of bounds")
 	ErrInvalidUserOrPassword = errors.New("invalid user or password")
 
-	ErrEventOutOfCreationWindow  = errors.New("event out of allowed creationg window")
+	ErrEventOutOfCreationWindow  = errors.New("event out of allowed creation window")
 	ErrEventNotWritable          = errors.New("event isn't writable")
 	ErrParticipantNotFound       = errors.New("participant not found")
 	ErrEmptyInbox                = errors.New("user inbox is empty")

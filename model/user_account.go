@@ -32,11 +32,11 @@ type UserAccount struct {
 	emailCred      *EmailCredential
 	fbCred         *FBCredential
 	createdDate    int64
-}
 
-/*func NewEmptyUserAccount() *UserAccount {
-	return &UserAccount{}
-}*/
+	// Indicate if this object has a copy in database. For instance,
+	// an user loaded from db will have isPersisted set.
+	isPersisted bool
+}
 
 func NewUserAccount(name string, email string, password string, phone string,
 	fbId string, fbToken string) (*UserAccount, error) {
@@ -157,13 +157,26 @@ func (u *UserAccount) HasFacebook() bool {
 	return u.fbCred != nil && u.fbCred.FbId != "" && u.fbCred.Token != ""
 }
 
-/*func (u *UserAccount) HasEmailCredentials() bool {
-	result := false
-	if u.emailCred.Email != "" && u.emailCred.Password  password != "" {
-		result = true
+func (u *UserAccount) IsZero() bool {
+	return u.id == 0 && u.name == "" && u.email == "" && !u.emailVerified &&
+		u.phone == "" && !u.phoneVerified && u.pictureDigest == nil &&
+		u.iidToken == IIDToken{} && u.lastConnection == 0 && u.authToken == "" &&
+		u.emailCred == nil && u.fbCred == nil && u.createdDate == 0
+}
+
+func (u *UserAccount) Clone() *UserAccount {
+	copy := new(UserAccount)
+	*copy = *u
+	if u.fbCred != nil {
+		copy.fbCred = new(FBCredential)
+		*(copy.fbCred) = *(u.fbCred)
 	}
-	return result
-}*/
+	if u.emailCred != nil {
+		copy.emailCred = new(EmailCredential)
+		*(copy.emailCred) = (*u.emailCred)
+	}
+	return copy
+}
 
 func (u *UserAccount) AsParticipant() *Participant {
 	return NewParticipant(u.id, u.name, api.AttendanceResponse_NO_RESPONSE,

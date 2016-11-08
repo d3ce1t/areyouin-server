@@ -109,7 +109,7 @@ func (self *AyiModel) GetClosestDpi(reqDpi int32) int32 {
 	return self.supportedDpi[dpi_index]
 }
 
-func getUserMapKeys(m map[int64]*UserAccount) []int64 {
+func UserMapKeys(m map[int64]*UserAccount) []int64 {
 	keys := make([]int64, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -117,10 +117,18 @@ func getUserMapKeys(m map[int64]*UserAccount) []int64 {
 	return keys
 }
 
-func getParticipantMapKeys(m map[int64]*Participant) []int64 {
+func ParticipantMapKeys(m map[int64]*Participant) []int64 {
 	keys := make([]int64, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
+	}
+	return keys
+}
+
+func FriendKeys(m []*Friend) []int64 {
+	keys := make([]int64, 0, len(m))
+	for _, f := range m {
+		keys = append(keys, f.id)
 	}
 	return keys
 }

@@ -177,14 +177,14 @@ func (m *FriendManager) ImportFacebookFriends(user *UserAccount, initialImport b
 	return addedFriends, nil
 }
 
-/*func (m *FriendManager) MakeFriends(user1 *UserAccount, user2 *UserAccount) error {
+func (m *FriendManager) MakeFriends(user1 *UserAccount, user2 *UserAccount) error {
 
 	err := m.friendDAO.MakeFriends(user1.AsFriend().AsDTO(), user2.AsFriend().AsDTO())
 	if err != nil {
 		return err
 	}
 
-	signal := &Signal{
+	/*signal := &Signal{
 		Type: SIGNAL_NEW_FRIENDS,
 		Data: map[string]interface{}{
 			"user1": user1.Id(),
@@ -192,10 +192,10 @@ func (m *FriendManager) ImportFacebookFriends(user *UserAccount, initialImport b
 		},
 	}
 
-	m.friendSignal.Update(signal)
+	m.friendSignal.Update(signal)*/
 
 	return nil
-}*/
+}
 
 // Since makeFriends() is bidirectional (adds the friend to user1 and user2). It can
 // be assumed that if first user is friend of the second one, then second user must also

@@ -17,7 +17,7 @@ type participantListCreator struct {
 	eventManager *EventManager
 	participants map[int64]interface{}
 	eventID      int64
-	authorID     int64
+	ownerID      int64
 	timestamp    int64
 }
 
@@ -29,8 +29,8 @@ func (m *EventManager) newParticipantListCreator() *participantListCreator {
 	}
 }
 
-func (b *participantListCreator) SetAuthor(authorID int64) {
-	b.authorID = authorID
+func (b *participantListCreator) SetOwner(ownerID int64) {
+	b.ownerID = ownerID
 }
 
 func (b *participantListCreator) SetEventID(eventID int64) {
@@ -64,11 +64,11 @@ func (b *participantListCreator) Len() int {
 
 func (b *participantListCreator) Build() (map[int64]*Participant, error) {
 
-	result := make(map[int64]*Participant)
-
-	if b.authorID == 0 {
+	if b.ownerID == 0 {
 		return nil, ErrMissingArgument
 	}
+
+	result := make(map[int64]*Participant)
 
 	for _, v := range b.participants {
 
@@ -90,13 +90,13 @@ func (b *participantListCreator) Build() (map[int64]*Participant, error) {
 			participant = v.(*Participant)
 		}
 
-		isFriend, err := b.eventManager.parent.Friends.IsFriend(participant.id, b.authorID)
+		isFriend, err := b.eventManager.parent.Friends.IsFriend(participant.id, b.ownerID)
 
 		if err != nil {
 			return nil, err
 		} else if !isFriend {
 			log.Printf("* WARNING: CREATE PARTICIPANT LIST -> USER %v TRIED TO ADD USER %v BUT THEY ARE NOT FRIENDS\n",
-				b.authorID, participant.id)
+				b.ownerID, participant.id)
 			continue
 		}
 

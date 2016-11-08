@@ -123,17 +123,13 @@ func (m *EventManager) startJobManager() {
 func (m *EventManager) NewEvent(author *UserAccount, createdDate time.Time, startDate time.Time, endDate time.Time,
 	description string, participants []int64) (*Event, error) {
 
-	b := m.NewEventBuilder(author.Id())
+	b := m.newEventBuilder()
 	b.SetAuthor(author)
 	b.SetCreatedDate(createdDate)
 	b.SetStartDate(startDate)
 	b.SetEndDate(endDate)
 	b.SetDescription(description)
 
-	pAuthor := NewParticipant(author.Id(), author.Name(),
-		api.AttendanceResponse_ASSIST, api.InvitationStatus_SERVER_DELIVERED)
-
-	b.ParticipantAdder().AddParticipant(pAuthor)
 	for _, pID := range participants {
 		b.ParticipantAdder().AddUserID(pID)
 	}
@@ -169,8 +165,8 @@ func (m *EventManager) LoadEvent(eventID int64) (*Event, error) {
 func (m *EventManager) SaveEvent(event *Event) error {
 
 	// Check precondition (1)
-	if event == nil || !event.initialised {
-		return ErrNotInitialised
+	if event == nil || event.IsZero() {
+		return ErrInvalidEvent
 	}
 
 	// Check precondition (2)
@@ -195,10 +191,16 @@ func (m *EventManager) SaveEvent(event *Event) error {
 // - (2) User who performs this operation have permission
 //
 // Preconditions
-// - (1) Event must have not started
+// - (1) Event is valid and persisted
+// - (2) Event must have not started
 func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 
 	// Check precondition (1)
+	if event == nil || event.IsZero() || !event.isPersisted {
+		return ErrInvalidEvent
+	}
+
+	// Check precondition (2)
 	if event.Status() != api.EventState_NOT_STARTED {
 		return ErrEventNotWritable
 	}
@@ -253,22 +255,25 @@ func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 // is equal to old response, then it would return false.
 //
 // Assumptions:
-// - (1) Event exist and is persisted in DB
-// - (2) User who performs this operation have permission
+// - (1) User who performs this operation has permissions
 //
 // Preconditions:
-// - (1) Event must have not started
-// - (2) User must have received this invitation, i.e. user is in event participant list
+// - (1) Event is valid and persisted
+// - (2) Event must have not started
+// - (3) User must have received this invitation, i.e. user is in event participant list
 func (m *EventManager) ChangeParticipantResponse(userID int64, response api.AttendanceResponse, event *Event) (*Participant, error) {
 
 	// Check precondition (1)
+	if event == nil || event.IsZero() || !event.isPersisted {
+		return nil, ErrInvalidEvent
+	}
 
+	// Check precondition (2)
 	if event.Status() != api.EventState_NOT_STARTED {
 		return nil, ErrEventNotWritable
 	}
 
-	// Check precondition (2)
-
+	// Check precondition (3)
 	participant, ok := event.participants[userID]
 	if !ok {
 		return nil, ErrParticipantNotFound
@@ -303,13 +308,27 @@ func (m *EventManager) ChangeParticipantResponse(userID int64, response api.Atte
 	return participant, nil
 }
 
-func (m *EventManager) ChangeDeliveryState(event *Event, userId int64, state api.InvitationStatus) (*Participant, error) {
+// Assumptions:
+// - (1) User who performs this operation has permissions
+//
+// Preconditions:
+// - (1) Event is valid and persisted
+// - (2) Event must have not started
+// - (3) User must have received this invitation, i.e. user is in event participant list
+func (m *EventManager) ChangeDeliveryState(userID int64, state api.InvitationStatus, event *Event) (*Participant, error) {
 
+	// Check precondition (1)
+	if event == nil || event.IsZero() || !event.isPersisted {
+		return nil, ErrInvalidEvent
+	}
+
+	// Check precondition (2)
 	if event.Status() != api.EventState_NOT_STARTED {
 		return nil, ErrEventNotWritable
 	}
 
-	participant, ok := event.participants[userId]
+	// Check precondition (3)
+	participant, ok := event.participants[userID]
 	if !ok {
 		return nil, ErrParticipantNotFound
 	}
@@ -566,31 +585,28 @@ func (m *EventManager) emitNewEvent(event *Event) {
 }
 
 /*
+ * saveNewEvent persists event object into database
+ * Asumptions
+ * (1) event is valid, i.e. valid author, description, dates, participants, etc.
  * Preconditions
- * (1) author must exists and be valid
- * (2) event must be created inside a valid temporal window
+ * (1) event must be created inside a valid temporal window
  */
 func (m *EventManager) saveNewEvent(event *Event) error {
 
 	currentDate := utils.GetCurrentTimeUTC().Truncate(time.Second)
 
-	// Check precondition (2)
+	// Check precondition (1)
 	if event.CreatedDate().Before(currentDate.Add(-2*time.Minute)) || event.CreatedDate().After(currentDate.Add(2*time.Minute)) {
 		return ErrEventOutOfCreationWindow
-	}
-
-	// Check precondition (1)
-	_, err := m.userDAO.Load(event.AuthorID())
-	if err == api.ErrNotFound {
-		return ErrInvalidAuthor
-	} else if err != nil {
-		return err
 	}
 
 	// Persist event.
 	if err := m.eventDAO.Insert(event.AsDTO()); err != nil {
 		return err
 	}
+
+	// TODO: If event is immutable should not do this
+	event.isPersisted = true
 
 	// Add to inbox
 	for pID := range event.participants {
@@ -610,7 +626,8 @@ func (m *EventManager) saveNewEvent(event *Event) error {
 
 /*
  * Preconditions
- * (1) event must be created inside a valid temporal window
+ * (1) event must be writeable
+ * (2) event must be created inside a valid temporal window
  */
 func (m *EventManager) saveModifiedEvent(event *Event) error {
 
@@ -618,6 +635,11 @@ func (m *EventManager) saveModifiedEvent(event *Event) error {
 	oldEvent := event.oldEvent
 
 	// Check precondition (1)
+	if oldEvent.Status() != api.EventState_NOT_STARTED {
+		return ErrEventNotWritable
+	}
+
+	// Check precondition (2)
 	if event.ModifiedDate().Before(currentDate.Add(-2*time.Minute)) || event.ModifiedDate().After(currentDate.Add(2*time.Minute)) {
 		return ErrEventOutOfCreationWindow
 	}
@@ -626,6 +648,9 @@ func (m *EventManager) saveModifiedEvent(event *Event) error {
 	if err := m.eventDAO.Replace(oldEvent.AsDTO(), event.AsDTO()); err != nil {
 		return err
 	}
+
+	// TODO: If event is immutable should not do this
+	event.isPersisted = true
 
 	if !event.cancelled {
 
@@ -643,7 +668,7 @@ func (m *EventManager) saveModifiedEvent(event *Event) error {
 
 		// Emit signal
 		if len(newParticipants) > 0 {
-			m.emitEventParticipantsInvited(event, getParticipantMapKeys(newParticipants), oldEvent.ParticipantIds())
+			m.emitEventParticipantsInvited(event, ParticipantMapKeys(newParticipants), oldEvent.ParticipantIds())
 		}
 
 	} else {

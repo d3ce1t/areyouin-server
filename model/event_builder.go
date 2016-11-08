@@ -1,6 +1,7 @@
 package model
 
 import (
+	"peeple/areyouin/api"
 	"peeple/areyouin/idgen"
 	"peeple/areyouin/utils"
 	"time"
@@ -17,11 +18,8 @@ type EventBuilder interface {
 }
 
 type eventBuilder struct {
-	ownerID int64
-	// Event data
 	eventID            int64
-	authorID           int64
-	authorName         string
+	author             *UserAccount
 	createdDate        time.Time
 	startDate          time.Time
 	endDate            time.Time
@@ -31,9 +29,8 @@ type eventBuilder struct {
 	//pictureDigest []byte
 }
 
-func (m *EventManager) NewEventBuilder(ownerID int64) EventBuilder {
+func (m *EventManager) newEventBuilder() EventBuilder {
 	return &eventBuilder{
-		ownerID:            ownerID,
 		createdDate:        utils.GetCurrentTimeUTC(),
 		participantBuilder: m.newParticipantListCreator(),
 		eventManager:       m,
@@ -41,9 +38,10 @@ func (m *EventManager) NewEventBuilder(ownerID int64) EventBuilder {
 }
 
 func (b *eventBuilder) SetAuthor(author *UserAccount) {
-	b.authorID = author.id
-	b.authorName = author.name
-	b.participantBuilder.SetAuthor(author.id)
+	if author != nil {
+		b.author = author
+		b.participantBuilder.SetOwner(author.id)
+	}
 }
 
 func (b *eventBuilder) SetCreatedDate(date time.Time) {
@@ -70,12 +68,20 @@ func (b *eventBuilder) ParticipantAdder() ParticipantAdder {
 
 func (b *eventBuilder) Build() (*Event, error) {
 
-	// Event ID and timestamp
+	// Event ID
 	b.eventID = idgen.NewID()
 	b.participantBuilder.SetEventID(b.eventID)
 
+	// Timestamp
 	timestamp := b.createdDate.UnixNano() / 1000
 	b.participantBuilder.SetTimestamp(timestamp)
+
+	// Add author to the event
+	if b.author != nil {
+		pAuthor := NewParticipant(b.author.Id(), b.author.Name(),
+			api.AttendanceResponse_ASSIST, api.InvitationStatus_SERVER_DELIVERED)
+		b.ParticipantAdder().AddParticipant(pAuthor)
+	}
 
 	// Validate data
 	if err := b.validateData(); err != nil {
@@ -91,8 +97,8 @@ func (b *eventBuilder) Build() (*Event, error) {
 	// Build event
 	event := &Event{
 		id:            b.eventID,
-		authorID:      b.authorID,
-		authorName:    b.authorName,
+		authorID:      b.author.id,
+		authorName:    b.author.name,
 		description:   b.description,
 		createdDate:   b.createdDate.Truncate(time.Second),
 		inboxPosition: b.startDate,
@@ -102,8 +108,7 @@ func (b *eventBuilder) Build() (*Event, error) {
 		numGuests:     int32(len(participants)),
 		participants:  participants,
 		timestamp:     timestamp,
-		owner:         b.ownerID,
-		initialised:   true,
+		owner:         b.author.id,
 		isPersisted:   false,
 		oldEvent:      nil,
 	}
@@ -114,10 +119,11 @@ func (b *eventBuilder) Build() (*Event, error) {
 func (b *eventBuilder) validateData() error {
 
 	if b.eventID == 0 {
-		return ErrInvalidEventData
+		return ErrInvalidEvent
 	}
 
-	if b.authorID == 0 || !IsValidName(b.authorName) {
+	if b.author == nil || b.author.IsZero() || !b.author.isPersisted ||
+		b.author.id == 0 || !IsValidName(b.author.name) {
 		return ErrInvalidAuthor
 	}
 
@@ -133,9 +139,10 @@ func (b *eventBuilder) validateData() error {
 		return ErrInvalidEndDate
 	}
 
-	if b.participantBuilder.Len() == 0 {
+	// Build() always insert author as participant. So Len() will never return 0
+	/*if b.participantBuilder.Len() == 0 {
 		return ErrParticipantsRequired
-	}
+	}*/
 
 	return nil
 }

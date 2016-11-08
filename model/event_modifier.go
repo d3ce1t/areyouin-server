@@ -39,49 +39,39 @@ type eventModifier struct {
 	sourceEvent         *Event
 }
 
-func (m *EventManager) NewEventModifier(event *Event, ownerID int64) (EventModifier, error) {
-
-	if event == nil {
-		return nil, ErrIllegalArgument
-	}
-
-	if !event.initialised {
-		return nil, ErrNotInitialised
-	}
-
-	if event.Status() != api.EventState_NOT_STARTED {
-		return nil, ErrEventNotWritable
-	}
+func (m *EventManager) NewEventModifier(event *Event, ownerID int64) EventModifier {
 
 	b := &eventModifier{
-		// Event data
-		eventID:            event.id,
-		authorID:           event.authorID,
-		authorName:         event.authorName,
-		createdDate:        event.createdDate,
-		startDate:          event.startDate,
-		endDate:            event.endDate,
-		description:        event.description,
-		pictureDigest:      bytes.Repeat(event.pictureDigest, 1),
-		participantBuilder: m.newParticipantListCreator(),
-		eventManager:       m,
-		// New fields
-		modifiedDate:        utils.GetCurrentTimeUTC(),
-		cancelled:           event.cancelled,
-		currentParticipants: make(map[int64]*Participant),
-		sourceEvent:         event, // event is immutable
 		ownerID:             ownerID,
+		modifiedDate:        utils.GetCurrentTimeUTC(),
+		currentParticipants: make(map[int64]*Participant),
+		participantBuilder:  m.newParticipantListCreator(),
+		sourceEvent:         event, // event is immutable
+		eventManager:        m,
 	}
 
-	b.participantBuilder.SetEventID(event.id)
-	b.participantBuilder.SetAuthor(ownerID)
+	if event != nil {
+		b.eventID = event.id
+		b.authorID = event.authorID
+		b.authorName = event.authorName
+		b.createdDate = event.createdDate
+		b.startDate = event.startDate
+		b.endDate = event.endDate
+		b.description = event.description
+		b.pictureDigest = bytes.Repeat(event.pictureDigest, 1)
+		b.cancelled = event.cancelled
 
-	for k, v := range event.participants {
-		// Participant is immutable so I can assign the pointer
-		b.currentParticipants[k] = v
+		for k, v := range event.participants {
+			// Participant is immutable so I can assign the pointer
+			b.currentParticipants[k] = v
+		}
+
+		b.participantBuilder.SetEventID(event.id)
 	}
 
-	return b, nil
+	b.participantBuilder.SetOwner(ownerID)
+
+	return b
 }
 
 func (b *eventModifier) SetModifiedDate(date time.Time) {
@@ -138,7 +128,6 @@ func (b *eventModifier) Build() (*Event, error) {
 		participants:  make(map[int64]*Participant),
 		owner:         b.ownerID,
 		timestamp:     timestamp,
-		initialised:   true,
 		isPersisted:   false,
 		oldEvent:      b.sourceEvent,
 	}
@@ -179,7 +168,11 @@ func (b *eventModifier) Build() (*Event, error) {
 func (b *eventModifier) validateData() error {
 
 	if b.eventID == 0 {
-		return ErrInvalidEventData
+		return ErrInvalidEvent
+	}
+
+	if b.ownerID == 0 {
+		return ErrInvalidOwner
 	}
 
 	if b.authorID == 0 || !IsValidName(b.authorName) {

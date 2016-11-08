@@ -49,7 +49,7 @@ func (m *AccountManager) Observe() observer.Stream {
 // - ErrInvalidPassword
 // - ErrNoCredentials
 // - facebook.ErrFacebookAccessForbidden
-func (self *AccountManager) CreateUserAccount(name string, email string, password string, phone string, fbId string, fbToken string) (*UserAccount, error) {
+func (m *AccountManager) CreateUserAccount(name string, email string, password string, phone string, fbId string, fbToken string) (*UserAccount, error) {
 
 	// Create new and valid user account object
 	user, err := NewUserAccount(name, email, password, phone, fbId, fbToken)
@@ -66,22 +66,17 @@ func (self *AccountManager) CreateUserAccount(name string, email string, passwor
 	}
 
 	// Insert into users database
-	if err := self.userDAO.Insert(user.AsDTO()); err != nil {
+	if err := m.userDAO.Insert(user.AsDTO()); err != nil {
 		return nil, err
 	}
 
-	if err := self.logDAO.LogRegisteredUser(user.Id(), utils.GetCurrentTimeMillis()); err != nil {
+	user.isPersisted = true
+
+	if err := m.logDAO.LogRegisteredUser(user.Id(), utils.GetCurrentTimeMillis()); err != nil {
 		log.Printf("REGISTER USER LOGGING ERROR: %v", err)
 	}
 
-	signal := &Signal{
-		Type: SignalNewUserAccount,
-		Data: map[string]interface{}{
-			"UserID": user.Id(),
-		},
-	}
-
-	self.accountSignal.Update(signal)
+	m.emitNewUser(user)
 
 	return user, nil
 }
@@ -224,7 +219,10 @@ func (self *AccountManager) GetUserAccount(userId int64) (*UserAccount, error) {
 		return nil, err
 	}
 
-	return newUserFromDTO(userDTO), nil
+	user := newUserFromDTO(userDTO)
+	user.isPersisted = true
+
+	return user, nil
 }
 
 func (self *AccountManager) GetUserAccountByEmail(email string) (*UserAccount, error) {
@@ -234,7 +232,10 @@ func (self *AccountManager) GetUserAccountByEmail(email string) (*UserAccount, e
 		return nil, err
 	}
 
-	return newUserFromDTO(userDTO), nil
+	user := newUserFromDTO(userDTO)
+	user.isPersisted = true
+
+	return user, nil
 }
 
 func (self *AccountManager) GetUserAccountByFacebook(fbId string) (*UserAccount, error) {
@@ -244,7 +245,10 @@ func (self *AccountManager) GetUserAccountByFacebook(fbId string) (*UserAccount,
 		return nil, err
 	}
 
-	return newUserFromDTO(userDTO), nil
+	user := newUserFromDTO(userDTO)
+	user.isPersisted = true
+
+	return user, nil
 }
 
 func (self *AccountManager) GetPushToken(userId int64) (*IIDToken, error) {
@@ -381,9 +385,17 @@ func (self *AccountManager) ChangeProfilePicture(user *UserAccount, picture []by
 	return nil
 }
 
-/*func (m *AccountManager) DeleteUserAccount(userID int64) error {
-	return nil
-}*/
+func (m *AccountManager) emitNewUser(user *UserAccount) {
+
+	signal := &Signal{
+		Type: SignalNewUserAccount,
+		Data: map[string]interface{}{
+			"UserID": user.Id(),
+		},
+	}
+
+	m.accountSignal.Update(signal)
+}
 
 // Saves a profile picture i its original size and alto saves thumbnails for supported dpis
 func (self *AccountManager) saveProfilePicture(user_id int64, picture *Picture) error {
