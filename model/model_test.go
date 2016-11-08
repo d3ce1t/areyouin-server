@@ -2,6 +2,7 @@ package model
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"peeple/areyouin/cqldao"
@@ -11,6 +12,7 @@ import (
 
 var testModel *AyiModel
 var users []*UserAccount
+var generatedEvents int
 
 func TestMain(m *testing.M) {
 
@@ -93,10 +95,13 @@ func generateEvent(author *UserAccount, testModel *AyiModel) (*Event, error) {
 	startDate := createdDate.Add(30 * time.Minute)
 	endDate := createdDate.Add(1 * time.Hour)
 
-	event, err := testModel.Events.NewEvent(author, createdDate, startDate, endDate, "123456789012345", []int64{})
+	event, err := testModel.Events.NewEvent(author, createdDate, startDate, endDate,
+		fmt.Sprintf("Event %v - 123456789012345", generatedEvents), []int64{})
 	if err != nil {
 		return nil, err
 	}
+
+	generatedEvents++
 
 	return event, nil
 }

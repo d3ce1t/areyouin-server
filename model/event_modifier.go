@@ -61,9 +61,8 @@ func (m *EventManager) NewEventModifier(event *Event, ownerID int64) EventModifi
 		b.pictureDigest = bytes.Repeat(event.pictureDigest, 1)
 		b.cancelled = event.cancelled
 
-		for k, v := range event.participants {
-			// Participant is immutable so I can assign the pointer
-			b.currentParticipants[k] = v
+		for k, p := range event.Participants.participants {
+			b.currentParticipants[k] = p.Clone()
 		}
 
 		b.participantBuilder.SetEventID(event.id)
@@ -117,16 +116,14 @@ func (b *eventModifier) Build() (*Event, error) {
 		authorName:    b.authorName,
 		description:   b.description,
 		createdDate:   b.createdDate,
-		modifiedDate:  b.modifiedDate.Truncate(time.Second),
 		inboxPosition: b.startDate,
 		startDate:     b.startDate,
 		endDate:       b.endDate,
 		pictureDigest: bytes.Repeat(b.pictureDigest, 1),
 		cancelled:     b.cancelled,
-		numAttendees:  0,
-		numGuests:     int32(len(b.currentParticipants)),
-		participants:  make(map[int64]*Participant),
+		Participants:  newParticipantList(),
 		owner:         b.ownerID,
+		modifiedDate:  b.modifiedDate.Truncate(time.Second),
 		timestamp:     timestamp,
 		isPersisted:   false,
 		oldEvent:      b.sourceEvent,
@@ -138,11 +135,16 @@ func (b *eventModifier) Build() (*Event, error) {
 	}
 
 	// Copy current participants
-	for k, v := range b.currentParticipants {
+	for k, p := range b.currentParticipants {
+		if b.sourceEvent != nil && !b.sourceEvent.isPersisted {
+			p.nameTS = timestamp
+			p.responseTS = timestamp
+			p.statusTS = timestamp
+		}
 		// Participant is immutable so I can assign the pointer
-		event.participants[k] = v
-		if v.response == api.AttendanceResponse_ASSIST {
-			event.numAttendees++
+		event.Participants.participants[k] = p
+		if p.response == api.AttendanceResponse_ASSIST {
+			event.Participants.numAttendees++
 		}
 	}
 
@@ -154,13 +156,16 @@ func (b *eventModifier) Build() (*Event, error) {
 			return nil, err
 		}
 
-		for k, v := range newParticipants {
+		for k, v := range newParticipants.participants {
 			// Participant is immutable so I can assign the pointer
-			event.participants[k] = v
+			event.Participants.participants[k] = v
+			if v.response == api.AttendanceResponse_ASSIST {
+				event.Participants.numAttendees++
+			}
 		}
-
-		event.numGuests += int32(len(newParticipants))
 	}
+
+	event.Participants.numGuests = len(event.Participants.participants)
 
 	return event, nil
 }
@@ -173,6 +178,10 @@ func (b *eventModifier) validateData() error {
 
 	if b.ownerID == 0 {
 		return ErrInvalidOwner
+	}
+
+	if _, ok := b.currentParticipants[b.ownerID]; !ok {
+		return ErrInvalidOwner // TODO: Could I use ErrEventNotWritable instead?
 	}
 
 	if b.authorID == 0 || !IsValidName(b.authorName) {

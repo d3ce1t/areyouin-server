@@ -1,6 +1,7 @@
 package model
 
 import (
+	"peeple/areyouin/api"
 	"peeple/areyouin/utils"
 	"testing"
 	"time"
@@ -124,6 +125,8 @@ func TestNewEvent_SaveEvent_New(t *testing.T) {
 		t.Fatalf("Error: %v", err)
 	}
 
+	// Prepare data
+
 	// Persist first event
 	if err := testModel.Events.SaveEvent(events[0]); err != nil {
 		t.Fatalf("Error: %v", err)
@@ -139,6 +142,8 @@ func TestNewEvent_SaveEvent_New(t *testing.T) {
 	events[4].startDate = utils.GetCurrentTimeUTC().Truncate(time.Second).Add(-6 * time.Hour)
 	events[4].endDate = events[4].startDate.Add(1 * time.Hour)
 
+	// Describe test
+
 	var tests = []struct {
 		event    *Event
 		expected error
@@ -153,10 +158,25 @@ func TestNewEvent_SaveEvent_New(t *testing.T) {
 		{events[4], nil},
 	}
 
+	// Run test
+
 	for i, test := range tests {
 		err := testModel.Events.SaveEvent(test.event)
 		if err != test.expected {
 			t.Fatalf("test %v: Expected '%v' but got '%v'", i, test.expected, err)
+		}
+	}
+
+	for i, writtenEvent := range []*Event{events[0], events[1], events[4]} {
+		loadedEvent, err := testModel.Events.LoadEvent(writtenEvent.id)
+		if err != nil {
+			t.Fatalf("Error: %v", err)
+		}
+		if !loadedEvent.Equal(writtenEvent) {
+			t.Logf("test %v: Event mismatch", i)
+			t.Logf("Loaded Event: %v", loadedEvent)
+			t.Logf("Written Event: %v", writtenEvent)
+			t.FailNow()
 		}
 	}
 }
@@ -164,7 +184,7 @@ func TestNewEvent_SaveEvent_New(t *testing.T) {
 func TestNewEvent_SaveEvent_Modified(t *testing.T) {
 
 	// Prepare data
-	events, err := generateEvents(7, testModel)
+	events, err := generateEvents(8, testModel)
 	if err != nil {
 		t.Fatalf("Error: %v", err)
 	}
@@ -175,10 +195,6 @@ func TestNewEvent_SaveEvent_Modified(t *testing.T) {
 			// Simulate that oldEvent is already started.
 			event.startDate = utils.GetCurrentTimeUTC().Truncate(time.Second).Add(-6 * time.Hour)
 			event.endDate = event.startDate.Add(1 * time.Hour)
-		} else if i == 6 {
-			// Change author to a known one in order to let add known friends later
-			event.authorID = users[1].id
-			event.authorName = users[1].name
 		}
 
 		if i > 0 {
@@ -200,10 +216,14 @@ func TestNewEvent_SaveEvent_Modified(t *testing.T) {
 				Truncate(time.Second).
 				Add(2 * time.Minute).Add(time.Second))
 		} else if i == 5 {
-			b.SetCancelled(true)
-		} else if i == 6 {
 			b.ParticipantAdder().AddUserID(users[2].id)
 			b.ParticipantAdder().AddUserID(users[3].id)
+		} else if i == 6 {
+			b.SetCancelled(true)
+		} else if i == 7 {
+			currentDate := utils.GetCurrentTimeUTC()
+			b.SetStartDate(currentDate.Add(48 * time.Hour))
+			b.SetEndDate(currentDate.Add(96 * time.Hour))
 		}
 
 		events[i], err = b.Build()
@@ -223,8 +243,10 @@ func TestNewEvent_SaveEvent_Modified(t *testing.T) {
 		{events[2], ErrEventOutOfCreationWindow},
 		{events[3], ErrEventOutOfCreationWindow},
 		{events[4], ErrEventNotWritable},
-		{events[5], nil}, // Cancelled event
-		{events[6], nil}, // Event with new participants
+		{events[5], nil}, // Event with new participants
+		{events[6], nil}, // Cancelled event
+		{events[7], nil}, // Event with modified dates
+
 	}
 
 	// Run test
@@ -234,4 +256,166 @@ func TestNewEvent_SaveEvent_Modified(t *testing.T) {
 			t.Fatalf("test %v: Expected '%v' but got '%v'", i, test.expected, err)
 		}
 	}
+
+	for i, writtenEvent := range []*Event{events[0], events[1], events[5], events[6], events[7]} {
+		loadedEvent, err := testModel.Events.LoadEvent(writtenEvent.id)
+		if err != nil {
+			t.Fatalf("Error: %v", err)
+		}
+		if !loadedEvent.Equal(writtenEvent) {
+			t.Logf("test %v: Event mismatch", i)
+			t.FailNow()
+		}
+	}
+}
+
+func TestNewEvent_ChangeParticipantResponse(t *testing.T) {
+
+	events, err := generateEvents(2, testModel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b := testModel.Events.NewEventModifier(events[1], users[1].id)
+	b.ParticipantAdder().AddUserAccount(users[2])
+	b.ParticipantAdder().AddUserAccount(users[3])
+	events[1], err = b.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testModel.Events.SaveEvent(events[1]); err != nil {
+		t.Fatal(err)
+	}
+
+	var tests = []struct {
+		userID   int64
+		response api.AttendanceResponse
+		event    *Event
+		expected error
+	}{
+		{users[2].id, api.AttendanceResponse_MAYBE, nil, ErrInvalidEvent},       // nil event
+		{users[2].id, api.AttendanceResponse_MAYBE, &Event{}, ErrInvalidEvent},  // zero event
+		{users[2].id, api.AttendanceResponse_MAYBE, events[0], ErrInvalidEvent}, // not persisted event
+		{users[2].id, api.AttendanceResponse_ASSIST, events[1], nil},
+		{users[3].id, api.AttendanceResponse_MAYBE, events[1], nil},
+		{0, api.AttendanceResponse_NO_ASSIST, events[1], ErrParticipantNotFound},
+	}
+
+	for i, test := range tests {
+		_, err := testModel.Events.ChangeParticipantResponse(test.userID, test.response, test.event)
+		if err != test.expected {
+			t.Fatalf("test %v: Expected '%v' but got '%v'", i, test.expected, err)
+		}
+	}
+}
+
+func TestNewEvent_ChangeDeliveryState(t *testing.T) {
+
+	events, err := generateEvents(2, testModel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b := testModel.Events.NewEventModifier(events[1], users[1].id)
+	b.ParticipantAdder().AddUserAccount(users[2])
+	b.ParticipantAdder().AddUserAccount(users[3])
+	events[1], err = b.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testModel.Events.SaveEvent(events[1]); err != nil {
+		t.Fatal(err)
+	}
+
+	var tests = []struct {
+		userID   int64
+		state    api.InvitationStatus
+		event    *Event
+		expected error
+	}{
+		{users[2].id, api.InvitationStatus_SERVER_DELIVERED, nil, ErrInvalidEvent},       // nil event
+		{users[2].id, api.InvitationStatus_SERVER_DELIVERED, &Event{}, ErrInvalidEvent},  // zero event
+		{users[2].id, api.InvitationStatus_CLIENT_DELIVERED, events[0], ErrInvalidEvent}, // not persisted event
+		{users[2].id, api.InvitationStatus_CLIENT_DELIVERED, events[1], nil},
+		{users[3].id, api.InvitationStatus_CLIENT_DELIVERED, events[1], nil},
+		{0, api.InvitationStatus_CLIENT_DELIVERED, events[1], ErrParticipantNotFound},
+	}
+
+	for i, test := range tests {
+		_, err := testModel.Events.ChangeDeliveryState(test.userID, test.state, test.event)
+		if err != test.expected {
+			t.Fatalf("test %v: Expected '%v' but got '%v'", i, test.expected, err)
+		}
+	}
+}
+
+func TestNewEvent_GetRecentEvents(t *testing.T) {
+
+	// Clean data
+	if err := testModel.Events.deleteAllEvents(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Generate 10 events as users[1]
+	generatedEvents = 0
+	events := make([]*Event, 0, 10)
+	for i := 0; i < 10; i++ {
+		event, err := generateEvent(users[1], testModel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		events = append(events, event)
+	}
+
+	// Publish events and index
+	writtenEventsIndex := make(map[int64]*Event)
+
+	for i, event := range events {
+		b := testModel.Events.NewEventModifier(event, users[1].id)
+		b.ParticipantAdder().AddUserAccount(users[2])
+		b.ParticipantAdder().AddUserAccount(users[3])
+		modifiedEvent, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := testModel.Events.SaveEvent(modifiedEvent); err != nil {
+			t.Fatal(err)
+		}
+		writtenEventsIndex[modifiedEvent.id] = modifiedEvent
+		events[i] = modifiedEvent
+	}
+
+	// Check inboxes
+	for i := 1; i < len(users); i++ {
+
+		inbox, err := testModel.Events.GetRecentEvents(users[i].id)
+		if err != nil {
+			t.Fatalf("Test %v: %v", i, err)
+		}
+
+		if len(inbox) != len(events) {
+			t.Fatalf("Test %v: Num. events mismatch (%v != %v)", i, len(inbox), len(events))
+		}
+
+		for j, event := range inbox {
+			writtenEvent := writtenEventsIndex[event.id]
+			if !event.Equal(writtenEvent) {
+				t.Logf("Test %v: event %v is not equal", i, j)
+				t.Logf("Loaded Event: %v", event)
+				t.Logf("Participant List: %v", *event.Participants)
+				for _, p := range event.Participants.participants {
+					t.Log(p)
+				}
+				t.Logf("WrittenEvent: %v", writtenEvent)
+				t.Logf("Participant List: %v", *writtenEvent.Participants)
+				for _, p := range writtenEvent.Participants.participants {
+					t.Log(p)
+				}
+				t.FailNow()
+			}
+		}
+	}
+
 }

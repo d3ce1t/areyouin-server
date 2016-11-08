@@ -62,13 +62,10 @@ func (u *UserEvents) Remove(userID int64, eventID int64) {
 func (u *UserEvents) FindAll(userID int64) []int64 {
 	defer u.mutex.RUnlock()
 	u.mutex.RLock()
-
 	eventIDs := make([]int64, 0, len(u.events[userID]))
-
 	for k := range u.events[userID] {
 		eventIDs = append(eventIDs, k)
 	}
-
 	return eventIDs
 }
 
@@ -76,4 +73,10 @@ func (u *UserEvents) Len() int {
 	defer u.mutex.RUnlock()
 	u.mutex.RLock()
 	return len(u.events)
+}
+
+func (u *UserEvents) Clear() {
+	defer u.mutex.Unlock()
+	u.mutex.Lock()
+	u.events = make(map[int64]map[int64]bool)
 }

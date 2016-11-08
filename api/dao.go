@@ -60,6 +60,7 @@ type EventDAO interface {
 	Replace(oldEvent *EventDTO, newEvent *EventDTO) error
 	InsertParticipant(p *ParticipantDTO) error
 	SetEventPicture(event_id int64, picture *PictureDTO) error
+	DeleteAll() error
 }
 
 type FriendDAO interface {

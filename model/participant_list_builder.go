@@ -62,13 +62,13 @@ func (b *participantListCreator) Len() int {
 	return len(b.participants)
 }
 
-func (b *participantListCreator) Build() (map[int64]*Participant, error) {
+func (b *participantListCreator) Build() (*ParticipantList, error) {
 
 	if b.ownerID == 0 {
 		return nil, ErrMissingArgument
 	}
 
-	result := make(map[int64]*Participant)
+	list := newParticipantList()
 
 	for _, v := range b.participants {
 
@@ -101,14 +101,21 @@ func (b *participantListCreator) Build() (map[int64]*Participant, error) {
 		}
 
 		participant.eventID = b.eventID
+		participant.nameTS = b.timestamp
 		participant.responseTS = b.timestamp
 		participant.statusTS = b.timestamp
-		result[participant.id] = participant
+		list.participants[participant.id] = participant
+
+		if participant.response == api.AttendanceResponse_ASSIST {
+			list.numAttendees++
+		}
 	}
 
-	if len(result) == 0 {
+	list.numGuests = len(list.participants)
+
+	if len(list.participants) == 0 {
 		return nil, ErrParticipantsRequired
 	}
 
-	return result, nil
+	return list, nil
 }

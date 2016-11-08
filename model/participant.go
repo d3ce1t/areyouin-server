@@ -68,6 +68,10 @@ func (p *Participant) InvitationStatus() api.InvitationStatus {
 	return p.invitationStatus
 }
 
+func (p *Participant) Equal(other *Participant) bool {
+	return *p == *other
+}
+
 func (p *Participant) Clone() *Participant {
 	copy := new(Participant)
 	*copy = *p

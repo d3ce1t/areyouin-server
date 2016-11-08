@@ -293,6 +293,25 @@ func (dao *EventDAO) SetEventPicture(event_id int64, picture *api.PictureDTO) er
 	return convErr(q.Exec())
 }
 
+func (d *EventDAO) DeleteAll() error {
+
+	checkSession(d.session)
+
+	if err := d.session.Query("TRUNCATE event").Exec(); err != nil {
+		return err
+	}
+
+	if err := d.session.Query("TRUNCATE events_timeline").Exec(); err != nil {
+		return err
+	}
+
+	if err := d.session.Query("TRUNCATE events_history_by_user").Exec(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (d *EventDAO) findAllAux(query *gocql.Query, handler func(*api.EventDTO) error) error {
 
 	checkSession(d.session)

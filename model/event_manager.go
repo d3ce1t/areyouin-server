@@ -274,7 +274,7 @@ func (m *EventManager) ChangeParticipantResponse(userID int64, response api.Atte
 	}
 
 	// Check precondition (3)
-	participant, ok := event.participants[userID]
+	participant, ok := event.Participants.Get(userID)
 	if !ok {
 		return nil, ErrParticipantNotFound
 	}
@@ -282,7 +282,6 @@ func (m *EventManager) ChangeParticipantResponse(userID int64, response api.Atte
 	if participant.response != response {
 
 		// Change response
-
 		b, err := m.NewParticipantModifier(participant)
 		if err != nil {
 			return nil, err
@@ -328,7 +327,7 @@ func (m *EventManager) ChangeDeliveryState(userID int64, state api.InvitationSta
 	}
 
 	// Check precondition (3)
-	participant, ok := event.participants[userID]
+	participant, ok := event.Participants.Get(userID)
 	if !ok {
 		return nil, ErrParticipantNotFound
 	}
@@ -377,7 +376,7 @@ func (m *EventManager) GetEventForUser(userID int64, eventID int64) (*Event, err
 		return nil, err
 	}
 
-	if participant := event.GetParticipant(userID); participant == nil {
+	if _, ok := event.Participants.Get(userID); !ok {
 		return nil, ErrNotFound
 	}
 
@@ -577,7 +576,7 @@ func (m *EventManager) emitNewEvent(event *Event) {
 		Type: SignalNewEvent,
 		Data: map[string]interface{}{
 			"EventID":         event.Id(),
-			"NewParticipants": event.ParticipantIds(),
+			"NewParticipants": event.Participants.Ids(),
 			"OldParticipants": []int64{},
 			"Event":           event,
 		},
@@ -609,7 +608,7 @@ func (m *EventManager) saveNewEvent(event *Event) error {
 	event.isPersisted = true
 
 	// Add to inbox
-	for pID := range event.participants {
+	for _, pID := range event.Participants.Ids() {
 		m.userEvents.Insert(pID, event.Id())
 	}
 
@@ -668,7 +667,7 @@ func (m *EventManager) saveModifiedEvent(event *Event) error {
 
 		// Emit signal
 		if len(newParticipants) > 0 {
-			m.emitEventParticipantsInvited(event, ParticipantMapKeys(newParticipants), oldEvent.ParticipantIds())
+			m.emitEventParticipantsInvited(event, ParticipantMapKeys(newParticipants), oldEvent.Participants.Ids())
 		}
 
 	} else {
@@ -691,8 +690,8 @@ func (m *EventManager) ExtractNewParticipants(extractEvent *Event, baseEvent *Ev
 
 	newParticipants := make(map[int64]*Participant)
 
-	for pID, participant := range extractEvent.participants {
-		if _, ok := baseEvent.participants[pID]; !ok {
+	for pID, participant := range extractEvent.Participants.participants {
+		if _, ok := baseEvent.Participants.participants[pID]; !ok {
 			newParticipants[pID] = participant
 		}
 	}
@@ -766,15 +765,6 @@ func (m *EventManager) removeEventPicture(event_id int64) error {
 	}
 
 	return nil
-}
-
-// Tells if participant p1 can see event changes of participant p2
-func (m *EventManager) canSee(p1 int64, p2 *Participant) (bool, error) {
-	if p2.response == api.AttendanceResponse_ASSIST {
-		return true, nil
-	} else {
-		return m.parent.Friends.IsFriend(p2.id, p1)
-	}
 }
 
 func (m *EventManager) loadActiveEvents() error {
@@ -927,5 +917,13 @@ func (m *EventManager) updateAndPersistLastArchiveTime(t time.Time) error {
 		return err
 	}
 	m.lastArchiveTime = t
+	return nil
+}
+
+func (m *EventManager) deleteAllEvents() error {
+	if err := m.eventDAO.DeleteAll(); err != nil {
+		return err
+	}
+	m.userEvents.Clear()
 	return nil
 }

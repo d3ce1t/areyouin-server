@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"peeple/areyouin/api"
 	"peeple/areyouin/utils"
 	"strings"
@@ -18,10 +19,8 @@ type Event struct {
 	inboxPosition time.Time // Seconds precision
 	startDate     time.Time // Seconds precision
 	endDate       time.Time // Seconds precision
-	numAttendees  int32
-	numGuests     int32
 	cancelled     bool
-	participants  map[int64]*Participant
+	Participants  *ParticipantList
 
 	// Owner of this event object in RAM
 	owner int64
@@ -48,22 +47,23 @@ func newEventFromDTO(dto *api.EventDTO) *Event {
 		description:   dto.Description,
 		pictureDigest: dto.PictureDigest,
 		createdDate:   utils.MillisToTimeUTC(dto.CreatedDate).Truncate(time.Second),
+		modifiedDate:  time.Unix(0, dto.Timestamp*1000).UTC().Truncate(time.Second),
 		inboxPosition: utils.MillisToTimeUTC(dto.InboxPosition).Truncate(time.Second),
 		startDate:     utils.MillisToTimeUTC(dto.StartDate).Truncate(time.Second),
 		endDate:       utils.MillisToTimeUTC(dto.EndDate).Truncate(time.Second),
 		cancelled:     dto.Cancelled,
-		participants:  make(map[int64]*Participant),
+		Participants:  newParticipantList(),
 		timestamp:     dto.Timestamp,
 	}
 
 	for _, p := range dto.Participants {
-		event.participants[p.UserID] = newParticipantFromDTO(p)
+		event.Participants.participants[p.UserID] = newParticipantFromDTO(p)
 		if p.Response == api.AttendanceResponse_ASSIST {
-			event.numAttendees++
+			event.Participants.numAttendees++
 		}
 	}
 
-	event.numGuests = int32(len(event.participants))
+	event.Participants.numGuests = len(event.Participants.participants)
 
 	return event
 }
@@ -144,11 +144,11 @@ func (e *Event) PictureDigest() []byte {
 }
 
 func (e *Event) NumAttendees() int {
-	return int(e.numAttendees)
+	return e.Participants.numAttendees
 }
 
 func (e *Event) NumGuests() int {
-	return int(e.numGuests)
+	return e.Participants.numGuests
 }
 
 func (e *Event) Status() api.EventState {
@@ -174,14 +174,28 @@ func (e *Event) Timestamp() int64 {
 	return e.timestamp
 }
 
+func (e *Event) Equal(other *Event) bool {
+	return e.id == other.id &&
+		e.authorID == other.authorID && e.authorName == other.authorName &&
+		e.description == other.description &&
+		bytes.Equal(e.pictureDigest, other.pictureDigest) &&
+		e.createdDate.Equal(other.createdDate) &&
+		e.modifiedDate.Equal(other.modifiedDate) &&
+		e.inboxPosition.Equal(other.inboxPosition) &&
+		e.startDate.Equal(other.startDate) &&
+		e.endDate.Equal(other.endDate) &&
+		e.cancelled == other.cancelled &&
+		e.timestamp == other.timestamp &&
+		e.Participants.Equal(other.Participants)
+}
+
 func (e *Event) IsZero() bool {
 	return e.id == 0 && e.authorID == 0 && e.authorName == "" &&
 		e.description == "" && e.pictureDigest == nil &&
 		e.createdDate.IsZero() && e.modifiedDate.IsZero() &&
 		e.inboxPosition.IsZero() && e.startDate.IsZero() &&
-		e.endDate.IsZero() && e.numAttendees == 0 &&
-		e.numGuests == 0 && e.cancelled == false &&
-		e.participants == nil
+		e.endDate.IsZero() && e.cancelled == false &&
+		e.Participants == nil
 }
 
 func (e *Event) AsDTO() *api.EventDTO {
@@ -201,32 +215,11 @@ func (e *Event) AsDTO() *api.EventDTO {
 		Timestamp:     e.timestamp,
 	}
 
-	for _, v := range e.participants {
+	for _, v := range e.Participants.participants {
 		dto.Participants[v.id] = v.AsDTO()
 	}
 
 	return dto
-}
-
-func (e *Event) GetParticipant(id int64) *Participant {
-	v, _ := e.participants[id]
-	return v
-}
-
-func (e *Event) ParticipantIds() []int64 {
-	keys := make([]int64, 0, len(e.participants))
-	for k := range e.participants {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func (e *Event) Participants() []*Participant {
-	values := make([]*Participant, 0, len(e.participants))
-	for _, v := range e.participants {
-		values = append(values, v)
-	}
-	return values
 }
 
 func (e *Event) Clone() *Event {
@@ -234,10 +227,7 @@ func (e *Event) Clone() *Event {
 	*eventCopy = *e
 	eventCopy.pictureDigest = make([]byte, len(e.pictureDigest))
 	copy(eventCopy.pictureDigest, e.pictureDigest)
-	eventCopy.participants = make(map[int64]*Participant)
-	for k, v := range e.participants {
-		eventCopy.participants[k] = v
-	}
+	eventCopy.Participants = e.Participants.Clone()
 	return eventCopy
 }
 
@@ -246,6 +236,6 @@ func (e *Event) CloneEmptyParticipants() *Event {
 	*eventCopy = *e
 	eventCopy.pictureDigest = make([]byte, len(e.pictureDigest))
 	copy(eventCopy.pictureDigest, e.pictureDigest)
-	eventCopy.participants = nil
+	eventCopy.Participants = nil
 	return eventCopy
 }
