@@ -242,7 +242,7 @@ func (m *ModelObserver) processParticipantChangeSignal(signal *model.Signal) {
 func (m *ModelObserver) processEventChangedSignal(signal *model.Signal) {
 
 	event := signal.Data["Event"].(*model.Event)
-	liteEvent := convEvent2Net(event.CloneEmptyParticipants())
+	liteEvent := convEvent2Net(event.CloneWithEmptyParticipants())
 
 	for _, pID := range event.Participants.Ids() {
 

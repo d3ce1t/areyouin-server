@@ -422,7 +422,7 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	if eventInfoChanged {
 		// NOTE: Send liteEvent because full event causes a crash in iOS version lower than 1.0.11
 		// FIXME: If two users modify event at the same time, each one will receive a different view of the event
-		netEvent := convEvent2Net(modifiedEvent.CloneEmptyParticipants())
+		netEvent := convEvent2Net(modifiedEvent.CloneWithEmptyParticipants())
 		session.Write(session.NewMessage().EventModified(netEvent))
 		log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, modifiedEvent.Id())
 	}
@@ -464,7 +464,7 @@ func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, sessi
 	log.Printf("< (%v) EVENT PICTURE CHANGED\n", session)
 
 	// Send event changed
-	liteEvent := event.CloneEmptyParticipants()
+	liteEvent := event.CloneWithEmptyParticipants()
 	session.Write(session.NewMessage().EventModified(convEvent2Net(liteEvent)))
 	log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, event.Id())
 }
@@ -501,7 +501,7 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 
 	// Send event changed
-	liteEvent := cancelledEvent.CloneEmptyParticipants()
+	liteEvent := cancelledEvent.CloneWithEmptyParticipants()
 	session.Write(session.NewMessage().EventCancelled(session.UserId, convEvent2Net(liteEvent)))
 	log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, cancelledEvent.Id())
 }

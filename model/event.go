@@ -231,11 +231,13 @@ func (e *Event) Clone() *Event {
 	return eventCopy
 }
 
-func (e *Event) CloneEmptyParticipants() *Event {
+func (e *Event) CloneWithEmptyParticipants() *Event {
 	eventCopy := new(Event)
 	*eventCopy = *e
 	eventCopy.pictureDigest = make([]byte, len(e.pictureDigest))
 	copy(eventCopy.pictureDigest, e.pictureDigest)
-	eventCopy.Participants = nil
+	eventCopy.Participants = newParticipantList()
+	eventCopy.Participants.numGuests = e.Participants.numGuests
+	eventCopy.Participants.numAttendees = e.Participants.numAttendees
 	return eventCopy
 }

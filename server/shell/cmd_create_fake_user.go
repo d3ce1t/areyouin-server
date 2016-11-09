@@ -68,7 +68,11 @@ func (c *createFakeUserCmd) Exec(shell *Shell, args []string) {
 	// Success
 	fmt.Fprint(shell, "Account created successfully\n")
 	fmt.Fprintf(shell, "Name: %v\nEmail: %v\nPassword: %v\n",
-		fakeUser.name, fakeUser.email, fakeUser.password)
+		user.Name(), user.Email(), fakeUser.password)
+
+	if user.HasFacebook() {
+		fmt.Fprintf(shell, "FbID: %v\n", user.FbId())
+	}
 
 	err = shell.model.Accounts.ChangeProfilePicture(user, fakeUser.picture)
 	manageShellError(err)
@@ -81,6 +85,7 @@ type FakeUser struct {
 	email    string
 	password string
 	picture  []byte
+	fbID     string
 }
 
 func (c *createFakeUserCmd) getRandomFakeUser() (*FakeUser, error) {
