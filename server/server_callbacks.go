@@ -370,7 +370,7 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 
 	// Check author
 	authorID := session.UserId
-	checkEventAuthorOrPanic(authorID, event)
+	checkAccessOrPanic(authorID, event)
 
 	// Modify event
 	b := server.Model.Events.NewEventModifier(event, authorID)
@@ -453,7 +453,7 @@ func onChangeEventPicture(request *proto.AyiPacket, message proto.Message, sessi
 
 	// Check author
 	authorID := session.UserId
-	checkEventAuthorOrPanic(authorID, event)
+	checkAccessOrPanic(authorID, event)
 
 	// Change event picture
 	err = server.Model.Events.ChangeEventPicture(event, msg.Picture)
@@ -483,7 +483,7 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	// Check author
 	// TODO: Should user permissions be part of server or the model?
 	authorID := session.UserId
-	checkEventAuthorOrPanic(authorID, event)
+	checkAccessOrPanic(authorID, event)
 
 	// Cancel event
 	cancelledEvent, err := server.Model.Events.NewEventModifier(event, authorID).SetCancelled(true).Build()
@@ -524,7 +524,7 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkNoErrorOrPanic(err)
 
 	// Check author
-	checkEventAuthorOrPanic(session.UserId, event)
+	checkAccessOrPanic(session.UserId, event)
 
 	// Build event
 	b := server.Model.Events.NewEventModifier(event, session.UserId)

@@ -12,6 +12,7 @@ var (
 	ErrSessionNotConnected        = errors.New("session not connected")
 	ErrAuthRequired               = errors.New("auth required")
 	ErrNoAuthRequired             = errors.New("no auth required")
+	ErrForbidden                  = errors.New("forbidden access")
 	ErrUnregisteredMessage        = errors.New("unregistered message")
 	ErrUnregisteredFriendsIgnored = errors.New("ignored unregistered participants")
 	ErrAuthorMismatch             = errors.New("author mismatch")
@@ -30,6 +31,9 @@ func getNetErrorCode(err error, default_code int32) int32 {
 
 	case ErrUnregisteredFriendsIgnored:
 		err_code = proto.E_INVALID_PARTICIPANT
+
+	case ErrForbidden:
+		err_code = proto.E_FORBIDDEN_ACCESS
 
 	case ErrAuthorMismatch:
 		err_code = proto.E_EVENT_AUTHOR_MISMATCH

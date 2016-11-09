@@ -391,8 +391,8 @@ func checkNoErrorOrPanic(err error) {
 	}
 }
 
-func checkEventAuthorOrPanic(authorID int64, event *model.Event) {
-	if event.AuthorID() != authorID {
-		panic(ErrAuthorMismatch)
+func checkAccessOrPanic(userID int64, event *model.Event) {
+	if event.AuthorID() != userID {
+		panic(ErrForbidden)
 	}
 }
