@@ -7,10 +7,10 @@ import (
 )
 
 type ParticipantAdder interface {
-	AddUserAccount(u *UserAccount)
-	AddFriend(f *Friend)
-	AddParticipant(p *Participant)
-	AddUserID(UID int64)
+	AddUserAccount(u *UserAccount) ParticipantAdder
+	AddFriend(f *Friend) ParticipantAdder
+	AddParticipant(p *Participant) ParticipantAdder
+	AddUserID(UID int64) ParticipantAdder
 }
 
 type participantListCreator struct {
@@ -41,21 +41,25 @@ func (b *participantListCreator) SetTimestamp(t int64) {
 	b.timestamp = t
 }
 
-func (b *participantListCreator) AddUserAccount(u *UserAccount) {
+func (b *participantListCreator) AddUserAccount(u *UserAccount) ParticipantAdder {
 	b.participants[u.id] = u.AsParticipant()
+	return b
 }
 
-func (b *participantListCreator) AddFriend(f *Friend) {
+func (b *participantListCreator) AddFriend(f *Friend) ParticipantAdder {
 	b.participants[f.id] = NewParticipant(f.id, f.name, api.AttendanceResponse_NO_RESPONSE,
 		api.InvitationStatus_SERVER_DELIVERED)
+	return b
 }
 
-func (b *participantListCreator) AddParticipant(p *Participant) {
+func (b *participantListCreator) AddParticipant(p *Participant) ParticipantAdder {
 	b.participants[p.id] = p.Clone()
+	return b
 }
 
-func (b *participantListCreator) AddUserID(UID int64) {
+func (b *participantListCreator) AddUserID(UID int64) ParticipantAdder {
 	b.participants[UID] = UID
+	return b
 }
 
 func (b *participantListCreator) Len() int {

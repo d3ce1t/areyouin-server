@@ -6,8 +6,8 @@ import (
 )
 
 type ParticipantModifier interface {
-	SetResponse(resp api.AttendanceResponse)
-	SetInvitationStatus(status api.InvitationStatus)
+	SetResponse(resp api.AttendanceResponse) ParticipantModifier
+	SetInvitationStatus(status api.InvitationStatus) ParticipantModifier
 	Build() (*Participant, error)
 }
 
@@ -17,14 +17,15 @@ type participantModifier struct {
 	name       string
 	response   api.AttendanceResponse
 	status     api.InvitationStatus
+	nameTS     int64
 	responseTS int64
 	statusTS   int64
 }
 
-func (m *EventManager) NewParticipantModifier(p *Participant) (ParticipantModifier, error) {
+func (m *EventManager) NewParticipantModifier(p *Participant) ParticipantModifier {
 
 	if p == nil {
-		return nil, ErrIllegalArgument
+		return &participantModifier{}
 	}
 
 	b := &participantModifier{
@@ -33,34 +34,61 @@ func (m *EventManager) NewParticipantModifier(p *Participant) (ParticipantModifi
 		name:       p.name,
 		response:   p.response,
 		status:     p.invitationStatus,
+		nameTS:     p.nameTS,
 		responseTS: p.responseTS,
 		statusTS:   p.statusTS,
 	}
 
-	return b, nil
+	return b
 }
 
-func (b *participantModifier) SetResponse(resp api.AttendanceResponse) {
+func (b *participantModifier) SetResponse(resp api.AttendanceResponse) ParticipantModifier {
 	b.response = resp
 	b.responseTS = time.Now().UnixNano() / 1000
+	return b
 }
 
-func (b *participantModifier) SetInvitationStatus(status api.InvitationStatus) {
+func (b *participantModifier) SetInvitationStatus(status api.InvitationStatus) ParticipantModifier {
 	b.status = status
 	b.statusTS = time.Now().UnixNano() / 1000
+	return b
 }
 
 func (b *participantModifier) Build() (*Participant, error) {
 
+	// Validate data
+	if err := b.validateData(); err != nil {
+		return nil, err
+	}
+
+	// Build participant
 	participant := &Participant{
 		id:               b.pID,
 		eventID:          b.eventID,
 		name:             b.name,
 		response:         b.response,
 		invitationStatus: b.status,
+		nameTS:           b.nameTS,
 		responseTS:       b.responseTS,
 		statusTS:         b.statusTS,
 	}
 
 	return participant, nil
+}
+
+func (b *participantModifier) validateData() error {
+
+	if b.eventID == 0 {
+		return ErrInvalidEvent
+	}
+
+	if b.pID == 0 {
+		return ErrInvalidParticipant
+	}
+
+	if !IsValidName(b.name) {
+		return ErrInvalidName
+	}
+
+	return nil
 }

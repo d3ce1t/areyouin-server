@@ -8,12 +8,12 @@ import (
 )
 
 type EventModifier interface {
-	SetModifiedDate(date time.Time)
-	SetStartDate(date time.Time)
-	SetEndDate(date time.Time)
-	SetDescription(desc string)
+	SetModifiedDate(date time.Time) EventModifier
+	SetStartDate(date time.Time) EventModifier
+	SetEndDate(date time.Time) EventModifier
+	SetDescription(desc string) EventModifier
 	ParticipantAdder() ParticipantAdder
-	SetCancelled(cancelled bool)
+	SetCancelled(cancelled bool) EventModifier
 	Build() (*Event, error)
 }
 
@@ -73,28 +73,33 @@ func (m *EventManager) NewEventModifier(event *Event, ownerID int64) EventModifi
 	return b
 }
 
-func (b *eventModifier) SetModifiedDate(date time.Time) {
+func (b *eventModifier) SetModifiedDate(date time.Time) EventModifier {
 	// Do not truncate to seconds still because it's used also
 	// to compute timestamp in microseconds
 	b.modifiedDate = date
+	return b
 }
 
-func (b *eventModifier) SetStartDate(date time.Time) {
+func (b *eventModifier) SetStartDate(date time.Time) EventModifier {
 	b.startDate = date.Truncate(time.Second)
 	b.startDateChanged = true
+	return b
 }
 
-func (b *eventModifier) SetEndDate(date time.Time) {
+func (b *eventModifier) SetEndDate(date time.Time) EventModifier {
 	b.endDate = date.Truncate(time.Second)
 	b.endDateChanged = true
+	return b
 }
 
-func (b *eventModifier) SetDescription(desc string) {
+func (b *eventModifier) SetDescription(desc string) EventModifier {
 	b.description = desc
+	return b
 }
 
-func (b *eventModifier) SetCancelled(cancelled bool) {
+func (b *eventModifier) SetCancelled(cancelled bool) EventModifier {
 	b.cancelled = cancelled
+	return b
 }
 
 func (b *eventModifier) ParticipantAdder() ParticipantAdder {

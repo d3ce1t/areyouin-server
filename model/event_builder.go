@@ -8,11 +8,11 @@ import (
 )
 
 type EventBuilder interface {
-	SetAuthor(author *UserAccount)
-	SetCreatedDate(date time.Time)
-	SetStartDate(date time.Time)
-	SetEndDate(date time.Time)
-	SetDescription(desc string)
+	SetAuthor(author *UserAccount) EventBuilder
+	SetCreatedDate(date time.Time) EventBuilder
+	SetStartDate(date time.Time) EventBuilder
+	SetEndDate(date time.Time) EventBuilder
+	SetDescription(desc string) EventBuilder
 	ParticipantAdder() ParticipantAdder
 	Build() (*Event, error)
 }
@@ -37,29 +37,34 @@ func (m *EventManager) newEventBuilder() EventBuilder {
 	}
 }
 
-func (b *eventBuilder) SetAuthor(author *UserAccount) {
+func (b *eventBuilder) SetAuthor(author *UserAccount) EventBuilder {
 	if author != nil {
 		b.author = author
 		b.participantBuilder.SetOwner(author.id)
 	}
+	return b
 }
 
-func (b *eventBuilder) SetCreatedDate(date time.Time) {
+func (b *eventBuilder) SetCreatedDate(date time.Time) EventBuilder {
 	// Do not truncate to seconds still because it's used also
 	// to compute timestamp in microseconds
 	b.createdDate = date
+	return b
 }
 
-func (b *eventBuilder) SetStartDate(date time.Time) {
+func (b *eventBuilder) SetStartDate(date time.Time) EventBuilder {
 	b.startDate = date.Truncate(time.Second)
+	return b
 }
 
-func (b *eventBuilder) SetEndDate(date time.Time) {
+func (b *eventBuilder) SetEndDate(date time.Time) EventBuilder {
 	b.endDate = date.Truncate(time.Second)
+	return b
 }
 
-func (b *eventBuilder) SetDescription(desc string) {
+func (b *eventBuilder) SetDescription(desc string) EventBuilder {
 	b.description = desc
+	return b
 }
 
 func (b *eventBuilder) ParticipantAdder() ParticipantAdder {

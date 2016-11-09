@@ -486,9 +486,7 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	checkEventAuthorOrPanic(authorID, event)
 
 	// Cancel event
-	b := server.Model.Events.NewEventModifier(event, authorID)
-	b.SetCancelled(true)
-	cancelledEvent, err := b.Build()
+	cancelledEvent, err := server.Model.Events.NewEventModifier(event, authorID).SetCancelled(true).Build()
 	checkNoErrorOrPanic(err)
 
 	// Persist event

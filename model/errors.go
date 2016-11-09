@@ -18,6 +18,7 @@ var (
 	ErrInvalidEvent         = errors.New("event is invalid")
 	ErrInvalidOwner         = errors.New("invalid owner")
 	ErrInvalidAuthor        = errors.New("invalid author")
+	ErrInvalidParticipant   = errors.New("invalid participant")
 	ErrInvalidDescription   = errors.New("invalid event description")
 	ErrInvalidStartDate     = errors.New("invalid start date")
 	ErrInvalidEndDate       = errors.New("invalid end date")

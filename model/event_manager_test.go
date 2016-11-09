@@ -204,8 +204,8 @@ func TestNewEvent_SaveEvent_Modified(t *testing.T) {
 		}
 
 		// Modify event
-		b := testModel.Events.NewEventModifier(event, event.authorID)
-		b.SetDescription("123456789012345 hello world")
+		b := testModel.Events.NewEventModifier(event, event.authorID).
+			SetDescription("123456789012345 hello world")
 
 		if i == 2 {
 			b.SetModifiedDate(utils.GetCurrentTimeUTC().
@@ -216,14 +216,14 @@ func TestNewEvent_SaveEvent_Modified(t *testing.T) {
 				Truncate(time.Second).
 				Add(2 * time.Minute).Add(time.Second))
 		} else if i == 5 {
-			b.ParticipantAdder().AddUserID(users[2].id)
-			b.ParticipantAdder().AddUserID(users[3].id)
+			b.ParticipantAdder().AddUserID(users[2].id).
+				AddUserID(users[3].id)
 		} else if i == 6 {
 			b.SetCancelled(true)
 		} else if i == 7 {
 			currentDate := utils.GetCurrentTimeUTC()
-			b.SetStartDate(currentDate.Add(48 * time.Hour))
-			b.SetEndDate(currentDate.Add(96 * time.Hour))
+			b.SetStartDate(currentDate.Add(48 * time.Hour)).
+				SetEndDate(currentDate.Add(96 * time.Hour))
 		}
 
 		events[i], err = b.Build()
@@ -277,8 +277,8 @@ func TestNewEvent_ChangeParticipantResponse(t *testing.T) {
 	}
 
 	b := testModel.Events.NewEventModifier(events[1], users[1].id)
-	b.ParticipantAdder().AddUserAccount(users[2])
-	b.ParticipantAdder().AddUserAccount(users[3])
+	b.ParticipantAdder().AddUserAccount(users[2]).
+		AddUserAccount(users[3])
 	events[1], err = b.Build()
 	if err != nil {
 		t.Fatal(err)
@@ -318,8 +318,8 @@ func TestNewEvent_ChangeDeliveryState(t *testing.T) {
 	}
 
 	b := testModel.Events.NewEventModifier(events[1], users[1].id)
-	b.ParticipantAdder().AddUserAccount(users[2])
-	b.ParticipantAdder().AddUserAccount(users[3])
+	b.ParticipantAdder().AddUserAccount(users[2]).
+		AddUserAccount(users[3])
 	events[1], err = b.Build()
 	if err != nil {
 		t.Fatal(err)
@@ -374,8 +374,8 @@ func TestNewEvent_GetRecentEvents(t *testing.T) {
 
 	for i, event := range events {
 		b := testModel.Events.NewEventModifier(event, users[1].id)
-		b.ParticipantAdder().AddUserAccount(users[2])
-		b.ParticipantAdder().AddUserAccount(users[3])
+		b.ParticipantAdder().AddUserAccount(users[2]).
+			AddUserAccount(users[3])
 		modifiedEvent, err := b.Build()
 		if err != nil {
 			t.Fatal(err)

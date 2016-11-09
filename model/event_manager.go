@@ -123,12 +123,12 @@ func (m *EventManager) startJobManager() {
 func (m *EventManager) NewEvent(author *UserAccount, createdDate time.Time, startDate time.Time, endDate time.Time,
 	description string, participants []int64) (*Event, error) {
 
-	b := m.newEventBuilder()
-	b.SetAuthor(author)
-	b.SetCreatedDate(createdDate)
-	b.SetStartDate(startDate)
-	b.SetEndDate(endDate)
-	b.SetDescription(description)
+	b := m.newEventBuilder().
+		SetAuthor(author).
+		SetCreatedDate(createdDate).
+		SetStartDate(startDate).
+		SetEndDate(endDate).
+		SetDescription(description)
 
 	for _, pID := range participants {
 		b.ParticipantAdder().AddUserID(pID)
@@ -282,13 +282,7 @@ func (m *EventManager) ChangeParticipantResponse(userID int64, response api.Atte
 	if participant.response != response {
 
 		// Change response
-		b, err := m.NewParticipantModifier(participant)
-		if err != nil {
-			return nil, err
-		}
-
-		b.SetResponse(response)
-		modifiedParticipant, err := b.Build()
+		modifiedParticipant, err := m.NewParticipantModifier(participant).SetResponse(response).Build()
 		if err != nil {
 			return nil, err
 		}
@@ -337,13 +331,7 @@ func (m *EventManager) ChangeDeliveryState(userID int64, state api.InvitationSta
 		// Change status
 		// TODO: Add business logic to avoid moving to a previous state
 
-		b, err := m.NewParticipantModifier(participant)
-		if err != nil {
-			return nil, err
-		}
-
-		b.SetInvitationStatus(state)
-		modifiedParticipant, err := b.Build()
+		modifiedParticipant, err := m.NewParticipantModifier(participant).SetInvitationStatus(state).Build()
 		if err != nil {
 			return nil, err
 		}
