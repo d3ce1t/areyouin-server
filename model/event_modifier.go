@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"peeple/areyouin/api"
 	"peeple/areyouin/utils"
+	"strings"
 	"time"
 )
 
@@ -93,7 +94,7 @@ func (b *eventModifier) SetEndDate(date time.Time) EventModifier {
 }
 
 func (b *eventModifier) SetDescription(desc string) EventModifier {
-	b.description = desc
+	b.description = strings.TrimSpace(desc)
 	return b
 }
 

@@ -4,6 +4,7 @@ import (
 	"peeple/areyouin/api"
 	"peeple/areyouin/idgen"
 	"peeple/areyouin/utils"
+	"strings"
 	"time"
 )
 
@@ -63,7 +64,7 @@ func (b *eventBuilder) SetEndDate(date time.Time) EventBuilder {
 }
 
 func (b *eventBuilder) SetDescription(desc string) EventBuilder {
-	b.description = desc
+	b.description = strings.TrimSpace(desc)
 	return b
 }
 

@@ -51,7 +51,7 @@ func (m *AccountManager) Observe() observer.Stream {
 // - facebook.ErrFacebookAccessForbidden
 func (m *AccountManager) CreateUserAccount(name string, email string, password string, phone string, fbId string, fbToken string) (*UserAccount, error) {
 
-	// Create new and valid user account object
+	// Create a new and valid user account object
 	user, err := NewUserAccount(name, email, password, phone, fbId, fbToken)
 	if err != nil {
 		return nil, err
@@ -326,7 +326,7 @@ func (m *AccountManager) ChangePassword(user *UserAccount, newPassword string) e
 		return ErrNotFound
 	}
 
-	if !isValidPassword(newPassword) {
+	if !IsValidPassword(newPassword) {
 		return ErrInvalidPassword
 	}
 

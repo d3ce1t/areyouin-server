@@ -9,15 +9,6 @@ import (
 	"github.com/twinj/uuid"
 )
 
-const (
-	UserPasswordMinLength = 5
-	UserPasswordMaxLength = 50
-	UserNameMinLength     = 3
-	UserNameMaxLength     = 50
-	UserPictureMaxWidth   = 512
-	UserPictureMaxHeight  = 512
-)
-
 type UserAccount struct {
 	id             int64 // AreYouIN ID
 	name           string
@@ -218,7 +209,7 @@ func validateUserData(name string, email string, password string, fbId string,
 	fbToken string) error {
 
 	// Name length
-	if len(name) < UserNameMinLength || len(name) > UserNameMaxLength {
+	if !IsValidName(name) {
 		return ErrInvalidName
 	}
 
@@ -233,7 +224,7 @@ func validateUserData(name string, email string, password string, fbId string,
 	var hasEmailCred bool
 
 	if password != "" {
-		if !isValidPassword(password) {
+		if !IsValidPassword(password) {
 			return ErrInvalidPassword
 		}
 		hasEmailCred = true
@@ -248,13 +239,6 @@ func validateUserData(name string, email string, password string, fbId string,
 	}
 
 	return nil
-}
-
-func isValidPassword(password string) bool {
-	if password == "" || len(password) < UserPasswordMinLength || len(password) > UserPasswordMaxLength {
-		return false
-	}
-	return true
 }
 
 type EmailCredential struct {

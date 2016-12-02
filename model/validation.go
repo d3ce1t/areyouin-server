@@ -1,8 +1,21 @@
 package model
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
+
+	// User account
+	UserPasswordMinLength = 5
+	UserPasswordMaxLength = 50
+	UserNameMinLength     = 3
+	UserNameMaxLength     = 50
+	UserPictureMaxWidth   = 512
+	UserPictureMaxHeight  = 512
+
+	// Event
 	descriptionMinLength  = 15
 	descriptionMaxLength  = 500
 	eventPictureMaxWidth  = 1280
@@ -44,35 +57,41 @@ func GetDateOption(option DateOption, fromDate time.Time) time.Time {
 }
 
 func IsValidStartDate(startDate time.Time, referenceDate time.Time) bool {
-
 	if startDate.Before(GetDateOption(MinimumStartDate, referenceDate)) ||
 		startDate.After(GetDateOption(MaximumStartDate, referenceDate)) {
 		return false
 	}
-
 	return true
 }
 
 func IsValidEndDate(endDate time.Time, referenceDate time.Time) bool {
-
 	if endDate.Before(GetDateOption(MinimumEndDate, referenceDate)) ||
 		endDate.After(GetDateOption(MaximumEndDate, referenceDate)) {
 		return false
 	}
-
 	return true
 }
 
 func IsValidDescription(description string) bool {
-	if description == "" || len(description) < descriptionMinLength ||
-		len(description) > descriptionMaxLength {
+	trimDesc := strings.TrimSpace(description)
+	if trimDesc == "" || len(trimDesc) < descriptionMinLength ||
+		len(trimDesc) > descriptionMaxLength {
 		return false
 	}
 	return true
 }
 
 func IsValidName(name string) bool {
-	if len(name) < UserNameMinLength || len(name) > UserNameMaxLength {
+	trimName := strings.TrimSpace(name)
+	if trimName == "" || len(trimName) < UserNameMinLength || len(trimName) > UserNameMaxLength {
+		return false
+	}
+	return true
+}
+
+func IsValidPassword(password string) bool {
+	trimPassword := strings.TrimSpace(password)
+	if trimPassword == "" || len(trimPassword) < UserPasswordMinLength || len(trimPassword) > UserPasswordMaxLength {
 		return false
 	}
 	return true

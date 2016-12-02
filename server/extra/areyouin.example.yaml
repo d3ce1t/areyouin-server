@@ -1,9 +1,10 @@
-# AreYouIN server config.example
-# Please, copy this file to areyouin.yaml and modify it
-# in order configure AreYouIN Server.
+#
+# AreYouIN Server Config Example
+#
 # Note that if changes are made to this file while server
 # is running, it will be needed to reboot server in order
 # to changes take effect.
+#
 
 # General Settings
 maintenance_mode: false

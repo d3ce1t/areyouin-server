@@ -47,6 +47,9 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case model.ErrInvalidName:
 		err_code = proto.E_INPUT_INVALID_USER_NAME
 
+	case model.ErrInvalidPassword:
+		err_code = proto.E_INPUT_INVALID_PASSWORD
+
 	case model.ErrInvalidStartDate:
 		err_code = proto.E_EVENT_INVALID_START_DATE
 
