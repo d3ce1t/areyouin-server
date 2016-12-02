@@ -14,7 +14,7 @@ func (c *sendNotificationCmd) Exec(shell *Shell, args []string) {
 
 	var userID int64
 
-	cmd := flag.NewFlagSet(args[0], flag.ExitOnError)
+	cmd := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	cmd.SetOutput(shell)
 	cmd.Usage = func() {
 		fmt.Fprintf(shell, "Usage of %s:\n", args[0])
@@ -23,7 +23,12 @@ func (c *sendNotificationCmd) Exec(shell *Shell, args []string) {
 
 	cmd.Int64Var(&userID, "user-id", 0, "ID of the user you want to send a notification")
 
-	cmd.Parse(args[1:])
+	err := cmd.Parse(args[1:])
+	if err == flag.ErrHelp {
+		return
+	}
+
+	manageShellError(err)
 
 	if userID == 0 {
 		cmd.Usage()

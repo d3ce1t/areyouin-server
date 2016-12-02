@@ -23,7 +23,7 @@ func (c *createFakeUserCmd) Exec(shell *Shell, args []string) {
 	var password string
 	var linkToFacebook bool
 
-	cmd := flag.NewFlagSet(args[0], flag.ExitOnError)
+	cmd := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	cmd.SetOutput(shell)
 	cmd.Usage = func() {
 		fmt.Fprintf(shell, "Usage of %s:\n", args[0])
@@ -33,12 +33,12 @@ func (c *createFakeUserCmd) Exec(shell *Shell, args []string) {
 	cmd.StringVar(&password, "password", "12345", "User password")
 	cmd.BoolVar(&linkToFacebook, "facebook", false, "Link to Facebook")
 
-	cmd.Parse(args[1:])
-
-	if cmd.NArg() > 0 {
-		cmd.Usage()
+	err := cmd.Parse(args[1:])
+	if err == flag.ErrHelp {
 		return
 	}
+
+	manageShellError(err)
 
 	fakeUser, err := c.getRandomFakeUser()
 	manageShellError(err)
