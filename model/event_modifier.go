@@ -187,7 +187,7 @@ func (b *eventModifier) validateData() error {
 	}
 
 	if _, ok := b.currentParticipants[b.ownerID]; !ok {
-		return ErrInvalidOwner // TODO: Could I use ErrEventNotWritable instead?
+		return ErrEventNotWritable
 	}
 
 	if b.authorID == 0 || !IsValidName(b.authorName) {

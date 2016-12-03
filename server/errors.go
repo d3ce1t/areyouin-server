@@ -10,14 +10,13 @@ import (
 
 var (
 	ErrSessionNotConnected        = errors.New("session not connected")
-	ErrAuthRequired               = errors.New("auth required")
-	ErrNoAuthRequired             = errors.New("no auth required")
-	ErrForbidden                  = errors.New("forbidden access")
+	ErrForbidden                  = errors.New("forbidden")
+	ErrUnauthorized               = errors.New("unauthorized")
 	ErrUnregisteredMessage        = errors.New("unregistered message")
 	ErrUnregisteredFriendsIgnored = errors.New("ignored unregistered participants")
 	ErrAuthorMismatch             = errors.New("author mismatch")
 	ErrOperationFailed            = errors.New("operation failed")
-	ErrFriendNotFound             = errors.New("Friend not found")
+	ErrFriendNotFound             = errors.New("friend not found")
 )
 
 func getNetErrorCode(err error, default_code int32) int32 {
@@ -26,14 +25,14 @@ func getNetErrorCode(err error, default_code int32) int32 {
 
 	switch err {
 
-	case ErrAuthRequired:
-		err_code = proto.E_AUTH_REQUIRED
+	case ErrUnauthorized:
+		err_code = proto.E_UNAUTHORIZED
 
 	case ErrUnregisteredFriendsIgnored:
 		err_code = proto.E_INVALID_PARTICIPANT
 
 	case ErrForbidden:
-		err_code = proto.E_FORBIDDEN_ACCESS
+		err_code = proto.E_FORBIDDEN
 
 	case ErrAuthorMismatch:
 		err_code = proto.E_EVENT_AUTHOR_MISMATCH
@@ -77,7 +76,7 @@ func getNetErrorCode(err error, default_code int32) int32 {
 		err_code = proto.E_EVENT_PARTICIPANTS_REQUIRED
 
 	case model.ErrEventNotWritable:
-		err_code = proto.E_EVENT_CANNOT_BE_MODIFIED
+		err_code = proto.E_EVENT_NOT_WRITABLE
 
 	case model.ErrFriendRequestAlreadyExist:
 		err_code = proto.E_FRIEND_REQUEST_ALREADY_SENT

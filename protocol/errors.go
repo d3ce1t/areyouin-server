@@ -21,8 +21,8 @@ const (
 	E_EVENT_INVALID_END_DATE
 	E_INPUT_INVALID_EMAIL_ADDRESS
 	E_INPUT_INVALID_USER_NAME
-	E_EVENT_CANNOT_BE_MODIFIED
-	E_AUTH_REQUIRED
+	E_EVENT_NOT_WRITABLE
+	E_UNAUTHORIZED
 	E_INVALID_EVENT
 	E_EVENT_AUTHOR_MISMATCH
 	E_ACCESS_DENIED
@@ -32,7 +32,7 @@ const (
 	E_FRIEND_REQUEST_ALREADY_SENT
 	E_SERVER_MAINTENANCE
 	E_ACCOUNT_NOT_LINKED_TO_FACEBOOK
-	E_FORBIDDEN_ACCESS
+	E_FORBIDDEN
 	E_INPUT_INVALID_PASSWORD
 )
 
@@ -44,5 +44,4 @@ var (
 	ErrIncompleteWrite    = errors.New("incomplete write")
 	ErrUnknownMessage     = errors.New("unknown message")
 	ErrNoPayload          = errors.New("packet conveys no message")
-	//ErrMalformedHeader    = errors.New("Malformed header")
 )

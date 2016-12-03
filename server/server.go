@@ -375,13 +375,13 @@ func (s *Server) getSession(userID int64) *AyiSession {
 
 func checkAuthenticated(session *AyiSession) {
 	if !session.IsAuth {
-		panic(ErrAuthRequired)
+		panic(ErrUnauthorized)
 	}
 }
 
 func checkUnauthenticated(session *AyiSession) {
 	if session.IsAuth {
-		panic(ErrNoAuthRequired)
+		panic(ErrForbidden)
 	}
 }
 
