@@ -186,12 +186,16 @@ func (b *eventModifier) validateData() error {
 		return ErrInvalidOwner
 	}
 
+	if b.authorID == 0 || !IsValidName(b.authorName) {
+		return ErrInvalidAuthor
+	}
+
 	if _, ok := b.currentParticipants[b.ownerID]; !ok {
 		return ErrEventNotWritable
 	}
 
-	if b.authorID == 0 || !IsValidName(b.authorName) {
-		return ErrInvalidAuthor
+	if b.ownerID != b.authorID {
+		return ErrEventNotWritable
 	}
 
 	if !IsValidDescription(b.description) {

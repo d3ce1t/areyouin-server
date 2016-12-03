@@ -368,12 +368,8 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	event, err := server.Model.Events.LoadEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
-	// Check author
-	authorID := session.UserId
-	checkAccessOrPanic(authorID, event)
-
 	// Modify event
-	b := server.Model.Events.NewEventModifier(event, authorID)
+	b := server.Model.Events.NewEventModifier(event, session.UserId)
 	b.SetModifiedDate(modificationDate)
 	eventInfoChanged := false
 
@@ -418,17 +414,23 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
 	log.Printf("< (%v) MODIFY EVENT OK (eventId: %v)\n", session, event.Id())
 
-	// Send event changed
+	// Get newParticipants
+	newParticipants := server.Model.Events.ExtractNewParticipants(modifiedEvent, event)
+
+	/* Disabled because send full event causes a crash in iOS version<=1.0.10
+	/*if eventInfoChanged && len(newParticipants) > 0 {
+		netEvent := convEvent2Net(modifiedEvent)
+		session.Write(session.NewMessage().EventModified(netEvent))
+		log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, modifiedEvent.Id())
+	} else*/
+
 	if eventInfoChanged {
-		// NOTE: Send liteEvent because full event causes a crash in iOS version lower than 1.0.11
-		// FIXME: If two users modify event at the same time, each one will receive a different view of the event
+		// FIXME: If two users modify an event at the same time, each one will
+		// receive a different view of the event
 		netEvent := convEvent2Net(modifiedEvent.CloneWithEmptyParticipants())
 		session.Write(session.NewMessage().EventModified(netEvent))
 		log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, modifiedEvent.Id())
 	}
-
-	// Send participants by other means
-	newParticipants := server.Model.Events.ExtractNewParticipants(modifiedEvent, event)
 
 	if len(newParticipants) > 0 {
 		netParticipants := convParticipantList2Net(newParticipants)
@@ -480,13 +482,10 @@ func onCancelEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	event, err := server.Model.Events.LoadEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
 
-	// Check author
-	// TODO: Should user permissions be part of server or the model?
-	authorID := session.UserId
-	checkAccessOrPanic(authorID, event)
-
 	// Cancel event
-	cancelledEvent, err := server.Model.Events.NewEventModifier(event, authorID).SetCancelled(true).Build()
+	cancelledEvent, err :=
+		server.Model.Events.NewEventModifier(event, session.UserId).
+			SetCancelled(true).Build()
 	checkNoErrorOrPanic(err)
 
 	// Persist event
@@ -522,9 +521,6 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 	// Read event
 	event, err := server.Model.Events.LoadEvent(msg.EventId)
 	checkNoErrorOrPanic(err)
-
-	// Check author
-	checkAccessOrPanic(session.UserId, event)
 
 	// Build event
 	b := server.Model.Events.NewEventModifier(event, session.UserId)
