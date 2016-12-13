@@ -17,6 +17,14 @@ import (
 
 type Callback func(*proto.AyiPacket, proto.Message, *AyiSession)
 
+const (
+	SERVER_VERSION = "1.0.3"
+)
+
+var (
+	BUILD_TIME = "" // Filled by build.sh
+)
+
 type Server struct {
 	TLSConfig     *tls.Config
 	sessions      *SessionsMap
@@ -26,6 +34,8 @@ type Server struct {
 	DbSession     api.DbSession
 	webhook       *wh.WebHookServer
 	Config        api.Config
+	version       string
+	buildTime     string
 }
 
 func NewServer(session api.DbSession, model *model.AyiModel, config api.Config) *Server {
@@ -33,9 +43,19 @@ func NewServer(session api.DbSession, model *model.AyiModel, config api.Config) 
 		DbSession: session,
 		Model:     model,
 		Config:    config,
+		version:   SERVER_VERSION,
+		buildTime: BUILD_TIME,
 	}
 	server.init()
 	return server
+}
+
+func (s *Server) Version() string {
+	return s.version
+}
+
+func (s *Server) BuildTime() string {
+	return s.buildTime
 }
 
 // Setup server components

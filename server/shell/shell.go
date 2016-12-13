@@ -20,15 +20,17 @@ type Shell struct {
 	prompt   string
 	commands map[string]Command
 	model    *model.AyiModel
+	server   api.Server
 	OnStart  func(*Shell)
 	config   api.Config
 }
 
-func NewShell(model *model.AyiModel, io io.ReadWriter, cfg api.Config) *Shell {
+func NewShell(server api.Server, model *model.AyiModel, io io.ReadWriter, cfg api.Config) *Shell {
 	shell := &Shell{
 		welcome:    "Welcome to AreYouIN server shell\n",
 		prompt:     "areyouin$>",
 		model:      model,
+		server:     server,
 		config:     cfg,
 		ReadWriter: io}
 
@@ -70,6 +72,7 @@ func (s *Shell) init() {
 		//"make_friends":     makeFriends,
 		//"fix_database":         fixDatabase,
 		"change_user_password": new(changeUserPasswordCmd),
+		"version":              new(versionCmd),
 	}
 }
 

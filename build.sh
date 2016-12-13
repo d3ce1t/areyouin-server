@@ -14,7 +14,13 @@ server="peeple/areyouin/server"
 
 function build_and_install {
   echo "Build $1"
-  go build $1
+
+  if [ "$1" == "$server" ]; then
+    go build -ldflags "-X main.BUILD_TIME=$(date -u '+%Y%m%d%.%H%M%S')" $1
+  else
+    go build $1
+  fi
+
   #echo "Install $1"
   #go install $1
 }
