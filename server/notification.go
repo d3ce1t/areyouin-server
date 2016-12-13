@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"peeple/areyouin/api"
 	"peeple/areyouin/model"
 
@@ -60,6 +61,9 @@ func createEventResponseNotification(event *model.Event, participantID int64) *g
 	case api.AttendanceResponse_NO_ASSIST:
 		titleKey = "notification.event.response.no_assist.title"
 		bodyKey = "notification.event.response.no_assist.body"
+	case api.AttendanceResponse_NO_RESPONSE:
+		log.Println("* WARNING: createEventResponseNotification with NO_RESPONSE value")
+		return nil
 	}
 
 	notification := &gcm.Notification{

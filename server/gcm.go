@@ -147,6 +147,11 @@ func sendNewFriendNotification(friendName string, userID int64) {
 
 func sendNotification(userID int64, token string, notification *gcm.Notification) {
 
+	if notification == nil {
+		log.Println("* WARNING: sendNotification -> Skip notification because nil")
+		return
+	}
+
 	message := gcm.HttpMessage{
 		To:           token,
 		Priority:     "high",
@@ -157,6 +162,11 @@ func sendNotification(userID int64, token string, notification *gcm.Notification
 }
 
 func sendNotificationWithTTL(userID int64, token string, notification *gcm.Notification, ttl uint) {
+
+	if notification == nil {
+		log.Println("* WARNING: sendNotificationWithTTL -> Skip notification because nil")
+		return
+	}
 
 	gcmTTL := utils.MinUint(ttl, GcmMaxTTL) // Seconds
 
