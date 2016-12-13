@@ -17,6 +17,8 @@ var globalConfig api.Config
 
 func main() {
 
+	fmt.Printf("AreYouIN Server version %v Build %v\n", SERVER_VERSION, BUILD_TIME)
+
 	// Load config from file
 	cfg, err := loadConfigFromFile("areyouin.yaml")
 	if err != nil {
