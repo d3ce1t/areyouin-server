@@ -230,6 +230,7 @@ func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 				return err
 			}
 
+			// TODO: Event passed from public interface should not be modified
 			event.pictureDigest = corePicture.Digest
 			modified = true
 		}
@@ -242,6 +243,7 @@ func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 			return err
 		}
 
+		// TODO: Event passed from public interface should not be modified
 		event.pictureDigest = nil
 		modified = true
 	}
