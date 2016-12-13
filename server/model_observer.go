@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"peeple/areyouin/api"
 	"peeple/areyouin/model"
 	"peeple/areyouin/utils"
 	"time"
@@ -207,9 +206,15 @@ func (m *ModelObserver) processEventCancelledSignal(signal *model.Signal) {
 
 func (m *ModelObserver) processParticipantChangeSignal(signal *model.Signal) {
 
-	event := signal.Data["Event"].(*model.Event)
 	participant := signal.Data["Participant"].(*model.Participant)
-	oldResponse := signal.Data["OldResponse"].(api.AttendanceResponse)
+	oldParticipant := signal.Data["OldParticipant"].(*model.Participant)
+	eventID := participant.EventID()
+	event, err := m.model.Events.LoadEvent(eventID)
+
+	if err != nil {
+		log.Printf("* processParticipantChangeSignal Error: %v", err)
+		return
+	}
 
 	// Send participant change to event participants
 
@@ -219,14 +224,14 @@ func (m *ModelObserver) processParticipantChangeSignal(signal *model.Signal) {
 
 	for _, pID := range event.Participants.Ids() {
 
-		go func(participantID int64) {
+		go func(userID int64) {
 
 			// Notification
-			if participant.Id() != participantID && oldResponse != participant.Response() {
-				sendEventResponseNotification(event, participant.Id(), participantID)
+			if participant.Id() != userID && oldParticipant.Response() != participant.Response() {
+				sendEventResponseNotification(event, participant.Id(), userID)
 			}
 
-			if session := m.server.getSession(participantID); session != nil {
+			if session := m.server.getSession(userID); session != nil {
 				message := session.NewMessage().AttendanceStatus(event.Id(), netParticipant)
 				if ok := session.Write(message); ok {
 					log.Printf("< (%v) EVENT %v ATTENDANCE STATUS (%v participants changed)\n", session.UserId, event.Id(), len(netParticipant))

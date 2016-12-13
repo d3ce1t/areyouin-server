@@ -64,6 +64,10 @@ func (p *Participant) Response() api.AttendanceResponse {
 	return p.response
 }
 
+func (p *Participant) EventID() int64 {
+	return p.eventID
+}
+
 func (p *Participant) InvitationStatus() api.InvitationStatus {
 	return p.invitationStatus
 }

@@ -7,5 +7,5 @@ cp server/extra/areyouin.example.yaml areyouin-dist/extra
 cp server/extra/areyouin.service areyouin-dist/extra
 cp server/extra/post-install.sh areyouin-dist/extra
 cp server/extra/install.sh areyouin-dist
-tar cvzf areyouin.tgz areyouin-dist
+tar cvzf areyouin-dist.tgz areyouin-dist
 rm -r areyouin-dist

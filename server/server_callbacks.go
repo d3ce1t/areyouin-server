@@ -549,9 +549,7 @@ func onInviteUsers(request *proto.AyiPacket, message proto.Message, session *Ayi
 }
 
 // When a ConfirmAttendance message is received, the attendance response of the participant
-// in the participant event list is changed and notified to the other participants. It is
-// important to note that num_attendees is not changed server-side till the event has started.
-// Clients are cool counting attendees :)
+// in the participant event list is changed and notified to the other participants.
 func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, session *AyiSession) {
 
 	msg := message.(*proto.ConfirmAttendance)
@@ -560,24 +558,23 @@ func onConfirmAttendance(request *proto.AyiPacket, message proto.Message, sessio
 	checkAuthenticated(session)
 
 	server := session.Server
-	event, err := server.Model.Events.LoadEvent(msg.EventId)
-	checkNoErrorOrPanic(err)
+	eventID := msg.EventId
 
 	// Change response
-	participant, err := server.Model.Events.ChangeParticipantResponse(session.UserId,
-		api.AttendanceResponse(msg.ActionCode), event)
+	participant, err := server.Model.Events.ChangeParticipantResponse(eventID,
+		session.UserId, api.AttendanceResponse(msg.ActionCode))
 	checkNoErrorOrPanic(err)
 
 	// Send OK Response
 	session.WriteResponse(request.Header.GetToken(), session.NewMessage().Ok(request.Type()))
-	log.Printf("< (%v) CONFIRM ATTENDANCE %v OK\n", session, msg.EventId)
+	log.Printf("< (%v) CONFIRM ATTENDANCE %v OK\n", session, eventID)
 
 	// Send new AttendanceStatus
 	participantList := make(map[int64]*model.Participant)
 	participantList[participant.Id()] = participant
 	netParticipants := convParticipantList2Net(participantList)
-	session.Write(session.NewMessage().AttendanceStatus(event.Id(), netParticipants))
-	log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n", session.UserId, event.Id(), len(netParticipants))
+	session.Write(session.NewMessage().AttendanceStatus(eventID, netParticipants))
+	log.Printf("< (%v) EVENT %v ATTENDANCE STATUS CHANGED (%v participants changed)\n", session.UserId, eventID, len(netParticipants))
 }
 
 func onReadEvent(request *proto.AyiPacket, message proto.Message, session *AyiSession) {

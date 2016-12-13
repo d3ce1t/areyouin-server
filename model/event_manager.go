@@ -139,6 +139,10 @@ func (m *EventManager) NewEvent(author *UserAccount, createdDate time.Time, star
 
 func (m *EventManager) LoadEvent(eventID int64) (*Event, error) {
 
+	if eventID == 0 {
+		return nil, ErrNotFound
+	}
+
 	events, err := m.eventDAO.LoadEvents(eventID)
 	if err != nil {
 		return nil, err
@@ -261,11 +265,12 @@ func (m *EventManager) ChangeEventPicture(event *Event, picture []byte) error {
 // - (1) Event is valid and persisted
 // - (2) Event must have not started
 // - (3) User must have received this invitation, i.e. user is in event participant list
-func (m *EventManager) ChangeParticipantResponse(userID int64, response api.AttendanceResponse, event *Event) (*Participant, error) {
+func (m *EventManager) ChangeParticipantResponse(eventID int64, userID int64, response api.AttendanceResponse) (*Participant, error) {
 
 	// Check precondition (1)
-	if event == nil || event.IsZero() || !event.isPersisted {
-		return nil, ErrInvalidEvent
+	event, err := m.LoadEvent(eventID)
+	if err != nil {
+		return nil, err
 	}
 
 	// Check precondition (2)
@@ -293,7 +298,7 @@ func (m *EventManager) ChangeParticipantResponse(userID int64, response api.Atte
 		}
 
 		// Emit signal
-		m.emitParticipantChanged(participant, modifiedParticipant, event)
+		m.emitParticipantChanged(participant, modifiedParticipant)
 
 		return modifiedParticipant, nil
 	}
@@ -342,7 +347,7 @@ func (m *EventManager) ChangeDeliveryState(userID int64, state api.InvitationSta
 		}
 
 		// Emit signal
-		m.emitParticipantChanged(participant, modifiedParticipant, event)
+		m.emitParticipantChanged(participant, modifiedParticipant)
 
 		return modifiedParticipant, nil
 	}
@@ -523,15 +528,12 @@ func (m *EventManager) emitEventoInfoChanged(event *Event) {
 	})
 }
 
-func (m *EventManager) emitParticipantChanged(oldParticipant *Participant, newParticipant *Participant, event *Event) {
+func (m *EventManager) emitParticipantChanged(oldParticipant *Participant, newParticipant *Participant) {
 	m.eventSignal.Update(&Signal{
 		Type: SignalParticipantChanged,
 		Data: map[string]interface{}{
-			"EventID":     newParticipant.eventID,
-			"UserID":      newParticipant.id,
-			"Event":       event,
-			"Participant": newParticipant,
-			"OldResponse": oldParticipant.response,
+			"Participant":    newParticipant,
+			"OldParticipant": oldParticipant,
 		},
 	})
 }
