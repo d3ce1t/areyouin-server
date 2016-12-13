@@ -46,7 +46,7 @@ func getNetErrorCode(err error, default_code int32) int32 {
 	case model.ErrInvalidName:
 		err_code = proto.E_INPUT_INVALID_USER_NAME
 
-	/* Disabled, it causes crash in iOS<=1.0.10
+	/* DISABLED, it causes crash in iOS<=1.0.10
 	case model.ErrInvalidPassword:
 		err_code = proto.E_INPUT_INVALID_PASSWORD
 	*/

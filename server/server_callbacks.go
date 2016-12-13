@@ -417,8 +417,8 @@ func onModifyEvent(request *proto.AyiPacket, message proto.Message, session *Ayi
 	// Get newParticipants
 	newParticipants := server.Model.Events.ExtractNewParticipants(modifiedEvent, event)
 
-	/* Disabled because send full event causes a crash in iOS version<=1.0.10
-	/*if eventInfoChanged && len(newParticipants) > 0 {
+	/* DISABLED because send full event causes a crash in iOS version<=1.0.10
+	if eventInfoChanged && len(newParticipants) > 0 {
 		netEvent := convEvent2Net(modifiedEvent)
 		session.Write(session.NewMessage().EventModified(netEvent))
 		log.Printf("< (%v) EVENT %v CHANGED\n", session.UserId, modifiedEvent.Id())
