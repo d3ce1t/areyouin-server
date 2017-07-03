@@ -1,5 +1,3 @@
-/*
-
 FAQ
 
 Q1: ¿Cómo y cuando se actualiza el número total de invitados (num_guests) y de asistentes (num_attendees)?
