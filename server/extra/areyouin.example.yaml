@@ -16,7 +16,7 @@ db_keyspace: areyouin
 db_cql_version: 3
 
 # Network Settings
-listen_address: 192.168.1.2
+listen_address: 0.0.0.0
 listen_port: 1822
 image_listen_port: 40187
 image_enable_https: true
@@ -27,7 +27,7 @@ cert_file: cert/fullchain.pem
 cert_key: cert/privkey.pem
 
 # Remote shell Settings
-ssh_listen_address: 127.0.0.1
+ssh_listen_address: 0.0.0.0
 ssh_listen_port: 2022
 
 # Facebook Webhook
