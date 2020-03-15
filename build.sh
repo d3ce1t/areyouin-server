@@ -1,4 +1,4 @@
-#/usr/bin/bash
+#!/usr/bin/env bash
 idgen_pkg="peeple/areyouin/idgen"
 utils_pkg="peeple/areyouin/utils"
 api_pkg="peeple/areyouin/api"
