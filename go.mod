@@ -12,8 +12,11 @@ require (
 	github.com/imkira/go-observer v1.0.3
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/mattn/go-xmpp v0.0.0-20200309091041-899ef71e80d2 // indirect
+	github.com/myesui/uuid v1.0.0 // indirect
 	github.com/pborman/uuid v1.2.0 // indirect
+	github.com/stretchr/testify v1.4.0 // indirect
 	github.com/twinj/uuid v1.0.0
 	golang.org/x/crypto v0.0.0-20200414173820-0848c9571904
+	gopkg.in/stretchr/testify.v1 v1.2.2 // indirect
 	gopkg.in/yaml.v2 v2.2.8
 )
