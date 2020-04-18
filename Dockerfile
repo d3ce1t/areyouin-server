@@ -1,31 +1,45 @@
-FROM golang:1.10 as build
+FROM golang:1.14-alpine as builder
 
+ENV USER=app
+ENV UID=1000
+
+RUN adduser \    
+    --disabled-password \    
+    --gecos "" \    
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \    
+    --no-create-home \    
+    --uid "${UID}" \    
+    "${USER}"
+
+ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOARCH=amd64
 
-WORKDIR /go/src/peeple/areyouin
+WORKDIR /go/src/app
+
+# Download and cache dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+RUN go mod verify
+
+# Build
 COPY . .
+RUN go build -ldflags "-w -s -X main.BUILD_TIME=$(date -u '+%Y%m%d_%H%M%S')" -o ./server.bin ./server
 
-RUN go get -u github.com/gocql/gocql \
-    && go get -u github.com/golang/protobuf/proto \
-    && go get -u github.com/golang/protobuf/protoc-gen-go \
-    && go get -u github.com/imkira/go-observer \
-    && go get -u github.com/twinj/uuid \
-    && go get -u github.com/huandu/facebook \
-    && go get -u github.com/google/go-gcm \
-    && go get -u github.com/disintegration/imaging \
-    && go get -u golang.org/x/crypto/ssh \
-    && go get -u gopkg.in/yaml.v2
-    
-RUN ./build.sh \
-    && mkdir -p dist/cert \
-    && cp server/server dist/server \
-    && cp server/extra/areyouin.example.yaml dist/areyouin.yaml
+# Create dist
+RUN mkdir -p dist/cert \
+    && cp server.bin dist/server.bin \
+    && cp areyouin.example.yaml dist/areyouin.yaml
 
-FROM golang:1.10
-# RUN apk --no-cache add ca-certificates bash
-WORKDIR /root/
-COPY --from=build /go/src/peeple/areyouin/dist .
-CMD ["./server"]
-
+# Final image
+# FROM alpine:3.11
+# RUN apk add --no-cache bash
+FROM scratch
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/group /etc/group
+COPY --chown=app:app --from=builder /go/src/app/dist /app
+WORKDIR /app
+USER app:app
+ENTRYPOINT ["/app/server.bin"]
 EXPOSE 1822 2022 40186
