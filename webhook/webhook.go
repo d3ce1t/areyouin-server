@@ -13,7 +13,7 @@ import (
 	"github.com/d3ce1t/areyouin-server/api"
 )
 
-const VERIFY_TOKEN = "HK377WB7LPBWN87HMZ7X"
+const VERIFY_TOKEN = "FB_CUSTOM_VERIFY_TOKEN"
 
 type FacebookUpdate struct {
 	Object  string
