@@ -12,22 +12,25 @@ import (
 // Test write workload to create an event
 func testCreateEvent(testNumber int) (time.Duration, error) {
 
-	participant := &api.ParticipantDTO{
-		UserId:           idgen.NewID(),
-		Name:             "Bench User",
-		Response:         api.AttendanceResponse_NO_ASSIST,
-		InvitationStatus: api.InvitationStatus_SERVER_DELIVERED,
-	}
+	pID := idgen.NewID()
+	pName := "Bench User"
 
 	event := &api.EventDTO{
 		Id:            idgen.NewID(),
-		AuthorId:      participant.UserId,
-		AuthorName:    participant.Name,
+		AuthorId:      pID,
+		AuthorName:    pName,
 		Description:   "This is a test event with a few words only",
 		CreatedDate:   utils.GetCurrentTimeMillis(),
 		InboxPosition: utils.GetCurrentTimeMillis(),
 		StartDate:     utils.GetCurrentTimeMillis(),
 		EndDate:       utils.GetCurrentTimeMillis(),
+	}
+
+	participant := &api.ParticipantDTO{
+		UserID:           pID,
+		Name:             pName,
+		Response:         api.AttendanceResponse_NO_ASSIST,
+		InvitationStatus: api.InvitationStatus_SERVER_DELIVERED,
 	}
 
 	startTime := time.Now()
@@ -41,17 +44,11 @@ func testCreateEvent(testNumber int) (time.Duration, error) {
 
 	// Insert participants
 	for i := 0; i < 10; i++ {
-		err = eventDAO.AddParticipantToEvent(participant, event)
+		err = eventDAO.InsertParticipant(participant)
 		if err != nil {
 			log.Printf("TestCreateEvent %v Error: %v", testNumber, err)
 			return 0, err
 		}
-	}
-
-	// Update num guests
-	if _, err := eventDAO.SetNumGuests(event.Id, 10); err != nil {
-		log.Printf("TestCreateEvent %v Error: %v", testNumber, err)
-		return 0, err
 	}
 
 	return time.Now().Sub(startTime), nil

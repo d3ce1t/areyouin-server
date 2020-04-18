@@ -12,7 +12,7 @@ import (
 	"github.com/d3ce1t/areyouin-server/cqldao"
 	"github.com/d3ce1t/areyouin-server/utils"
 
-	hist "github.com/uniplot/histogram"
+	hist "github.com/aybabtme/uniplot/histogram"
 )
 
 type testHandler func(testNumber int) (time.Duration, error)
@@ -195,7 +195,7 @@ func executeTest(t testHandler, numTimes int, numWorkers int) {
 	fmt.Printf("Bench total time: %v\n", duration)
 }
 
-func executeTestInWorker(test testHandler, workerId int, startOffset int, endOffset int) *executionStats {
+func executeTestInWorker(test testHandler, workerID int, startOffset int, endOffset int) *executionStats {
 
 	stats := &executionStats{
 		numTimes:    endOffset - startOffset + 1,

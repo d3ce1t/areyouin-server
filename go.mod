@@ -3,6 +3,7 @@ module github.com/d3ce1t/areyouin-server
 go 1.14
 
 require (
+	github.com/aybabtme/uniplot v0.0.0-20151203143629-039c559e5e7e
 	github.com/disintegration/imaging v1.6.2
 	github.com/gocql/gocql v0.0.0-20200410100145-b454769479c6
 	github.com/golang/protobuf v1.4.0
