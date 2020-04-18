@@ -7,8 +7,8 @@ import (
 )
 
 func TestUnixMillisToTime(t *testing.T) {
-	current_time := time.Now()
-	log.Println("Current", current_time)
-	time := UnixMillisToTimeUTC(TimeToMillis(current_time))
+	currentTime := time.Now()
+	log.Println("Current", currentTime)
+	time := MillisToTimeUTC(TimeToMillis(currentTime))
 	log.Println("Retrieve", time)
 }
