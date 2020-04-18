@@ -9,10 +9,11 @@ import (
 	fb "github.com/huandu/facebook"
 )
 
+// TODO: Move to configuration
 const (
 	FB_APP_ID     = "888355654618282"
-	FB_APP_SECRET = "eac8e246b9e8a8f5a80d722a556f2cec"
-	FB_APP_TOKEN  = "888355654618282|raofWCIOKKmKLtY7-Vvjnw5emB4"
+	FB_APP_SECRET = "FB_APP_SECRET"
+	FB_APP_TOKEN  = "FB_APP_TOKEN"
 )
 
 var App *fb.App
