@@ -35,4 +35,4 @@ fb_webhoook_enable: true
 fb_webhook_listen_port: 40186
 
 # Firebase Notifications
-firebase_api_key: AIzaSyAf-h1zJCRWNDt-dI3liL1yx4NEYjOq5GQ
+firebase_api_key: FIREBASE_API_KEY
