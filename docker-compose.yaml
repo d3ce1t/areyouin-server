@@ -12,6 +12,7 @@ services:
 
 ### Server ###############################################
   server:
+    build: ./
     image: d3ce1t/areyouin-server
     volumes:
       - ./areyouin.yaml:/app/areyouin.yaml
