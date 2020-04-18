@@ -11,7 +11,7 @@ maintenance_mode: false
 test_mode_warning: true
 
 # Database Settings
-db_address: [database]
+db_address: [cassandra]
 db_keyspace: areyouin
 db_cql_version: 3
 

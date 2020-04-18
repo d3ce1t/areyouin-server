@@ -1,0 +1,38 @@
+version: '2.4'
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  cassandra:
+    driver: local
+
+services:
+
+### Server ###############################################
+  server:
+    image: d3ce1t/areyouin-server
+    volumes:
+      - ./areyouin.yaml:/app/areyouin.yaml
+    ports:
+      - 1822:1822
+      - 2022:2022
+      - 40187:40187
+    networks:
+      - default
+    depends_on:
+      - cassandra
+
+### Cassandra ############################################
+  cassandra:
+    image: cassandra:3.11
+    volumes:
+      - cassandra:/var/lib/cassandra
+      - ./db_schema/schema.cql:/tmp/schema.cql
+    ports:
+      - 7000:7000
+      - 9042:9042
+    networks:
+      - default
+    
