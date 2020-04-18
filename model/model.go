@@ -44,11 +44,11 @@ func New(session api.DbSession, key string) *AyiModel {
 	}
 
 	model = &AyiModel{
-		supportedDpi: []int32{utils.IMAGE_MDPI,
-			utils.IMAGE_HDPI,
-			utils.IMAGE_XHDPI,
-			utils.IMAGE_XXHDPI,
-			utils.IMAGE_XXXHDPI},
+		supportedDpi: []int32{utils.ImageMdpi,
+			utils.ImageHdpi,
+			utils.ImageXhdpi,
+			utils.ImageXxhdpi,
+			utils.ImageXxxhdpi},
 		dbsession: session,
 	}
 	model.Accounts = newAccountManager(model, session)
@@ -86,10 +86,10 @@ func (m *AyiModel) DbSession() api.DbSession {
 
 func (self *AyiModel) GetClosestDpi(reqDpi int32) int32 {
 
-	if reqDpi <= utils.IMAGE_MDPI {
-		return utils.IMAGE_MDPI
-	} else if reqDpi >= utils.IMAGE_XXXHDPI {
-		return utils.IMAGE_XXXHDPI
+	if reqDpi <= utils.ImageMdpi {
+		return utils.ImageMdpi
+	} else if reqDpi >= utils.ImageXxxhdpi {
+		return utils.ImageXxxhdpi
 	}
 
 	min_dist := math.MaxFloat32

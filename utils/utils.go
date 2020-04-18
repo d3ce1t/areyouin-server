@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	IMAGE_MDPI    = 160              // 160dpi
-	IMAGE_HDPI    = 1.5 * IMAGE_MDPI // 240dpi
-	IMAGE_XHDPI   = 2 * IMAGE_MDPI   // 320dpi
-	IMAGE_XXHDPI  = 3 * IMAGE_MDPI   // 480dpi
-	IMAGE_XXXHDPI = 4 * IMAGE_MDPI   // 640dpi
+	ImageMdpi    = 160             // 160dpi
+	ImageHdpi    = 1.5 * ImageMdpi // 240dpi
+	ImageXhdpi   = 2 * ImageMdpi   // 320dpi
+	ImageXxhdpi  = 3 * ImageMdpi   // 480dpi
+	ImageXxxhdpi = 4 * ImageMdpi   // 640dpi
 )
 
 var (
@@ -204,7 +204,7 @@ func CreateThumbnails(srcImage image.Image, size_xy int, forDpi []int32) (map[in
 
 	for _, dpi := range forDpi {
 		// Compute size
-		size := float32(size_xy) * (float32(dpi) / float32(IMAGE_MDPI))
+		size := float32(size_xy) * (float32(dpi) / float32(ImageMdpi))
 		// Resize and crop image to fill size x size area
 		dstImage := imaging.Thumbnail(srcImage, int(size), int(size), imaging.Lanczos)
 		// Encode
