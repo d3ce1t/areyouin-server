@@ -9,10 +9,11 @@ import (
 	_ "image/jpeg"
 	"io/ioutil"
 	"net/http"
-	"peeple/areyouin/facebook"
-	"peeple/areyouin/model"
-	"peeple/areyouin/utils"
 	"unicode"
+
+	"github.com/d3ce1t/areyouin-server/facebook"
+	"github.com/d3ce1t/areyouin-server/model"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 type createFakeUserCmd struct {

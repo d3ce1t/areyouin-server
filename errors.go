@@ -2,10 +2,11 @@ package main
 
 import (
 	"errors"
-	"peeple/areyouin/api"
-	"peeple/areyouin/facebook"
-	"peeple/areyouin/model"
-	proto "peeple/areyouin/protocol"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/facebook"
+	"github.com/d3ce1t/areyouin-server/model"
+	proto "github.com/d3ce1t/areyouin-server/protocol"
 )
 
 var (

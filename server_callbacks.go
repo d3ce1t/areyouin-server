@@ -2,13 +2,14 @@ package main
 
 import (
 	"log"
-	"peeple/areyouin/api"
-	fb "peeple/areyouin/facebook"
-	"peeple/areyouin/model"
-	proto "peeple/areyouin/protocol"
-	"peeple/areyouin/protocol/core"
-	"peeple/areyouin/utils"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	fb "github.com/d3ce1t/areyouin-server/facebook"
+	"github.com/d3ce1t/areyouin-server/model"
+	proto "github.com/d3ce1t/areyouin-server/protocol"
+	"github.com/d3ce1t/areyouin-server/protocol/core"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 func onCreateAccount(request *proto.AyiPacket, message proto.Message, session *AyiSession) {

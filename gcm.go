@@ -2,8 +2,9 @@ package main
 
 import (
 	"log"
-	"peeple/areyouin/model"
-	"peeple/areyouin/utils"
+
+	"github.com/d3ce1t/areyouin-server/model"
+	"github.com/d3ce1t/areyouin-server/utils"
 
 	gcm "github.com/google/go-gcm"
 )

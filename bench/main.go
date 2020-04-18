@@ -6,10 +6,11 @@ import (
 	"log"
 	"math"
 	"os"
-	"peeple/areyouin/cqldao"
-	"peeple/areyouin/utils"
 	"sync"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/cqldao"
+	"github.com/d3ce1t/areyouin-server/utils"
 
 	hist "github.com/uniplot/histogram"
 )

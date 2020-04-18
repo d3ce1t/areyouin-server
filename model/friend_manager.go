@@ -3,9 +3,10 @@ package model
 import (
 	"errors"
 	"log"
-	"peeple/areyouin/api"
-	"peeple/areyouin/cqldao"
-	fb "peeple/areyouin/facebook"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/cqldao"
+	fb "github.com/d3ce1t/areyouin-server/facebook"
 
 	observer "github.com/imkira/go-observer"
 )

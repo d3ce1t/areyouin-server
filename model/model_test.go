@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"peeple/areyouin/cqldao"
 	"testing"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/cqldao"
 )
 
 var testModel *AyiModel

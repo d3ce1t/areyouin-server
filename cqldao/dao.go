@@ -1,7 +1,7 @@
 package cqldao
 
 import (
-	"peeple/areyouin/api"
+	"github.com/d3ce1t/areyouin-server/api"
 )
 
 func NewUserDAO(session api.DbSession) api.UserDAO {

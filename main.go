@@ -4,12 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"peeple/areyouin/api"
-	"peeple/areyouin/cqldao"
-	imgserv "peeple/areyouin/images_server"
-	"peeple/areyouin/model"
-	proto "peeple/areyouin/protocol"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/cqldao"
+	imgserv "github.com/d3ce1t/areyouin-server/images_server"
+	"github.com/d3ce1t/areyouin-server/model"
+	proto "github.com/d3ce1t/areyouin-server/protocol"
 )
 
 // Server global configuration

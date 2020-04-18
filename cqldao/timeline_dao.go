@@ -1,10 +1,11 @@
 package cqldao
 
 import (
-	"peeple/areyouin/api"
-	"peeple/areyouin/utils"
 	"sort"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/utils"
 
 	"github.com/gocql/gocql"
 )

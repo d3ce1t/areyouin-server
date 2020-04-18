@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
-	"peeple/areyouin/model"
-	"peeple/areyouin/utils"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/model"
+	"github.com/d3ce1t/areyouin-server/utils"
 
 	"github.com/imkira/go-observer"
 )

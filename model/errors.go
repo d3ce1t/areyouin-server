@@ -2,7 +2,8 @@ package model
 
 import (
 	"errors"
-	"peeple/areyouin/api"
+
+	"github.com/d3ce1t/areyouin-server/api"
 )
 
 var (

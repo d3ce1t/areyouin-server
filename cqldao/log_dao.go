@@ -2,10 +2,11 @@ package cqldao
 
 import (
 	"fmt"
-	"peeple/areyouin/api"
-	"peeple/areyouin/utils"
 	"strconv"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 type LogDAO struct {

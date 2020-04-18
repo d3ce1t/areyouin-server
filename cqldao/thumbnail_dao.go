@@ -2,7 +2,8 @@ package cqldao
 
 import (
 	"log"
-	"peeple/areyouin/utils"
+
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 type ThumbnailDAO struct {

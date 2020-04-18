@@ -1,8 +1,8 @@
 package cqldao
 
 import (
+	"github.com/d3ce1t/areyouin-server/api"
 	"github.com/gocql/gocql"
-	"peeple/areyouin/api"
 )
 
 type AccessTokenDAO struct {

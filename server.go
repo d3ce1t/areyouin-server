@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"peeple/areyouin/api"
-	fb "peeple/areyouin/facebook"
-	"peeple/areyouin/model"
-	proto "peeple/areyouin/protocol"
-	wh "peeple/areyouin/webhook"
 	"strings"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	fb "github.com/d3ce1t/areyouin-server/facebook"
+	"github.com/d3ce1t/areyouin-server/model"
+	proto "github.com/d3ce1t/areyouin-server/protocol"
+	wh "github.com/d3ce1t/areyouin-server/webhook"
 )
 
 type Callback func(*proto.AyiPacket, proto.Message, *AyiSession)

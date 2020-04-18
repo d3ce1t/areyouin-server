@@ -1,11 +1,12 @@
 package model
 
 import (
-	"peeple/areyouin/api"
-	"peeple/areyouin/idgen"
-	"peeple/areyouin/utils"
 	"strings"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/idgen"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 type EventBuilder interface {

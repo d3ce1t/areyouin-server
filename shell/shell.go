@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"peeple/areyouin/api"
-	"peeple/areyouin/model"
 	"strings"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/model"
 )
 
 type Command interface {

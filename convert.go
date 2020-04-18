@@ -1,9 +1,9 @@
 package main
 
 import (
-	"peeple/areyouin/model"
-	"peeple/areyouin/protocol/core"
-	"peeple/areyouin/utils"
+	"github.com/d3ce1t/areyouin-server/model"
+	"github.com/d3ce1t/areyouin-server/protocol/core"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 func convUser2Net(user *model.UserAccount) *core.UserAccount {

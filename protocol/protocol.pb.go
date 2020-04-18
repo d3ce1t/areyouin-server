@@ -48,10 +48,15 @@ It has these top-level messages:
 */
 package protocol
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
-import core "peeple/areyouin/protocol/core"
+import (
+	fmt "fmt"
+
+	proto "github.com/golang/protobuf/proto"
+
+	math "math"
+
+	core "github.com/d3ce1t/areyouin-server/protocol/core"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal

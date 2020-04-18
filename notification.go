@@ -3,8 +3,9 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"peeple/areyouin/api"
-	"peeple/areyouin/model"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/model"
 
 	gcm "github.com/google/go-gcm"
 )

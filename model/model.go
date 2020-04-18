@@ -2,9 +2,10 @@ package model
 
 import (
 	"math"
-	"peeple/areyouin/api"
-	"peeple/areyouin/utils"
 	"sync"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 const (

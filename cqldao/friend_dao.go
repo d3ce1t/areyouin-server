@@ -2,7 +2,8 @@ package cqldao
 
 import (
 	"log"
-	"peeple/areyouin/api"
+
+	"github.com/d3ce1t/areyouin-server/api"
 
 	"github.com/gocql/gocql"
 )

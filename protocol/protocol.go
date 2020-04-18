@@ -3,9 +3,10 @@ package protocol
 import (
 	"io"
 	"net"
-	"peeple/areyouin/protocol/core"
 	"syscall"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/protocol/core"
 )
 
 const (

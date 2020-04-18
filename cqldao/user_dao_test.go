@@ -1,7 +1,7 @@
 package cqldao
 
 /*import (
-	core "peeple/areyouin/common"
+	core "github.com/d3ce1t/areyouin-server/common"
 	"testing"
 	"time"
 )

@@ -3,8 +3,8 @@ package main
 /*import (
 	"flag"
 	"os"
-	core "peeple/areyouin/common"
-	proto "peeple/areyouin/protocol"
+	core "github.com/d3ce1t/areyouin-server/common"
+	proto "github.com/d3ce1t/areyouin-server/protocol"
 	"testing"
 )
 

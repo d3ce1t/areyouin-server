@@ -5,11 +5,12 @@ import (
 	"crypto/sha256"
 	"image"
 	"log"
-	"peeple/areyouin/api"
-	"peeple/areyouin/cqldao"
-	"peeple/areyouin/utils"
 	"strconv"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/cqldao"
+	"github.com/d3ce1t/areyouin-server/utils"
 
 	"github.com/imkira/go-observer"
 )

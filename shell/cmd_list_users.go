@@ -2,8 +2,9 @@ package shell
 
 import (
 	"fmt"
-	"peeple/areyouin/cqldao"
-	"peeple/areyouin/utils"
+
+	"github.com/d3ce1t/areyouin-server/cqldao"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 // list_users

@@ -5,7 +5,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
-	"peeple/areyouin/server/shell"
+
+	"github.com/d3ce1t/areyouin-server/shell"
 
 	"golang.org/x/crypto/ssh"
 )

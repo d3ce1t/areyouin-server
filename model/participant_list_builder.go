@@ -2,8 +2,9 @@ package model
 
 import (
 	"log"
-	"peeple/areyouin/api"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
 )
 
 type ParticipantAdder interface {

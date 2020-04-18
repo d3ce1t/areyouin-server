@@ -1,8 +1,9 @@
 package cqldao
 
 import (
-	"peeple/areyouin/utils"
 	"testing"
+
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 func TestTimeLineDAO_Insert(t *testing.T) {

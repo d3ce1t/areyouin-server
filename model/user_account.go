@@ -1,10 +1,11 @@
 package model
 
 import (
-	"peeple/areyouin/api"
-	"peeple/areyouin/idgen"
-	"peeple/areyouin/utils"
 	"strings"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/idgen"
+	"github.com/d3ce1t/areyouin-server/utils"
 
 	"github.com/twinj/uuid"
 )

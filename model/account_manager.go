@@ -5,11 +5,12 @@ import (
 	"crypto/sha256"
 	"image"
 	"log"
-	"peeple/areyouin/api"
-	"peeple/areyouin/cqldao"
-	fb "peeple/areyouin/facebook"
-	"peeple/areyouin/utils"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/cqldao"
+	fb "github.com/d3ce1t/areyouin-server/facebook"
+	"github.com/d3ce1t/areyouin-server/utils"
 
 	observer "github.com/imkira/go-observer"
 	"github.com/twinj/uuid"

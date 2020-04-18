@@ -1,7 +1,7 @@
 package model
 
 import (
-	"peeple/areyouin/api"
+	"github.com/d3ce1t/areyouin-server/api"
 )
 
 func newAccesToken(userID int64, token string) *AccessToken {

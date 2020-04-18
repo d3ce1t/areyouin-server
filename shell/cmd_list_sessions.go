@@ -2,8 +2,9 @@ package shell
 
 import (
 	"fmt"
-	"peeple/areyouin/utils"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 // list_sessions

@@ -2,10 +2,11 @@ package main
 
 import (
 	"log"
-	"peeple/areyouin/api"
-	"peeple/areyouin/idgen"
-	"peeple/areyouin/utils"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/idgen"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 // Test write workload to create an event

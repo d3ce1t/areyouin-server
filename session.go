@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"peeple/areyouin/model"
-	proto "peeple/areyouin/protocol"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/model"
+	proto "github.com/d3ce1t/areyouin-server/protocol"
 )
 
 const (

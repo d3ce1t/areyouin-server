@@ -2,9 +2,10 @@ package shell
 
 import (
 	"fmt"
-	"peeple/areyouin/cqldao"
-	"peeple/areyouin/utils"
 	"strconv"
+
+	"github.com/d3ce1t/areyouin-server/cqldao"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 // show_user

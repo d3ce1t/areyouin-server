@@ -2,8 +2,9 @@ package cqldao
 
 import (
 	"log"
-	"peeple/areyouin/api"
-	"peeple/areyouin/utils"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 func (dao *FriendDAO) getFriendsIdInGroup(user_id int64, group_id int32) ([]int64, error) {

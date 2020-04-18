@@ -6,11 +6,12 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"peeple/areyouin/api"
-	"peeple/areyouin/cqldao"
-	"peeple/areyouin/model"
-	"peeple/areyouin/utils"
 	"strconv"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/cqldao"
+	"github.com/d3ce1t/areyouin-server/model"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 var (

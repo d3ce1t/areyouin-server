@@ -1,8 +1,8 @@
 package protocol
 
 import (
-	core "peeple/areyouin/protocol/core"
-	"peeple/areyouin/utils"
+	core "github.com/d3ce1t/areyouin-server/protocol/core"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 type PacketBuilder struct {

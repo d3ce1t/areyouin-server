@@ -2,10 +2,11 @@ package model
 
 import (
 	"bytes"
-	"peeple/areyouin/api"
-	"peeple/areyouin/utils"
 	"strings"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 type EventModifier interface {

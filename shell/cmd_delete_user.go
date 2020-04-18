@@ -2,8 +2,9 @@ package shell
 
 import (
 	"fmt"
-	"peeple/areyouin/cqldao"
 	"strconv"
+
+	"github.com/d3ce1t/areyouin-server/cqldao"
 )
 
 type deleteUserCmd struct {

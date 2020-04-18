@@ -1,10 +1,11 @@
 package cqldao
 
 import (
-	"peeple/areyouin/api"
-	"peeple/areyouin/utils"
 	"testing"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 func TestEventDAO_Insert(t *testing.T) {

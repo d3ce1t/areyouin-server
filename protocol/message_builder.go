@@ -1,7 +1,7 @@
 package protocol
 
 import (
-	"peeple/areyouin/protocol/core"
+	"github.com/d3ce1t/areyouin-server/protocol/core"
 )
 
 // Interface

@@ -9,7 +9,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"peeple/areyouin/api"
+
+	"github.com/d3ce1t/areyouin-server/api"
 )
 
 const VERIFY_TOKEN = "HK377WB7LPBWN87HMZ7X"

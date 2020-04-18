@@ -1,8 +1,9 @@
 package model
 
 import (
-	"peeple/areyouin/api"
 	"time"
+
+	"github.com/d3ce1t/areyouin-server/api"
 )
 
 type ParticipantModifier interface {

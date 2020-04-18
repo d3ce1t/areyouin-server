@@ -1,8 +1,8 @@
 package model
 
 import (
-	"peeple/areyouin/api"
-	"peeple/areyouin/utils"
+	"github.com/d3ce1t/areyouin-server/api"
+	"github.com/d3ce1t/areyouin-server/utils"
 )
 
 type Friend struct {
