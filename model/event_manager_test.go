@@ -304,7 +304,7 @@ func TestNewEvent_ChangeParticipantResponse(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		_, err := testModel.Events.ChangeParticipantResponse(test.userID, test.response, test.event)
+		_, err := testModel.Events.ChangeParticipantResponse(test.event.id, test.userID, test.response)
 		if err != test.expected {
 			t.Fatalf("test %v: Expected '%v' but got '%v'", i, test.expected, err)
 		}
