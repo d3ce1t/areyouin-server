@@ -29,12 +29,9 @@ RUN go build -ldflags "-w -s -X main.BUILD_TIME=$(date -u '+%Y%m%d_%H%M%S')" -o 
 
 # Create dist
 RUN mkdir -p dist/cert \
-    && cp server.bin dist/server.bin \
-    && cp areyouin.example.yaml dist/areyouin.yaml
+    && cp server.bin dist/server.bin
 
 # Final image
-# FROM alpine:3.11
-# RUN apk add --no-cache bash
 FROM scratch
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
